@@ -1,0 +1,11 @@
+{
+  "name": "outlook-invite-addin",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Outlook add-in: a Create Invite button that reads a scheduling email and opens a pre-filled meeting invite.",
+  "type": "commonjs",
+  "scripts": {
+    "icons": "node tools/make-icons.mjs",
+    "build-manifest": "node tools/set-base-url.mjs"
+  }
+}

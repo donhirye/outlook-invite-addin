@@ -1,0 +1,5 @@
+# Generated from manifest.xml via tools/set-base-url.mjs
+manifest.built.xml
+
+# Node
+node_modules/
