@@ -1,0 +1,145 @@
+import logging
+from typing import Any
+
+from fastapi import FastAPI, Form, Request, Response
+from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
+from itsdangerous import BadSignature, URLSafeSerializer
+from starlette.middleware.sessions import SessionMiddleware
+
+from app.config import (
+    ADMIN_PASSWORD,
+    SECRET_KEY,
+    TEMPLATES_DIR,
+    WHATSAPP_VERIFY_TOKEN,
+)
+from app.greeting_store import get_greeting, set_greeting
+from app.whatsapp import send_text_message
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+app = FastAPI(title="WhatsApp Hello Bot", docs_url="/docs")
+app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie="hello_bot_session")
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+signer = URLSafeSerializer(SECRET_KEY, salt="admin-auth")
+
+
+def _is_logged_in(request: Request) -> bool:
+    token = request.session.get("admin")
+    if not token:
+        return False
+    try:
+        return signer.loads(token) == "ok"
+    except BadSignature:
+        return False
+
+
+def _login(request: Request) -> None:
+    request.session["admin"] = signer.dumps("ok")
+
+
+def _logout(request: Request) -> None:
+    request.session.clear()
+
+
+@app.get("/", response_class=PlainTextResponse)
+async def root() -> str:
+    return (
+        "WhatsApp Hello Bot is running.\n"
+        "Admin: /admin\n"
+        "Webhook: /webhook\n"
+        "Health: /health\n"
+    )
+
+
+@app.get("/health")
+async def health() -> dict[str, str]:
+    return {"status": "ok"}
+
+
+@app.get("/admin", response_class=HTMLResponse)
+async def admin_page(request: Request, saved: int = 0) -> Response:
+    logged_in = _is_logged_in(request)
+    return templates.TemplateResponse(
+        request,
+        "admin.html",
+        {
+            "logged_in": logged_in,
+            "message": get_greeting() if logged_in else "",
+            "saved": bool(saved) and logged_in,
+            "error": None,
+        },
+    )
+
+
+@app.post("/admin/login", response_class=HTMLResponse)
+async def admin_login(request: Request, password: str = Form(...)) -> Response:
+    if password != ADMIN_PASSWORD:
+        return templates.TemplateResponse(
+            request,
+            "admin.html",
+            {
+                "logged_in": False,
+                "message": "",
+                "saved": False,
+                "error": "Wrong password.",
+            },
+            status_code=401,
+        )
+    _login(request)
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+@app.get("/admin/logout")
+async def admin_logout(request: Request) -> Response:
+    _logout(request)
+    return RedirectResponse(url="/admin", status_code=303)
+
+
+@app.post("/admin/message")
+async def admin_save_message(request: Request, message: str = Form(...)) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    set_greeting(message)
+    return RedirectResponse(url="/admin?saved=1", status_code=303)
+
+
+@app.get("/webhook")
+async def verify_webhook(
+    request: Request,
+) -> Response:
+    params = request.query_params
+    mode = params.get("hub.mode")
+    token = params.get("hub.verify_token")
+    challenge = params.get("hub.challenge")
+
+    if mode == "subscribe" and token == WHATSAPP_VERIFY_TOKEN and challenge:
+        logger.info("Webhook verified")
+        return PlainTextResponse(content=challenge, status_code=200)
+
+    logger.warning("Webhook verification failed")
+    return PlainTextResponse(content="Verification failed", status_code=403)
+
+
+@app.post("/webhook")
+async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
+    """Receive inbound WhatsApp messages and reply with the greeting."""
+    try:
+        for entry in payload.get("entry", []):
+            for change in entry.get("changes", []):
+                value = change.get("value", {})
+                messages = value.get("messages", []) or []
+                for message in messages:
+                    if message.get("type") != "text":
+                        continue
+                    from_phone = message.get("from")
+                    if not from_phone:
+                        continue
+                    greeting = get_greeting()
+                    logger.info("Replying to %s with greeting", from_phone)
+                    await send_text_message(from_phone, greeting)
+    except Exception:
+        # Always acknowledge quickly so Meta does not disable the webhook.
+        logger.exception("Error while handling webhook")
+    return {"status": "ok"}

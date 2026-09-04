@@ -3,3 +3,10 @@ manifest.built.xml
 
 # Node
 node_modules/
+
+# WhatsApp hello bot
+whatsapp-hello-bot/.env
+whatsapp-hello-bot/.venv/
+whatsapp-hello-bot/__pycache__/
+whatsapp-hello-bot/**/__pycache__/
+whatsapp-hello-bot/.pytest_cache/
