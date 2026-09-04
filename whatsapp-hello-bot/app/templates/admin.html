@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WhatsApp Hello Bot — Admin</title>
+  <style>
+    :root {
+      --bg: #0f2a24;
+      --panel: #17352d;
+      --ink: #f3f7f5;
+      --muted: #a8c0b7;
+      --accent: #25d366;
+      --accent-ink: #0b1f19;
+      --danger: #ffb4a8;
+      --ok: #9be7c4;
+      --border: rgba(255, 255, 255, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
+        var(--bg);
+      display: grid;
+      place-items: center;
+      padding: 1.5rem;
+    }
+    .card {
+      width: min(32rem, 100%);
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.4rem;
+      font-weight: 650;
+    }
+    p {
+      margin: 0 0 1.25rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    input[type="password"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--ink);
+      border-radius: 0.65rem;
+      padding: 0.75rem 0.85rem;
+      font: inherit;
+      margin-bottom: 1rem;
+    }
+    textarea { min-height: 7rem; resize: vertical; }
+    button, .link-btn {
+      appearance: none;
+      border: 0;
+      border-radius: 0.65rem;
+      padding: 0.7rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--accent-ink);
+    }
+    .row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .link-btn {
+      text-decoration: none;
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .flash {
+      margin-bottom: 1rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.65rem;
+      background: rgba(155, 231, 196, 0.12);
+      color: var(--ok);
+      border: 1px solid rgba(155, 231, 196, 0.25);
+    }
+    .flash.error {
+      background: rgba(255, 180, 168, 0.12);
+      color: var(--danger);
+      border-color: rgba(255, 180, 168, 0.25);
+    }
+    .hint {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85em;
+      color: #d7ffe9;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    {% if not logged_in %}
+      <h1>Admin login</h1>
+      <p>Only the group admin should use this page to set the bot greeting.</p>
+      {% if error %}
+        <div class="flash error">{{ error }}</div>
+      {% endif %}
+      <form method="post" action="/admin/login">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" required autofocus />
+        <button type="submit">Log in</button>
+      </form>
+      <p class="hint">Default password is in <code>.env</code> as <code>ADMIN_PASSWORD</code>.</p>
+    {% else %}
+      <h1>Greeting message</h1>
+      <p>When someone messages the bot, it replies with this text.</p>
+      {% if saved %}
+        <div class="flash">Greeting saved.</div>
+      {% endif %}
+      <form method="post" action="/admin/message">
+        <label for="message">Bot reply</label>
+        <textarea id="message" name="message" required>{{ message }}</textarea>
+        <div class="row">
+          <button type="submit">Save greeting</button>
+          <a class="link-btn" href="/admin/logout">Log out</a>
+        </div>
+      </form>
+      <p class="hint">
+        Pin a WhatsApp link in your group:
+        <code>https://wa.me/&lt;BOT_PHONE_E164_NO_PLUS&gt;</code>
+      </p>
+    {% endif %}
+  </main>
+</body>
+</html>
