@@ -12,6 +12,7 @@ from app.config import (
     SECRET_KEY,
     TEMPLATES_DIR,
     WHATSAPP_VERIFY_TOKEN,
+    credential_status,
 )
 from app.greeting_store import get_greeting, set_greeting
 from app.whatsapp import send_text_message
@@ -23,6 +24,17 @@ app = FastAPI(title="WhatsApp Hello Bot", docs_url="/docs")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie="hello_bot_session")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 signer = URLSafeSerializer(SECRET_KEY, salt="admin-auth")
+
+
+@app.on_event("startup")
+async def log_credential_status() -> None:
+    status = credential_status()
+    logger.info("Startup credential check: %s", status)
+    if not status["access_token_len"] or not status["phone_number_id_set"]:
+        logger.warning(
+            "WhatsApp send will fail until WHATSAPP_ACCESS_TOKEN and "
+            "WHATSAPP_PHONE_NUMBER_ID are set in .env and uvicorn is restarted."
+        )
 
 
 def _is_logged_in(request: Request) -> bool:
