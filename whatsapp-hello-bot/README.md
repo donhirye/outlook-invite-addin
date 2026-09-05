@@ -12,7 +12,39 @@ No AI yet. Fixed greeting only. This is the WhatsApp foundation for the later sc
 
 ## Quick start (easiest path)
 
+### Windows note
+
+You do **not** need the Start Menu folder  
+`C:\Users\...\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Python\Python 3.14`  
+in this README. That folder only holds shortcuts.
+
+Open **Command Prompt** or **PowerShell**, then check Python works:
+
+```bat
+py --version
+```
+
+If that fails, try:
+
+```bat
+python --version
+```
+
+If both fail, reinstall Python from [python.org](https://www.python.org/downloads/) and enable **“Add python.exe to PATH”**.
+
 ### 1. Install
+
+**Windows (Command Prompt / PowerShell):**
+
+```bat
+cd whatsapp-hello-bot
+py -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+copy .env.example .env
+```
+
+**macOS / Linux:**
 
 ```bash
 cd whatsapp-hello-bot
@@ -24,7 +56,7 @@ cp .env.example .env
 
 ### 2. Run locally
 
-```bash
+```bat
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
@@ -36,7 +68,7 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 Easiest option while testing: [ngrok](https://ngrok.com/)
 
-```bash
+```bat
 ngrok http 8000
 ```
 
