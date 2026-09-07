@@ -1,4 +1,5 @@
 import logging
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Form, Request, Response
@@ -51,6 +52,12 @@ async def root() -> str:
         "Webhook: /webhook\n"
         "Health: /health\n"
     )
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+async def privacy_policy() -> HTMLResponse:
+    path = Path(__file__).resolve().parent.parent / "privacy-policy.html"
+    return HTMLResponse(path.read_text(encoding="utf-8"))
 
 
 @app.get("/health")
