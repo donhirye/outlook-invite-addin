@@ -76,7 +76,7 @@ def test_admin_login_and_save_greeting(tmp_path, monkeypatch):
     assert get_greeting() == "hello from admin"
 
 
-def test_inbound_message_triggers_send(monkeypatch):
+def test_inbound_message_triggers_faq_reply(monkeypatch):
     sent = {}
 
     async def fake_send(to_phone: str, body: str):
@@ -85,7 +85,10 @@ def test_inbound_message_triggers_send(monkeypatch):
         return {"ok": True}
 
     monkeypatch.setattr("app.main.send_text_message", fake_send)
-    monkeypatch.setattr("app.main.get_greeting", lambda: "hello, how are you")
+    monkeypatch.setattr(
+        "app.main.answer_faq_question",
+        lambda question: f"FAQ answer for: {question}",
+    )
 
     payload = {
         "object": "whatsapp_business_account",
@@ -100,7 +103,7 @@ def test_inbound_message_triggers_send(monkeypatch):
                                     "id": "wamid.test",
                                     "timestamp": "1",
                                     "type": "text",
-                                    "text": {"body": "hi"},
+                                    "text": {"body": "Where should I park?"},
                                 }
                             ]
                         }
@@ -111,4 +114,7 @@ def test_inbound_message_triggers_send(monkeypatch):
     }
     response = client.post("/webhook", json=payload)
     assert response.status_code == 200
-    assert sent == {"to": "15551234567", "body": "hello, how are you"}
+    assert sent == {
+        "to": "15551234567",
+        "body": "FAQ answer for: Where should I park?",
+    }

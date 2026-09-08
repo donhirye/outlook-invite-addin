@@ -25,8 +25,20 @@ WHATSAPP_ACCESS_TOKEN = _env("WHATSAPP_ACCESS_TOKEN", "")
 WHATSAPP_PHONE_NUMBER_ID = _env("WHATSAPP_PHONE_NUMBER_ID", "")
 GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
 
+OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
+OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.6-luna")
+
 GREETING_FILE = BASE_DIR / "data" / "greeting.json"
+FAQ_FILE = BASE_DIR / "data" / "science_olympiad_faq.txt"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+PARENT_FALLBACK_MESSAGE = (
+    "Sorry, I'm having trouble answering right now. Please try again shortly."
+)
+FAQ_NOT_FOUND_MESSAGE = (
+    "I couldn't find that information in the event FAQ. "
+    "Please contact the event organizer."
+)
 
 
 def credential_status() -> dict[str, object]:
@@ -37,4 +49,7 @@ def credential_status() -> dict[str, object]:
         "phone_number_id_set": bool(WHATSAPP_PHONE_NUMBER_ID),
         "phone_number_id": WHATSAPP_PHONE_NUMBER_ID,
         "verify_token_set": bool(WHATSAPP_VERIFY_TOKEN),
+        "openai_api_key_set": bool(OPENAI_API_KEY),
+        "openai_model": OPENAI_MODEL,
+        "faq_file_exists": FAQ_FILE.exists(),
     }

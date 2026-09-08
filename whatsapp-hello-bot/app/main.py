@@ -15,6 +15,7 @@ from app.config import (
     WHATSAPP_VERIFY_TOKEN,
     credential_status,
 )
+from app.faq_service import answer_faq_question
 from app.greeting_store import get_greeting, set_greeting
 from app.whatsapp import send_text_message
 
@@ -36,6 +37,13 @@ async def log_credential_status() -> None:
             "WhatsApp send will fail until WHATSAPP_ACCESS_TOKEN and "
             "WHATSAPP_PHONE_NUMBER_ID are set in .env and uvicorn is restarted."
         )
+    if not status["openai_api_key_set"]:
+        logger.warning(
+            "OPENAI_API_KEY is missing. FAQ answers will use the parent-friendly "
+            "fallback until it is set in .env and uvicorn is restarted."
+        )
+    if not status["faq_file_exists"]:
+        logger.warning("FAQ file is missing: data/science_olympiad_faq.txt")
 
 
 def _is_logged_in(request: Request) -> bool:
@@ -63,6 +71,7 @@ async def root() -> str:
         "Admin: /admin\n"
         "Webhook: /webhook\n"
         "Health: /health\n"
+        "FAQ: data/science_olympiad_faq.txt\n"
     )
 
 
@@ -143,7 +152,7 @@ async def verify_webhook(
 
 @app.post("/webhook")
 async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
-    """Receive inbound WhatsApp messages and reply with the greeting."""
+    """Receive inbound WhatsApp messages and reply with an FAQ-grounded answer."""
     try:
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
@@ -155,9 +164,14 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                     from_phone = message.get("from")
                     if not from_phone:
                         continue
-                    greeting = get_greeting()
-                    logger.info("Replying to %s with greeting", from_phone)
-                    await send_text_message(from_phone, greeting)
+                    question = (message.get("text") or {}).get("body") or ""
+                    logger.info(
+                        "Answering FAQ for %s (question_len=%s)",
+                        from_phone,
+                        len(question),
+                    )
+                    answer = answer_faq_question(question)
+                    await send_text_message(from_phone, answer)
     except Exception:
         # Always acknowledge quickly so Meta does not disable the webhook.
         logger.exception("Error while handling webhook")
