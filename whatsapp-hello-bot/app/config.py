@@ -30,6 +30,7 @@ OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.6-luna")
 
 GREETING_FILE = BASE_DIR / "data" / "greeting.json"
 FAQ_FILE = BASE_DIR / "data" / "science_olympiad_faq.txt"
+METRICS_FILE = BASE_DIR / "data" / "usage_metrics.json"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 PARENT_FALLBACK_MESSAGE = (

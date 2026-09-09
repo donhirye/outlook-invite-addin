@@ -10,3 +10,4 @@ whatsapp-hello-bot/.venv/
 whatsapp-hello-bot/__pycache__/
 whatsapp-hello-bot/**/__pycache__/
 whatsapp-hello-bot/.pytest_cache/
+whatsapp-hello-bot/data/usage_metrics.json

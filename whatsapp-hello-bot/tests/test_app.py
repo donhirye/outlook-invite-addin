@@ -76,8 +76,9 @@ def test_admin_login_and_save_greeting(tmp_path, monkeypatch):
     assert get_greeting() == "hello from admin"
 
 
-def test_inbound_message_triggers_faq_reply(monkeypatch):
+def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
     sent = {}
+    metrics_file = tmp_path / "usage_metrics.json"
 
     async def fake_send(to_phone: str, body: str):
         sent["to"] = to_phone
@@ -89,6 +90,7 @@ def test_inbound_message_triggers_faq_reply(monkeypatch):
         "app.main.answer_faq_question",
         lambda question: f"FAQ answer for: {question}",
     )
+    monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
 
     payload = {
         "object": "whatsapp_business_account",
@@ -118,3 +120,6 @@ def test_inbound_message_triggers_faq_reply(monkeypatch):
         "to": "15551234567",
         "body": "FAQ answer for: Where should I park?",
     }
+    metrics = client.get("/metrics").json()
+    assert metrics["questions_asked"] >= 1
+    assert metrics["unique_users"] >= 1

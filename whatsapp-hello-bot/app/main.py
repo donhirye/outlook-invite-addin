@@ -1,4 +1,5 @@
 import logging
+import time
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from app.config import (
 )
 from app.faq_service import answer_faq_question
 from app.greeting_store import get_greeting, set_greeting
+from app.metrics import get_metrics, record_question
 from app.whatsapp import send_text_message
 
 logging.basicConfig(level=logging.INFO)
@@ -71,6 +73,7 @@ async def root() -> str:
         "Admin: /admin\n"
         "Webhook: /webhook\n"
         "Health: /health\n"
+        "Metrics: /metrics\n"
         "FAQ: data/science_olympiad_faq.txt\n"
     )
 
@@ -84,6 +87,12 @@ async def privacy_policy() -> HTMLResponse:
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/metrics")
+async def metrics() -> dict[str, object]:
+    """Simple usage counters for local/prod inspection."""
+    return get_metrics()
 
 
 @app.get("/admin", response_class=HTMLResponse)
@@ -170,8 +179,12 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                         from_phone,
                         len(question),
                     )
+                    started = time.perf_counter()
                     answer = answer_faq_question(question)
                     await send_text_message(from_phone, answer)
+                    e2e_ms = (time.perf_counter() - started) * 1000
+                    record_question(from_phone, e2e_ms=e2e_ms)
+                    logger.info("e2e_ms=%.1f", e2e_ms)
     except Exception:
         # Always acknowledge quickly so Meta does not disable the webhook.
         logger.exception("Error while handling webhook")
