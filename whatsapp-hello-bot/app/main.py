@@ -16,6 +16,16 @@ from app.config import (
     WHATSAPP_VERIFY_TOKEN,
     credential_status,
 )
+from app.faq_admin import (
+    FAQ_USAGE_TEXT,
+    HELP_TEXT,
+    append_faq_entry,
+    format_parent_answer,
+    is_faq_admin,
+    is_faq_command,
+    is_help_command,
+    parse_faq_command,
+)
 from app.faq_service import answer_faq_question
 from app.greeting_store import get_greeting, set_greeting
 from app.metrics import get_metrics, record_question
@@ -174,17 +184,47 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                     if not from_phone:
                         continue
                     question = (message.get("text") or {}).get("body") or ""
+                    started = time.perf_counter()
+
+                    # Help / menu
+                    if is_help_command(question):
+                        await send_text_message(from_phone, HELP_TEXT)
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=help", e2e_ms)
+                        continue
+
+                    # Admin FAQ append
+                    if is_faq_command(question):
+                        if not is_faq_admin(from_phone):
+                            await send_text_message(
+                                from_phone,
+                                "Only event admins can use /faq.",
+                            )
+                        else:
+                            parsed = parse_faq_command(question)
+                            if not parsed:
+                                await send_text_message(from_phone, FAQ_USAGE_TEXT)
+                            else:
+                                q_text, a_text = parsed
+                                confirmation = append_faq_entry(q_text, a_text)
+                                await send_text_message(from_phone, confirmation)
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=faq_admin", e2e_ms)
+                        continue
+
+                    # Normal parent FAQ question
                     logger.info(
                         "Answering FAQ for %s (question_len=%s)",
                         from_phone,
                         len(question),
                     )
-                    started = time.perf_counter()
-                    answer = answer_faq_question(question)
+                    answer = format_parent_answer(answer_faq_question(question))
                     await send_text_message(from_phone, answer)
                     e2e_ms = (time.perf_counter() - started) * 1000
                     record_question(from_phone, e2e_ms=e2e_ms)
-                    logger.info("e2e_ms=%.1f", e2e_ms)
+                    logger.info("e2e_ms=%.1f kind=faq_answer", e2e_ms)
     except Exception:
         # Always acknowledge quickly so Meta does not disable the webhook.
         logger.exception("Error while handling webhook")

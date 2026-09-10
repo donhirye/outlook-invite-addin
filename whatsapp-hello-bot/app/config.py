@@ -28,6 +28,15 @@ GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
 OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
 OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-5.6-luna")
 
+# Comma-separated WhatsApp numbers allowed to run /faq (digits with country code, no +)
+# Example: 18122165774,15551234567
+_raw_admin_phones = _env("FAQ_ADMIN_PHONES", "")
+FAQ_ADMIN_PHONES = {
+    "".join(ch for ch in part if ch.isdigit())
+    for part in _raw_admin_phones.split(",")
+    if part.strip()
+}
+
 GREETING_FILE = BASE_DIR / "data" / "greeting.json"
 FAQ_FILE = BASE_DIR / "data" / "science_olympiad_faq.txt"
 METRICS_FILE = BASE_DIR / "data" / "usage_metrics.json"
@@ -53,4 +62,5 @@ def credential_status() -> dict[str, object]:
         "openai_api_key_set": bool(OPENAI_API_KEY),
         "openai_model": OPENAI_MODEL,
         "faq_file_exists": FAQ_FILE.exists(),
+        "faq_admin_count": len(FAQ_ADMIN_PHONES),
     }
