@@ -148,13 +148,15 @@ https://wa.me/15551234567
 
 3. People tap → WhatsApp opens a private chat with the bot → they message → greeting comes back.
 
-## Change the greeting (admin only)
+## Change the greeting / FAQ (admin only)
 
-1. Open `/admin`
-2. Log in with `ADMIN_PASSWORD`
-3. Edit the message and save
+1. Open `/admin` (password: `ADMIN_PASSWORD`)
+2. Greeting editor is on `/admin`
+3. FAQ editor is on `/admin/faq` — always shows the latest durable FAQ, including WhatsApp `/faq` adds
 
-Anyone in the group can trigger the bot. Only someone with the admin password can change what it says.
+On Cloud Run, set `FAQ_GCS_BUCKET` so FAQ edits survive restarts (see `CLOUD_RUN.md`).
+
+Parent questions use RAG: the FAQ is chunked + embedded; only the top matching excerpts go to the LLM.
 
 ## Phone number recommendation
 
@@ -171,25 +173,26 @@ Keep your personal number separate. When you move to production, register that d
 whatsapp-hello-bot/
   app/
     main.py           # webhook + admin routes
-    whatsapp.py       # send messages via Cloud API
-    greeting_store.py # read/write greeting text
+    faq_store.py      # durable FAQ (local or GCS)
+    faq_rag.py        # chunk / embed / retrieve
+    faq_service.py    # answer via retrieved excerpts
+    faq_admin.py      # WhatsApp /faq command
     templates/admin.html
-  data/greeting.json  # current greeting
+    templates/admin_faq.html
+  data/science_olympiad_faq.txt
+  CLOUD_RUN.md
   .env.example
   requirements.txt
 ```
 
 ## What this intentionally does NOT include yet
 
-- FAQ / RAG / OpenAI answers
-- Multi-event dashboard
-- School multi-tenancy
-- Production Cloud Run deploy
-
-Those come later on your phased roadmap. This folder is only the WhatsApp hello-bot slice.
+- Managed vector DB product (Pinecone / Vertex Vector Search) — uses OpenAI embeddings + stored index JSON for now
+- Multi-event dashboard / school multi-tenancy
 
 ## Troubleshooting
 
 - **Webhook verify fails**: `.env` `WHATSAPP_VERIFY_TOKEN` must exactly match Meta’s verify token field; server must be publicly reachable over HTTPS.
 - **No reply**: check server logs; confirm `WHATSAPP_ACCESS_TOKEN` and `WHATSAPP_PHONE_NUMBER_ID`; confirm your personal number is on the Meta allow-list for the test number.
 - **Token expired**: temporary Meta tokens expire; generate a new one in API Setup and update `.env`.
+- **FAQ edits disappear on Cloud Run**: set `FAQ_GCS_BUCKET` and grant the Cloud Run service account `roles/storage.objectAdmin` (see `CLOUD_RUN.md`).

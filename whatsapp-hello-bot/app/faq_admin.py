@@ -2,7 +2,9 @@ import logging
 import re
 from pathlib import Path
 
-from app.config import FAQ_ADMIN_PHONES, FAQ_FILE
+from app.config import FAQ_ADMIN_PHONES
+from app.faq_rag import rebuild_index
+from app.faq_store import get_faq_text, set_faq_text
 
 logger = logging.getLogger(__name__)
 
@@ -84,21 +86,21 @@ def append_faq_entry(
     *,
     faq_path: Path | None = None,
 ) -> str:
-    path = faq_path or FAQ_FILE
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    existing = ""
-    if path.exists():
-        existing = path.read_text(encoding="utf-8").rstrip()
-
+    """Append a Q&A to durable FAQ storage and rebuild the embedding index."""
     block = f"Q: {question}\nA: {answer}"
-    if existing:
-        new_text = f"{existing}\n\n{block}\n"
-    else:
-        new_text = f"{block}\n"
+    try:
+        existing = get_faq_text(faq_path=faq_path).rstrip()
+        new_text = f"{existing}\n\n{block}"
+    except (FileNotFoundError, ValueError):
+        new_text = block
 
-    path.write_text(new_text, encoding="utf-8")
-    logger.info("Appended FAQ entry to %s", path)
+    set_faq_text(new_text, faq_path=faq_path)
+    try:
+        rebuild_index(new_text, faq_path=faq_path)
+    except Exception:
+        logger.exception("FAQ saved but embedding index rebuild failed")
+
+    logger.info("Appended FAQ entry via durable store")
     return (
         "*Saved to FAQ*\n\n"
         f"*Q:* {question}\n"

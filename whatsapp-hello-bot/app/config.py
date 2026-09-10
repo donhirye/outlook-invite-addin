@@ -42,6 +42,22 @@ FAQ_FILE = BASE_DIR / "data" / "science_olympiad_faq.txt"
 METRICS_FILE = BASE_DIR / "data" / "usage_metrics.json"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
+# Durable FAQ on Cloud Run (optional). When set, FAQ text + embedding index
+# live in GCS so admin UI and WhatsApp /faq share one source of truth.
+FAQ_GCS_BUCKET = _env("FAQ_GCS_BUCKET", "")
+FAQ_GCS_OBJECT = _env("FAQ_GCS_OBJECT", "science_olympiad_faq.txt")
+FAQ_GCS_INDEX_OBJECT = _env(
+    "FAQ_GCS_INDEX_OBJECT",
+    "science_olympiad_faq.txt.index.json",
+)
+
+# RAG retrieval
+FAQ_EMBEDDING_MODEL = _env("FAQ_EMBEDDING_MODEL", "text-embedding-3-small")
+try:
+    FAQ_TOP_K = max(1, int(_env("FAQ_TOP_K", "4")))
+except ValueError:
+    FAQ_TOP_K = 4
+
 PARENT_FALLBACK_MESSAGE = (
     "Sorry, I'm having trouble answering right now. Please try again shortly."
 )
@@ -63,4 +79,7 @@ def credential_status() -> dict[str, object]:
         "openai_model": OPENAI_MODEL,
         "faq_file_exists": FAQ_FILE.exists(),
         "faq_admin_count": len(FAQ_ADMIN_PHONES),
+        "faq_gcs_bucket": FAQ_GCS_BUCKET or None,
+        "faq_embedding_model": FAQ_EMBEDDING_MODEL,
+        "faq_top_k": FAQ_TOP_K,
     }

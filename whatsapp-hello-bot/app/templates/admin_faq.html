@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WhatsApp Hello Bot — Admin</title>
+  <title>Event FAQ — Admin</title>
   <style>
     :root {
       --bg: #0f2a24;
@@ -27,11 +27,12 @@
         radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
         var(--bg);
       display: grid;
-      place-items: center;
+      place-items: start center;
       padding: 1.5rem;
     }
     .card {
-      width: min(32rem, 100%);
+      width: min(48rem, 100%);
+      margin-top: 1rem;
       background: color-mix(in srgb, var(--panel) 92%, black);
       border: 1px solid var(--border);
       border-radius: 1rem;
@@ -48,24 +49,46 @@
       color: var(--muted);
       line-height: 1.45;
     }
+    nav {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+    }
+    nav a.active {
+      color: var(--accent-ink);
+      background: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+    }
     label {
       display: block;
       font-size: 0.85rem;
       color: var(--muted);
       margin-bottom: 0.4rem;
     }
-    input[type="password"],
     textarea {
       width: 100%;
+      min-height: 22rem;
       border: 1px solid var(--border);
       background: rgba(0, 0, 0, 0.25);
       color: var(--ink);
       border-radius: 0.65rem;
-      padding: 0.75rem 0.85rem;
-      font: inherit;
+      padding: 0.85rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.45;
       margin-bottom: 1rem;
+      resize: vertical;
     }
-    textarea { min-height: 7rem; resize: vertical; }
     button, .link-btn {
       appearance: none;
       border: 0;
@@ -76,6 +99,7 @@
       cursor: pointer;
       background: var(--accent);
       color: var(--accent-ink);
+      text-decoration: none;
     }
     .row {
       display: flex;
@@ -84,7 +108,6 @@
       flex-wrap: wrap;
     }
     .link-btn {
-      text-decoration: none;
       background: transparent;
       color: var(--muted);
       border: 1px solid var(--border);
@@ -102,10 +125,10 @@
       color: var(--danger);
       border-color: rgba(255, 180, 168, 0.25);
     }
-    .hint {
-      margin-top: 1rem;
+    .meta {
       font-size: 0.85rem;
       color: var(--muted);
+      margin-top: 1rem;
     }
     code {
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
@@ -116,41 +139,35 @@
 </head>
 <body>
   <main class="card">
-    {% if not logged_in %}
-      <h1>Admin login</h1>
-      <p>Only the group admin should use this page to set the bot greeting.</p>
-      {% if error %}
-        <div class="flash error">{{ error }}</div>
-      {% endif %}
-      <form method="post" action="/admin/login">
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" required autofocus />
-        <button type="submit">Log in</button>
-      </form>
-      <p class="hint">Default password is in <code>.env</code> as <code>ADMIN_PASSWORD</code>.</p>
-    {% else %}
-      <p style="margin-bottom:0.75rem">
-        <a class="link-btn" href="/admin/faq">Edit event FAQ</a>
-      </p>
-      <h1>Greeting message</h1>
-      <p>Optional fixed greeting helpers. Parents’ questions are answered from the FAQ.</p>
-      {% if saved %}
-        <div class="flash">Greeting saved.</div>
-      {% endif %}
-      <form method="post" action="/admin/message">
-        <label for="message">Bot reply</label>
-        <textarea id="message" name="message" required>{{ message }}</textarea>
-        <div class="row">
-          <button type="submit">Save greeting</button>
-          <a class="link-btn" href="/admin/faq">FAQ editor</a>
-          <a class="link-btn" href="/admin/logout">Log out</a>
-        </div>
-      </form>
-      <p class="hint">
-        Pin a WhatsApp link in your group:
-        <code>https://wa.me/&lt;BOT_PHONE_E164_NO_PLUS&gt;</code>
-      </p>
+    <nav>
+      <a href="/admin">Greeting</a>
+      <a class="active" href="/admin/faq">FAQ</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>Event FAQ</h1>
+    <p>
+      Edit the full FAQ below. Saves go to durable storage
+      (<code>{{ storage }}</code>) and rebuild the search index used for answers.
+      WhatsApp <code>/faq</code> adds appear here too.
+    </p>
+    {% if saved %}
+      <div class="flash">FAQ saved and search index rebuilt.</div>
     {% endif %}
+    {% if error %}
+      <div class="flash error">{{ error }}</div>
+    {% endif %}
+    <form method="post" action="/admin/faq">
+      <label for="faq_text">FAQ text</label>
+      <textarea id="faq_text" name="faq_text" required>{{ faq_text }}</textarea>
+      <div class="row">
+        <button type="submit">Save FAQ</button>
+        <a class="link-btn" href="/admin/faq">Reload</a>
+      </div>
+    </form>
+    <p class="meta">
+      Tip: keep Q&amp;A blocks as <code>Q: ...</code> / <code>A: ...</code> so
+      retrieval stays accurate as the FAQ grows.
+    </p>
   </main>
 </body>
 </html>

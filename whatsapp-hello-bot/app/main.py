@@ -26,7 +26,9 @@ from app.faq_admin import (
     is_help_command,
     parse_faq_command,
 )
+from app.faq_rag import rebuild_index
 from app.faq_service import answer_faq_question
+from app.faq_store import faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
 from app.metrics import get_metrics, record_question
 from app.whatsapp import send_text_message
@@ -54,8 +56,9 @@ async def log_credential_status() -> None:
             "OPENAI_API_KEY is missing. FAQ answers will use the parent-friendly "
             "fallback until it is set in .env and uvicorn is restarted."
         )
-    if not status["faq_file_exists"]:
+    if not status["faq_file_exists"] and not status.get("faq_gcs_bucket"):
         logger.warning("FAQ file is missing: data/science_olympiad_faq.txt")
+    logger.info("FAQ storage: %s", faq_storage_label())
 
 
 def _is_logged_in(request: Request) -> bool:
@@ -84,7 +87,8 @@ async def root() -> str:
         "Webhook: /webhook\n"
         "Health: /health\n"
         "Metrics: /metrics\n"
-        "FAQ: data/science_olympiad_faq.txt\n"
+        f"FAQ storage: {faq_storage_label()}\n"
+        "FAQ admin UI: /admin/faq\n"
     )
 
 
@@ -150,6 +154,52 @@ async def admin_save_message(request: Request, message: str = Form(...)) -> Resp
         return RedirectResponse(url="/admin", status_code=303)
     set_greeting(message)
     return RedirectResponse(url="/admin?saved=1", status_code=303)
+
+
+@app.get("/admin/faq", response_class=HTMLResponse)
+async def admin_faq_page(request: Request, saved: int = 0) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    error = None
+    faq_text = ""
+    try:
+        faq_text = get_faq_text()
+    except Exception as exc:
+        logger.exception("Failed loading FAQ for admin UI")
+        error = str(exc)
+    return templates.TemplateResponse(
+        request,
+        "admin_faq.html",
+        {
+            "faq_text": faq_text,
+            "saved": bool(saved),
+            "error": error,
+            "storage": faq_storage_label(),
+        },
+    )
+
+
+@app.post("/admin/faq", response_class=HTMLResponse)
+async def admin_faq_save(request: Request, faq_text: str = Form(...)) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        cleaned = set_faq_text(faq_text)
+        rebuild_index(cleaned)
+    except Exception as exc:
+        logger.exception("Failed saving FAQ from admin UI")
+        return templates.TemplateResponse(
+            request,
+            "admin_faq.html",
+            {
+                "faq_text": faq_text,
+                "saved": False,
+                "error": f"Could not save FAQ: {exc}",
+                "storage": faq_storage_label(),
+            },
+            status_code=400,
+        )
+    return RedirectResponse(url="/admin/faq?saved=1", status_code=303)
 
 
 @app.get("/webhook")

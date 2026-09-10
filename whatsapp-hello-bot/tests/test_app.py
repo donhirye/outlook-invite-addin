@@ -130,9 +130,19 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
         sent["body"] = body
         return {"ok": True}
 
+    def fake_get(faq_path=None):
+        return faq_file.read_text(encoding="utf-8").strip()
+
+    def fake_set(text, faq_path=None):
+        cleaned = text.strip()
+        faq_file.write_text(cleaned + "\n", encoding="utf-8")
+        return cleaned
+
     monkeypatch.setattr("app.main.send_text_message", fake_send)
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
-    monkeypatch.setattr("app.faq_admin.FAQ_FILE", faq_file)
+    monkeypatch.setattr("app.faq_admin.get_faq_text", fake_get)
+    monkeypatch.setattr("app.faq_admin.set_faq_text", fake_set)
+    monkeypatch.setattr("app.faq_admin.rebuild_index", lambda *a, **k: {"chunks": []})
     monkeypatch.setattr("app.faq_admin.FAQ_ADMIN_PHONES", {"15551234567"})
 
     payload = {
@@ -167,3 +177,38 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
     assert sent["to"] == "15551234567"
     assert "Saved to FAQ" in sent["body"]
     assert "Can grandparents attend?" in faq_file.read_text(encoding="utf-8")
+
+
+def test_admin_faq_ui_roundtrip(tmp_path, monkeypatch):
+    faq_file = tmp_path / "faq.txt"
+    faq_file.write_text("Old FAQ\n", encoding="utf-8")
+
+    def fake_get(faq_path=None):
+        return faq_file.read_text(encoding="utf-8").strip()
+
+    def fake_set(text, faq_path=None):
+        cleaned = (text or "").strip()
+        faq_file.write_text(cleaned + "\n", encoding="utf-8")
+        return cleaned
+
+    monkeypatch.setattr("app.main.get_faq_text", fake_get)
+    monkeypatch.setattr("app.main.set_faq_text", fake_set)
+    monkeypatch.setattr("app.main.rebuild_index", lambda *a, **k: {"chunks": []})
+    monkeypatch.setattr("app.main.faq_storage_label", lambda: str(faq_file))
+
+    client.get("/admin/logout")
+    denied = client.get("/admin/faq", follow_redirects=False)
+    assert denied.status_code == 303
+
+    client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
+    page = client.get("/admin/faq")
+    assert page.status_code == 200
+    assert "Old FAQ" in page.text
+
+    saved = client.post(
+        "/admin/faq",
+        data={"faq_text": "Kendall Celebration\n\nQ: When?\nA: Friday 2pm"},
+        follow_redirects=False,
+    )
+    assert saved.status_code == 303
+    assert "Kendall Celebration" in faq_file.read_text(encoding="utf-8")

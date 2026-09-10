@@ -5,6 +5,7 @@ os.environ.setdefault("ADMIN_PASSWORD", "changeme")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
 os.environ.setdefault("FAQ_ADMIN_PHONES", "15551234567")
+os.environ["FAQ_GCS_BUCKET"] = ""
 
 from app.faq_admin import (
     append_faq_entry,
@@ -52,9 +53,10 @@ def test_admin_phone_check(monkeypatch):
     assert not is_faq_admin("19999999999")
 
 
-def test_append_faq_entry(tmp_path):
+def test_append_faq_entry(tmp_path, monkeypatch):
     faq_file = tmp_path / "faq.txt"
     faq_file.write_text("Arrival:\nStudents arrive by 8:15 AM.\n", encoding="utf-8")
+    monkeypatch.setattr("app.faq_admin.rebuild_index", lambda *args, **kwargs: {"chunks": []})
     msg = append_faq_entry(
         "Can grandparents attend?",
         "Yes. Sign in at the gym.",
