@@ -103,6 +103,54 @@ No more ngrok URL updates.
 3. On every save, the app rebuilds an **embedding index** (OpenAI `text-embedding-3-small` by default) and stores it next to the FAQ.
 4. Parent questions retrieve the top-k relevant chunks (or the full FAQ on the small-FAQ fast path), then those excerpts are sent to the LLM.
 
+## Make FAQ survive redeploys (GCS) — do this once
+
+Right now, if `/` shows `FAQ storage: /app/data/...`, edits are on the container disk and **redeploy overwrites them**.
+
+### 1. Save your live FAQ first
+Open `/admin/faq`, copy everything, paste into:
+
+`whatsapp-hello-bot/data/faq_backup.txt`
+
+### 2. Create bucket + IAM + upload (PowerShell)
+
+```powershell
+cd C:\Users\mihir\Projects\outlook-invite-addin\whatsapp-hello-bot\scripts
+.\setup_faq_gcs.ps1 -ProjectId "YOUR_GCP_PROJECT_ID" -Deploy
+```
+
+Or manually:
+
+```powershell
+$env:PROJECT_ID = "YOUR_GCP_PROJECT_ID"   # not the project number
+$env:REGION = "us-central1"
+$env:FAQ_BUCKET = "$($env:PROJECT_ID)-whatsapp-faq"
+
+gcloud config set project $env:PROJECT_ID
+gcloud services enable storage.googleapis.com
+gcloud storage buckets create "gs://$($env:FAQ_BUCKET)" --location=$env:REGION --uniform-bucket-level-access
+
+$PROJECT_NUMBER = gcloud projects describe $env:PROJECT_ID --format="value(projectNumber)"
+gcloud storage buckets add-iam-policy-binding "gs://$($env:FAQ_BUCKET)" `
+  --member="serviceAccount:$PROJECT_NUMBER-compute@developer.gserviceaccount.com" `
+  --role="roles/storage.objectAdmin"
+
+# upload the FAQ you saved
+gcloud storage cp ..\data\faq_backup.txt "gs://$($env:FAQ_BUCKET)/science_olympiad_faq.txt"
+
+cd ..
+gcloud run deploy whatsapp-faq-bot --source . --region us-central1 --allow-unauthenticated --min-instances 1 --cpu-boost --update-env-vars "FAQ_GCS_BUCKET=$($env:FAQ_BUCKET),FAQ_GCS_OBJECT=science_olympiad_faq.txt,FAQ_GCS_INDEX_OBJECT=science_olympiad_faq.txt.index.json,OPENAI_MODEL=gpt-4o-mini,FAQ_SKIP_RAG_MAX_CHARS=12000"
+```
+
+### 3. Confirm
+`/` should show:
+
+```text
+FAQ storage: gs://YOUR_PROJECT_ID-whatsapp-faq/science_olympiad_faq.txt
+```
+
+After that, `/admin/faq` and WhatsApp `/faq` both write to GCS, and redeploys keep the FAQ.
+
 ## Faster replies (recommended)
 
 Keep one warm instance so Cloud Run does not cold-start on the first WhatsApp message:
