@@ -16,10 +16,22 @@ param(
   [switch]$Deploy
 )
 
-$ErrorActionPreference = "Stop"
+# gcloud prints warnings to stderr; don't treat those as terminating errors.
+$ErrorActionPreference = "Continue"
+if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
+  $PSNativeCommandUseErrorActionPreference = $false
+}
+
+function Invoke-GCloud {
+  param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GcloudArgs)
+  & gcloud @GcloudArgs
+  if ($LASTEXITCODE -ne 0) {
+    throw "gcloud failed ($LASTEXITCODE): gcloud $($GcloudArgs -join ' ')"
+  }
+}
 
 if (-not $ProjectId) {
-  $ProjectId = (gcloud config get-value project 2>$null).Trim()
+  $ProjectId = ((& gcloud config get-value project 2>$null) | Out-String).Trim()
 }
 if (-not $ProjectId) {
   throw "Set -ProjectId or run: gcloud config set project YOUR_PROJECT_ID"
@@ -39,30 +51,40 @@ Write-Host "Service : $ServiceName ($Region)"
 Write-Host "FAQ file: $LocalFaqPath"
 Write-Host ""
 
-gcloud config set project $ProjectId | Out-Null
-gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com storage.googleapis.com --quiet
+Invoke-GCloud config set project $ProjectId
+# Align ADC quota project so the stderr warning goes away.
+& gcloud auth application-default set-quota-project $ProjectId 2>$null | Out-Null
+
+Invoke-GCloud services enable `
+  run.googleapis.com `
+  cloudbuild.googleapis.com `
+  artifactregistry.googleapis.com `
+  storage.googleapis.com `
+  --quiet
 
 # Create bucket if missing
-$bucketCheck = gcloud storage buckets describe "gs://$BucketName" 2>$null
-if (-not $bucketCheck) {
+& gcloud storage buckets describe "gs://$BucketName" 2>$null | Out-Null
+if ($LASTEXITCODE -ne 0) {
   Write-Host "Creating bucket gs://$BucketName ..."
-  gcloud storage buckets create "gs://$BucketName" --location=$Region --uniform-bucket-level-access
+  Invoke-GCloud storage buckets create "gs://$BucketName" `
+    --location=$Region `
+    --uniform-bucket-level-access
 } else {
   Write-Host "Bucket already exists."
 }
 
 # Grant Cloud Run default compute SA object admin
-$ProjectNumber = (gcloud projects describe $ProjectId --format="value(projectNumber)").Trim()
+$ProjectNumber = ((& gcloud projects describe $ProjectId --format="value(projectNumber)") | Out-String).Trim()
 $ServiceAccount = "$ProjectNumber-compute@developer.gserviceaccount.com"
 Write-Host "Granting roles/storage.objectAdmin to $ServiceAccount ..."
-gcloud storage buckets add-iam-policy-binding "gs://$BucketName" `
+Invoke-GCloud storage buckets add-iam-policy-binding "gs://$BucketName" `
   --member="serviceAccount:$ServiceAccount" `
-  --role="roles/storage.objectAdmin" | Out-Null
+  --role="roles/storage.objectAdmin"
 
 # Upload FAQ backup if present (keeps your current content across the cutover)
 if (Test-Path $LocalFaqPath) {
   Write-Host "Uploading FAQ from $LocalFaqPath ..."
-  gcloud storage cp $LocalFaqPath "gs://$BucketName/$FaqObject"
+  Invoke-GCloud storage cp $LocalFaqPath "gs://$BucketName/$FaqObject"
 } else {
   Write-Host ""
   Write-Host "WARNING: $LocalFaqPath not found."
@@ -76,7 +98,7 @@ $envVars = "FAQ_GCS_BUCKET=$BucketName,FAQ_GCS_OBJECT=$FaqObject,FAQ_GCS_INDEX_O
 if ($Deploy) {
   Write-Host "Deploying $ServiceName with durable FAQ env vars ..."
   Set-Location (Join-Path $PSScriptRoot "..")
-  gcloud run deploy $ServiceName `
+  Invoke-GCloud run deploy $ServiceName `
     --source . `
     --region $Region `
     --allow-unauthenticated `
