@@ -9,8 +9,10 @@ from app.faq_store import get_faq_text, set_faq_text
 logger = logging.getLogger(__name__)
 
 HELP_TEXT = (
-    "*Event FAQ Assistant*\n\n"
-    "Send any question about the event and I’ll answer from the FAQ.\n\n"
+    "*PTSA Event Chatbot*\n\n"
+    "Hi! I'm the PTSA chatbot for this school event.\n\n"
+    "My answers are based only on information provided by the PTSA organizers. "
+    "If I don't know something, please ask an admin/organizer directly in your group chat.\n\n"
     "*Examples*\n"
     "• Where should I park?\n"
     "• What time should students arrive?\n\n"
@@ -44,6 +46,35 @@ def is_faq_admin(phone: str) -> bool:
 def is_help_command(text: str) -> bool:
     cleaned = (text or "").strip().lower()
     return cleaned in {"help", "/help", "menu", "/menu", "start"}
+
+
+def is_opener_message(text: str) -> bool:
+    """True for greetings / prefilled wa.me openers, not real FAQ questions."""
+    cleaned = (text or "").strip().lower()
+    if not cleaned:
+        return True
+    if cleaned in {
+        "hi",
+        "hello",
+        "hey",
+        "hola",
+        "yo",
+        "start",
+        "/start",
+        "good morning",
+        "good afternoon",
+        "good evening",
+    }:
+        return True
+    # Typical wa.me ?text= openers like:
+    # "Hi, I have a question about Kendall 5th Grade Celebration"
+    opener_patterns = (
+        r"^(hi|hello|hey)[,!]?\s+i have a question about\b",
+        r"^i have a question about\b",
+        r"^question about\b",
+        r"^ask(ing)? about\b",
+    )
+    return any(re.search(pattern, cleaned) for pattern in opener_patterns)
 
 
 def is_faq_command(text: str) -> bool:

@@ -133,12 +133,15 @@
         <a class="link-btn" href="/admin/faq">Edit event FAQ</a>
       </p>
       <h1>Greeting message</h1>
-      <p>Optional fixed greeting helpers. Parents’ questions are answered from the FAQ.</p>
+      <p>
+        Sent when a parent opens chat with Hi / the prefilled <code>wa.me?text=...</code> message.
+        Real questions are answered from the FAQ.
+      </p>
       {% if saved %}
         <div class="flash">Greeting saved.</div>
       {% endif %}
       <form method="post" action="/admin/message">
-        <label for="message">Bot reply</label>
+        <label for="message">PTSA intro / greeting</label>
         <textarea id="message" name="message" required>{{ message }}</textarea>
         <div class="row">
           <button type="submit">Save greeting</button>
@@ -147,8 +150,8 @@
         </div>
       </form>
       <p class="hint">
-        Pin a WhatsApp link in your group:
-        <code>https://wa.me/&lt;BOT_PHONE_E164_NO_PLUS&gt;</code>
+        Group link (prefill is the “subject”, not the FAQ):
+        <code>https://wa.me/&lt;BOT_PHONE&gt;?text=Hi%2C%20I%20have%20a%20question%20about%20Kendall%205th%20Grade%20Celebration</code>
       </p>
     {% endif %}
   </main>

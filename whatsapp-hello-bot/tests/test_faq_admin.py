@@ -12,6 +12,7 @@ from app.faq_admin import (
     is_faq_admin,
     is_faq_command,
     is_help_command,
+    is_opener_message,
     parse_faq_command,
 )
 
@@ -44,6 +45,16 @@ def test_is_commands():
     assert is_faq_command("/faq Q: a A: b")
     assert is_help_command("/help")
     assert not is_help_command("Where should I park?")
+
+
+def test_opener_messages():
+    assert is_opener_message("hi")
+    assert is_opener_message(
+        "Hi, I have a question about Kendall 5th Grade Celebration"
+    )
+    assert is_opener_message("question about Kendall 5th Grade Celebration")
+    assert not is_opener_message("Where should I park?")
+    assert not is_opener_message("What time does it start?")
 
 
 def test_admin_phone_check(monkeypatch):

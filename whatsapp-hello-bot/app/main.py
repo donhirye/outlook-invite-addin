@@ -24,6 +24,7 @@ from app.faq_admin import (
     is_faq_admin,
     is_faq_command,
     is_help_command,
+    is_opener_message,
     parse_faq_command,
 )
 from app.faq_rag import rebuild_index
@@ -249,6 +250,14 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                         e2e_ms = (time.perf_counter() - started) * 1000
                         record_question(from_phone, e2e_ms=e2e_ms)
                         logger.info("e2e_ms=%.1f kind=help", e2e_ms)
+                        continue
+
+                    # Prefill / greeting openers → PTSA intro (not FAQ search)
+                    if is_opener_message(question):
+                        await send_text_message(from_phone, get_greeting())
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=greeting", e2e_ms)
                         continue
 
                     # Admin FAQ append
