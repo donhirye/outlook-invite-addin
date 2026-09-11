@@ -101,7 +101,23 @@ No more ngrok URL updates.
 1. **Source of truth:** FAQ text in GCS (`FAQ_GCS_BUCKET` / `FAQ_GCS_OBJECT`), or local `data/science_olympiad_faq.txt` when the bucket env is empty.
 2. **Admin UI** and WhatsApp **`/faq`** both read/write that same text.
 3. On every save, the app rebuilds an **embedding index** (OpenAI `text-embedding-3-small` by default) and stores it next to the FAQ.
-4. Parent questions retrieve the top-k relevant chunks, then only those excerpts are sent to the LLM — not the whole FAQ every time.
+4. Parent questions retrieve the top-k relevant chunks (or the full FAQ on the small-FAQ fast path), then those excerpts are sent to the LLM.
+
+## Faster replies (recommended)
+
+Keep one warm instance so Cloud Run does not cold-start on the first WhatsApp message:
+
+```powershell
+gcloud run services update whatsapp-faq-bot --region us-central1 --min-instances 1 --cpu-boost
+```
+
+Or include `--min-instances 1` on deploy:
+
+```powershell
+gcloud run deploy whatsapp-faq-bot --source . --region us-central1 --allow-unauthenticated --min-instances 1 --cpu-boost --update-env-vars "OPENAI_MODEL=gpt-4o-mini,FAQ_SKIP_RAG_MAX_CHARS=12000"
+```
+
+Small FAQs (default ≤12000 chars) skip the embedding call and send the whole FAQ to the LLM in one request.
 
 ## Notes
 

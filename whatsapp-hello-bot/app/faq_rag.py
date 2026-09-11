@@ -19,6 +19,7 @@ from app.config import (
     FAQ_FILE,
     FAQ_GCS_BUCKET,
     FAQ_GCS_INDEX_OBJECT,
+    FAQ_SKIP_RAG_MAX_CHARS,
     FAQ_TOP_K,
     OPENAI_API_KEY,
 )
@@ -27,9 +28,19 @@ logger = logging.getLogger(__name__)
 
 INDEX_VERSION = 1
 
+# Process-local index cache (keyed by FAQ text hash).
+_index_cache: dict[str, Any] | None = None
+_index_cache_faq: str | None = None
+
 
 def _gcs_enabled() -> bool:
     return bool(FAQ_GCS_BUCKET and FAQ_GCS_INDEX_OBJECT)
+
+
+def clear_index_cache() -> None:
+    global _index_cache, _index_cache_faq
+    _index_cache = None
+    _index_cache_faq = None
 
 
 def local_index_path(faq_path: Path | None = None) -> Path:
@@ -182,15 +193,34 @@ def _save_index_dict(index: dict[str, Any], *, faq_path: Path | None = None) -> 
 
 def rebuild_index(faq_text: str, *, faq_path: Path | None = None) -> dict[str, Any]:
     """Build embeddings for faq_text and persist the index next to the FAQ."""
+    global _index_cache, _index_cache_faq
+
     index = build_index(faq_text)
     _save_index_dict(index, faq_path=faq_path)
+    cleaned = (faq_text or "").strip()
+    _index_cache = index
+    _index_cache_faq = cleaned
     return index
 
 
 def ensure_index(faq_text: str, *, faq_path: Path | None = None) -> dict[str, Any]:
     """Load index if present; otherwise rebuild from faq_text."""
+    global _index_cache, _index_cache_faq
+
+    cleaned = (faq_text or "").strip()
+    if (
+        faq_path is None
+        and _index_cache is not None
+        and _index_cache_faq == cleaned
+        and (_index_cache.get("chunks"))
+    ):
+        return _index_cache
+
     existing = _load_index_dict(faq_path=faq_path)
     if existing and existing.get("chunks"):
+        if faq_path is None:
+            _index_cache = existing
+            _index_cache_faq = cleaned
         return existing
     logger.info("FAQ embedding index missing; rebuilding")
     return rebuild_index(faq_text, faq_path=faq_path)
@@ -209,6 +239,15 @@ def retrieve_chunks(
     text = faq_text if faq_text is not None else get_faq_text(faq_path=faq_path)
     k = top_k if top_k is not None else FAQ_TOP_K
     k = max(1, int(k))
+
+    # Fast path: small FAQs skip the embedding round-trip entirely.
+    if FAQ_SKIP_RAG_MAX_CHARS > 0 and len(text) <= FAQ_SKIP_RAG_MAX_CHARS:
+        logger.info(
+            "FAQ fast path (chars=%s <= %s); skipping embeddings",
+            len(text),
+            FAQ_SKIP_RAG_MAX_CHARS,
+        )
+        return [text]
 
     try:
         index = ensure_index(text, faq_path=faq_path)

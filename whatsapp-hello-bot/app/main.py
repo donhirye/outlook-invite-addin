@@ -59,6 +59,13 @@ async def log_credential_status() -> None:
     if not status["faq_file_exists"] and not status.get("faq_gcs_bucket"):
         logger.warning("FAQ file is missing: data/science_olympiad_faq.txt")
     logger.info("FAQ storage: %s", faq_storage_label())
+    try:
+        from app.faq_store import get_faq_text
+
+        warmed = get_faq_text()
+        logger.info("Warmed FAQ cache (%s chars)", len(warmed))
+    except Exception:
+        logger.exception("Could not warm FAQ cache on startup")
 
 
 def _is_logged_in(request: Request) -> bool:

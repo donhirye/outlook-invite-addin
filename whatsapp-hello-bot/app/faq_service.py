@@ -40,6 +40,7 @@ def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
     faq_load_ms = 0.0
     retrieve_ms = 0.0
     openai_call_ms = 0.0
+    retrieval_mode = "unknown"
 
     try:
         cleaned_question = (question or "").strip()
@@ -63,6 +64,11 @@ def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
             faq_path=faq_path,
         )
         retrieve_ms = (time.perf_counter() - retrieve_started) * 1000
+        retrieval_mode = (
+            "full_faq"
+            if len(chunks) == 1 and chunks[0].strip() == faq_text.strip()
+            else "rag"
+        )
         excerpts = "\n\n---\n\n".join(chunks)
 
         user_input = (
@@ -90,11 +96,12 @@ def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
         total_ms = (time.perf_counter() - started) * 1000
         logger.info(
             "faq_load_ms=%.1f retrieve_ms=%.1f openai_call_ms=%.1f "
-            "total_faq_answer_ms=%.1f",
+            "total_faq_answer_ms=%.1f retrieval_mode=%s",
             faq_load_ms,
             retrieve_ms,
             openai_call_ms,
             total_ms,
+            retrieval_mode,
         )
 
 
