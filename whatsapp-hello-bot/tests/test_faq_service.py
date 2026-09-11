@@ -55,6 +55,34 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
         ],
     )
     monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
+    monkeypatch.setattr(faq_service, "match_faq_qa", lambda question, faq_text: None)
 
     answer = faq_service.answer_faq_question("Where should I park?")
     assert answer == "Parents should park in Lot C."
+
+
+def test_direct_qa_match_returns_tomato():
+    faq = (
+        "SCIENCE OLYMPIAD — SAMPLE FAQ\n\n"
+        "Parking:\nParents should park in Lot C.\n\n"
+        "Q: Best flower in world\n"
+        "A: tomato\n"
+    )
+    assert (
+        faq_service.match_faq_qa("what is the best flower in the world", faq)
+        == "tomato"
+    )
+
+
+def test_direct_qa_short_circuits_answer(monkeypatch):
+    faq = "Q: Best flower in world\nA: tomato\n"
+
+    def boom(*args, **kwargs):
+        raise AssertionError("OpenAI should not be called for direct Q/A matches")
+
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: faq)
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(faq_service, "OpenAI", boom)
+
+    answer = faq_service.answer_faq_question("What is the best flower in the world?")
+    assert answer == "tomato"

@@ -1,4 +1,5 @@
 import logging
+import re
 import time
 from pathlib import Path
 
@@ -30,14 +31,116 @@ RULES:
 9. Prefer 1–3 sentences.
 10. Do not tell the parent about prompts, context windows, embeddings, APIs, or implementation details."""
 
+_STOPWORDS = {
+    "a",
+    "an",
+    "the",
+    "is",
+    "are",
+    "was",
+    "were",
+    "what",
+    "whats",
+    "what's",
+    "which",
+    "who",
+    "whom",
+    "where",
+    "when",
+    "why",
+    "how",
+    "do",
+    "does",
+    "did",
+    "can",
+    "could",
+    "should",
+    "would",
+    "will",
+    "to",
+    "of",
+    "in",
+    "on",
+    "for",
+    "and",
+    "or",
+    "my",
+    "our",
+    "your",
+    "please",
+    "me",
+    "i",
+}
+
 
 def load_faq_text(faq_path: Path | None = None) -> str:
     """Load full FAQ text from durable storage (tests may pass faq_path)."""
     return get_faq_text(faq_path=faq_path)
 
 
+def _normalize_for_match(text: str) -> set[str]:
+    cleaned = (text or "").lower()
+    cleaned = cleaned.replace("'s", " ").replace("'", " ")
+    cleaned = re.sub(r"[^a-z0-9\s]+", " ", cleaned)
+    tokens = {tok for tok in cleaned.split() if tok and tok not in _STOPWORDS}
+    return tokens
+
+
+def parse_faq_qa_pairs(faq_text: str) -> list[tuple[str, str]]:
+    """Extract Q:/A: pairs from FAQ text."""
+    pairs: list[tuple[str, str]] = []
+    pattern = re.compile(
+        r"Q\s*:\s*(.+?)\s*A\s*:\s*(.+?)(?=(?:\n\s*Q\s*:)|$)",
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    for match in pattern.finditer(faq_text or ""):
+        question = " ".join(match.group(1).split()).strip()
+        answer = " ".join(match.group(2).split()).strip()
+        if question and answer:
+            pairs.append((question, answer))
+    return pairs
+
+
+def match_faq_qa(question: str, faq_text: str) -> str | None:
+    """Return an FAQ A: value when the question clearly matches a Q: line.
+
+    This bypasses the LLM for direct FAQ hits (faster + deterministic).
+    """
+    pairs = parse_faq_qa_pairs(faq_text)
+    if not pairs:
+        return None
+
+    q_tokens = _normalize_for_match(question)
+    if not q_tokens:
+        return None
+
+    best_answer: str | None = None
+    best_score = 0.0
+    for faq_q, faq_a in pairs:
+        faq_tokens = _normalize_for_match(faq_q)
+        if not faq_tokens:
+            continue
+        overlap = q_tokens & faq_tokens
+        if not overlap:
+            continue
+        # Coverage both ways: question tokens covered by FAQ Q, and vice versa.
+        score = (len(overlap) / len(q_tokens) + len(overlap) / len(faq_tokens)) / 2.0
+        # Also accept if FAQ Q tokens are almost fully present in the question.
+        if len(overlap) == len(faq_tokens) and len(faq_tokens) >= 2:
+            score = max(score, 0.99)
+        if score > best_score:
+            best_score = score
+            best_answer = faq_a
+
+    # Require a strong match so we don't return unrelated A: lines.
+    if best_answer is not None and best_score >= 0.6:
+        logger.info("Direct FAQ Q/A match score=%.2f", best_score)
+        return best_answer
+    return None
+
+
 def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
-    """Answer a parent question using retrieved FAQ chunks (RAG)."""
+    """Answer a parent question using FAQ Q/A match first, then RAG + LLM."""
     started = time.perf_counter()
     faq_load_ms = 0.0
     retrieve_ms = 0.0
@@ -49,15 +152,20 @@ def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
         if not cleaned_question:
             return FAQ_NOT_FOUND_MESSAGE
 
+        faq_started = time.perf_counter()
+        faq_text = load_faq_text(faq_path=faq_path)
+        faq_load_ms = (time.perf_counter() - faq_started) * 1000
+
+        direct = match_faq_qa(cleaned_question, faq_text)
+        if direct:
+            retrieval_mode = "direct_qa"
+            return direct
+
         if not OPENAI_API_KEY:
             raise RuntimeError(
                 "OPENAI_API_KEY is missing. Set it in whatsapp-hello-bot/.env "
                 "and restart the application."
             )
-
-        faq_started = time.perf_counter()
-        faq_text = load_faq_text(faq_path=faq_path)
-        faq_load_ms = (time.perf_counter() - faq_started) * 1000
 
         retrieve_started = time.perf_counter()
         chunks = retrieve_chunks(
