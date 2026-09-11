@@ -1,20 +1,26 @@
 # Launch Bot From an Existing WhatsApp Group
 
-This MVP needs **no bot code changes**.
+This needs **no special group-bot join**. Parents tap a link → private 1:1 chat with the bot.
 
-Your existing FastAPI + Meta webhook bot already handles private 1:1 chats.
-This step only adds a **click-to-chat link** you can paste into a normal WhatsApp group.
+## Where each piece lives
+
+| What parents see | Where it comes from |
+|---|---|
+| Prefill / “subject” like *question about Kendall 5th Grade Celebration* | The `?text=` part of the `wa.me` link you paste in the group (not the FAQ, not Cloud Run) |
+| First bot intro (“I’m the PTSA chatbot…”) | Greeting text from `/admin` (or default in `data/greeting.json`) |
+| Answers to real questions | Durable FAQ (`/admin/faq` or GCS) |
 
 ## Flow
 
 ```text
 Existing WhatsApp group
-    → parent taps "Ask the Event Bot"
+    → parent taps the Ask-the-Bot link
     → WhatsApp opens private chat with bot number
-    → optional pre-filled message appears
+    → pre-filled message appears (from ?text=)
     → parent taps Send
-    → existing /webhook receives it
-    → existing greeting reply is sent
+    → bot sends PTSA intro greeting
+    → parent asks a real question
+    → bot answers from FAQ
 ```
 
 The bot does **not** join the group.
@@ -25,75 +31,62 @@ The bot does **not** join the group.
 https://wa.me/<BOT_NUMBER_E164_NO_PLUS>?text=<URL_ENCODED_MESSAGE>
 ```
 
-For the current Meta test number `+1 555-203-2022`:
+### Kendall 5th Grade Celebration example
+
+Plain text:
 
 ```text
-https://wa.me/15552032022?text=Hi%2C%20I%20have%20a%20question%20about%20Science%20Olympiad
+Hi, I have a question about Kendall 5th Grade Celebration
 ```
 
-## Copy/paste group message
-
-Paste this into your existing WhatsApp group:
+URL-encoded link (Meta test number example — replace with your bot number):
 
 ```text
-🤖 Questions about Science Olympiad?
-
-Ask our Event Assistant anytime:
-https://wa.me/15552032022?text=Hi%2C%20I%20have%20a%20question%20about%20Science%20Olympiad
+https://wa.me/15552032022?text=Hi%2C%20I%20have%20a%20question%20about%20Kendall%205th%20Grade%20Celebration
 ```
 
-Optional shorter version:
+### Copy/paste group message
 
 ```text
-Ask the Event Bot:
-https://wa.me/15552032022?text=Hi%2C%20I%20have%20a%20question%20about%20Science%20Olympiad
+🤖 Questions about Kendall 5th Grade Celebration?
+
+Ask our PTSA assistant:
+https://wa.me/15552032022?text=Hi%2C%20I%20have%20a%20question%20about%20Kendall%205th%20Grade%20Celebration
 ```
+
+## How to change the “subject line”
+
+Only change the `text=` value (URL-encode spaces as `%20`, commas as `%2C`).
+
+Quick encoder in PowerShell:
+
+```powershell
+[uri]::EscapeDataString("Hi, I have a question about Kendall 5th Grade Celebration")
+```
+
+Then:
+
+```text
+https://wa.me/<BOT_NUMBER>?text=<PASTE_ENCODED_STRING>
+```
+
+## Greeting / intro
+
+Edit at: `https://YOUR-SERVICE-URL/admin`
+
+Default intro explains:
+- this is the PTSA chatbot
+- answers come only from PTSA-provided FAQ info
+- if unknown, ask an admin/organizer in the group
 
 ## Test checklist
 
-1. Keep uvicorn + ngrok running, webhook verified, WABA subscribed.
-2. Add each tester’s WhatsApp number as a Meta **test recipient** (required for Meta test number).
-3. Paste the group message above into your family/group chat.
-4. From a tester phone, tap the link.
-5. Confirm WhatsApp opens a private chat with `+1 555-203-2022`.
-6. Send the pre-filled message.
-7. Confirm uvicorn shows `POST /webhook` and the greeting arrives.
+1. Cloud Run (or local + ngrok) webhook is live.
+2. For Meta **test** numbers, add each tester as a recipient.
+3. Paste the group message above.
+4. Tap the link → send the prefilled text → you should get the PTSA intro.
+5. Ask a real FAQ question → you should get an FAQ answer.
 
-## Important limitation (current test number)
+## Important limitation (Meta test number)
 
-With Meta’s **test number**, only allowlisted recipients can message the bot.
-
-That means for a family group (you, spouse, kids):
-
-- each person’s number must be added/verified in Meta Step 1 recipient list
-- otherwise the link may open, but messaging can fail
-
-For a real school parent group later, use a production WhatsApp Business number.
-
-## Customizing the pre-filled text
-
-Change only the `text=` value (URL-encoded).
-
-Example:
-
-```text
-Hi, I have a question about Field Day
-→ Hi%2C%20I%20have%20a%20question%20about%20Field%20Day
-```
-
-Full link:
-
-```text
-https://wa.me/15552032022?text=Hi%2C%20I%20have%20a%20question%20about%20Field%20Day
-```
-
-## Why no code change?
-
-Inspection result:
-
-- Existing webhook already accepts inbound private messages
-- Existing bot already replies with the configurable greeting
-- `/admin` already edits that greeting
-- Group launch is only a `wa.me` entry point into that same private chat
-
-So this MVP is documentation + a copy/paste link, not a new feature in FastAPI.
+Only allowlisted recipients can message the test number. For real parents, use a production WhatsApp Business number.

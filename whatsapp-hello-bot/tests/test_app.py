@@ -1,16 +1,13 @@
 import os
-from pathlib import Path
 
-from fastapi.testclient import TestClient
-
-# Ensure imports resolve when running from repo root or this folder.
 os.environ.setdefault("ADMIN_PASSWORD", "changeme")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
 
+from fastapi.testclient import TestClient
+
 from app.greeting_store import get_greeting, set_greeting
 from app.main import app
-
 
 client = TestClient(app)
 
@@ -59,11 +56,9 @@ def test_admin_login_and_save_greeting(tmp_path, monkeypatch):
     monkeypatch.setattr("app.main.get_greeting", get_greeting)
     monkeypatch.setattr("app.main.set_greeting", set_greeting)
 
-    # Wrong password
     bad = client.post("/admin/login", data={"password": "nope"})
     assert bad.status_code == 401
 
-    # Good password
     ok = client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
     assert ok.status_code == 303
 
@@ -88,7 +83,7 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
     monkeypatch.setattr("app.main.send_text_message", fake_send)
     monkeypatch.setattr(
         "app.main.answer_faq_question",
-        lambda question: f"FAQ answer for: {question}",
+        lambda question: f"Parents should park in Lot C.",
     )
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
 
@@ -101,7 +96,7 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
                         "value": {
                             "messages": [
                                 {
-                                    "from": "15551234567",
+                                    "from": "15559876543",
                                     "id": "wamid.test",
                                     "timestamp": "1",
                                     "type": "text",
@@ -116,10 +111,104 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
     }
     response = client.post("/webhook", json=payload)
     assert response.status_code == 200
-    assert sent == {
-        "to": "15551234567",
-        "body": "FAQ answer for: Where should I park?",
-    }
+    assert sent["to"] == "15559876543"
+    assert "Parents should park in Lot C." in sent["body"]
+    assert sent["body"].startswith("*FAQ answer*")
     metrics = client.get("/metrics").json()
     assert metrics["questions_asked"] >= 1
     assert metrics["unique_users"] >= 1
+
+
+def test_inbound_faq_admin_command(monkeypatch, tmp_path):
+    sent = {}
+    metrics_file = tmp_path / "usage_metrics.json"
+    faq_file = tmp_path / "faq.txt"
+    faq_file.write_text("Arrival:\n8:15 AM\n", encoding="utf-8")
+
+    async def fake_send(to_phone: str, body: str):
+        sent["to"] = to_phone
+        sent["body"] = body
+        return {"ok": True}
+
+    def fake_get(faq_path=None):
+        return faq_file.read_text(encoding="utf-8").strip()
+
+    def fake_set(text, faq_path=None):
+        cleaned = text.strip()
+        faq_file.write_text(cleaned + "\n", encoding="utf-8")
+        return cleaned
+
+    monkeypatch.setattr("app.main.send_text_message", fake_send)
+    monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
+    monkeypatch.setattr("app.faq_admin.get_faq_text", fake_get)
+    monkeypatch.setattr("app.faq_admin.set_faq_text", fake_set)
+    monkeypatch.setattr("app.faq_admin.rebuild_index", lambda *a, **k: {"chunks": []})
+    monkeypatch.setattr("app.faq_admin.FAQ_ADMIN_PHONES", {"15551234567"})
+
+    payload = {
+        "object": "whatsapp_business_account",
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "messages": [
+                                {
+                                    "from": "15551234567",
+                                    "id": "wamid.admin",
+                                    "timestamp": "1",
+                                    "type": "text",
+                                    "text": {
+                                        "body": (
+                                            "/faq Q: Can grandparents attend? "
+                                            "A: Yes. Sign in at the gym."
+                                        )
+                                    },
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ],
+    }
+    response = client.post("/webhook", json=payload)
+    assert response.status_code == 200
+    assert sent["to"] == "15551234567"
+    assert "Saved to FAQ" in sent["body"]
+    assert "Can grandparents attend?" in faq_file.read_text(encoding="utf-8")
+
+
+def test_admin_faq_ui_roundtrip(tmp_path, monkeypatch):
+    faq_file = tmp_path / "faq.txt"
+    faq_file.write_text("Old FAQ\n", encoding="utf-8")
+
+    def fake_get(faq_path=None):
+        return faq_file.read_text(encoding="utf-8").strip()
+
+    def fake_set(text, faq_path=None):
+        cleaned = (text or "").strip()
+        faq_file.write_text(cleaned + "\n", encoding="utf-8")
+        return cleaned
+
+    monkeypatch.setattr("app.main.get_faq_text", fake_get)
+    monkeypatch.setattr("app.main.set_faq_text", fake_set)
+    monkeypatch.setattr("app.main.rebuild_index", lambda *a, **k: {"chunks": []})
+    monkeypatch.setattr("app.main.faq_storage_label", lambda: str(faq_file))
+
+    client.get("/admin/logout")
+    denied = client.get("/admin/faq", follow_redirects=False)
+    assert denied.status_code == 303
+
+    client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
+    page = client.get("/admin/faq")
+    assert page.status_code == 200
+    assert "Old FAQ" in page.text
+
+    saved = client.post(
+        "/admin/faq",
+        data={"faq_text": "Kendall Celebration\n\nQ: When?\nA: Friday 2pm"},
+        follow_redirects=False,
+    )
+    assert saved.status_code == 303
+    assert "Kendall Celebration" in faq_file.read_text(encoding="utf-8")

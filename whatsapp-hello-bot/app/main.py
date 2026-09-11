@@ -16,7 +16,21 @@ from app.config import (
     WHATSAPP_VERIFY_TOKEN,
     credential_status,
 )
+from app.event_link_store import event_link_view, set_event_link_settings
+from app.faq_admin import (
+    FAQ_USAGE_TEXT,
+    HELP_TEXT,
+    append_faq_entry,
+    format_parent_answer,
+    is_faq_admin,
+    is_faq_command,
+    is_help_command,
+    is_opener_message,
+    parse_faq_command,
+)
+from app.faq_rag import rebuild_index
 from app.faq_service import answer_faq_question
+from app.faq_store import faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
 from app.metrics import get_metrics, record_question
 from app.whatsapp import send_text_message
@@ -44,8 +58,16 @@ async def log_credential_status() -> None:
             "OPENAI_API_KEY is missing. FAQ answers will use the parent-friendly "
             "fallback until it is set in .env and uvicorn is restarted."
         )
-    if not status["faq_file_exists"]:
+    if not status["faq_file_exists"] and not status.get("faq_gcs_bucket"):
         logger.warning("FAQ file is missing: data/science_olympiad_faq.txt")
+    logger.info("FAQ storage: %s", faq_storage_label())
+    try:
+        from app.faq_store import get_faq_text
+
+        warmed = get_faq_text()
+        logger.info("Warmed FAQ cache (%s chars)", len(warmed))
+    except Exception:
+        logger.exception("Could not warm FAQ cache on startup")
 
 
 def _is_logged_in(request: Request) -> bool:
@@ -74,7 +96,8 @@ async def root() -> str:
         "Webhook: /webhook\n"
         "Health: /health\n"
         "Metrics: /metrics\n"
-        "FAQ: data/science_olympiad_faq.txt\n"
+        f"FAQ storage: {faq_storage_label()}\n"
+        "FAQ admin UI: /admin/faq\n"
     )
 
 
@@ -142,6 +165,100 @@ async def admin_save_message(request: Request, message: str = Form(...)) -> Resp
     return RedirectResponse(url="/admin?saved=1", status_code=303)
 
 
+def _admin_faq_context(
+    *,
+    faq_text: str = "",
+    saved: str | None = None,
+    error: str | None = None,
+) -> dict[str, object]:
+    link = event_link_view()
+    return {
+        "faq_text": faq_text,
+        "saved": saved,
+        "error": error,
+        "storage": faq_storage_label(),
+        "bot_phone": link["bot_phone"] or "",
+        "prefill_text": link["prefill_text"] or "",
+        "wa_me_link": link["wa_me_link"],
+        "group_message": link["group_message"],
+        "link_storage": link["storage"],
+    }
+
+
+@app.get("/admin/faq", response_class=HTMLResponse)
+async def admin_faq_page(request: Request, saved: str = "") -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    error = None
+    faq_text = ""
+    try:
+        faq_text = get_faq_text()
+    except Exception as exc:
+        logger.exception("Failed loading FAQ for admin UI")
+        error = str(exc)
+    return templates.TemplateResponse(
+        request,
+        "admin_faq.html",
+        _admin_faq_context(
+            faq_text=faq_text,
+            saved=saved or None,
+            error=error,
+        ),
+    )
+
+
+@app.post("/admin/faq", response_class=HTMLResponse)
+async def admin_faq_save(request: Request, faq_text: str = Form(...)) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        cleaned = set_faq_text(faq_text)
+        rebuild_index(cleaned)
+    except Exception as exc:
+        logger.exception("Failed saving FAQ from admin UI")
+        return templates.TemplateResponse(
+            request,
+            "admin_faq.html",
+            _admin_faq_context(
+                faq_text=faq_text,
+                saved=None,
+                error=f"Could not save FAQ: {exc}",
+            ),
+            status_code=400,
+        )
+    return RedirectResponse(url="/admin/faq?saved=faq", status_code=303)
+
+
+@app.post("/admin/faq/link", response_class=HTMLResponse)
+async def admin_faq_link_save(
+    request: Request,
+    bot_phone: str = Form(""),
+    prefill_text: str = Form(...),
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        set_event_link_settings(bot_phone=bot_phone, prefill_text=prefill_text)
+    except Exception as exc:
+        logger.exception("Failed saving WhatsApp link settings")
+        faq_text = ""
+        try:
+            faq_text = get_faq_text()
+        except Exception:
+            pass
+        return templates.TemplateResponse(
+            request,
+            "admin_faq.html",
+            _admin_faq_context(
+                faq_text=faq_text,
+                saved=None,
+                error=f"Could not save link settings: {exc}",
+            ),
+            status_code=400,
+        )
+    return RedirectResponse(url="/admin/faq?saved=link", status_code=303)
+
+
 @app.get("/webhook")
 async def verify_webhook(
     request: Request,
@@ -174,17 +291,55 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                     if not from_phone:
                         continue
                     question = (message.get("text") or {}).get("body") or ""
+                    started = time.perf_counter()
+
+                    # Help / menu
+                    if is_help_command(question):
+                        await send_text_message(from_phone, HELP_TEXT)
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=help", e2e_ms)
+                        continue
+
+                    # Prefill / greeting openers → PTSA intro (not FAQ search)
+                    if is_opener_message(question):
+                        await send_text_message(from_phone, get_greeting())
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=greeting", e2e_ms)
+                        continue
+
+                    # Admin FAQ append
+                    if is_faq_command(question):
+                        if not is_faq_admin(from_phone):
+                            await send_text_message(
+                                from_phone,
+                                "Only event admins can use /faq.",
+                            )
+                        else:
+                            parsed = parse_faq_command(question)
+                            if not parsed:
+                                await send_text_message(from_phone, FAQ_USAGE_TEXT)
+                            else:
+                                q_text, a_text = parsed
+                                confirmation = append_faq_entry(q_text, a_text)
+                                await send_text_message(from_phone, confirmation)
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=faq_admin", e2e_ms)
+                        continue
+
+                    # Normal parent FAQ question
                     logger.info(
                         "Answering FAQ for %s (question_len=%s)",
                         from_phone,
                         len(question),
                     )
-                    started = time.perf_counter()
-                    answer = answer_faq_question(question)
+                    answer = format_parent_answer(answer_faq_question(question))
                     await send_text_message(from_phone, answer)
                     e2e_ms = (time.perf_counter() - started) * 1000
                     record_question(from_phone, e2e_ms=e2e_ms)
-                    logger.info("e2e_ms=%.1f", e2e_ms)
+                    logger.info("e2e_ms=%.1f kind=faq_answer", e2e_ms)
     except Exception:
         # Always acknowledge quickly so Meta does not disable the webhook.
         logger.exception("Error while handling webhook")

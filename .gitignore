@@ -11,3 +11,5 @@ whatsapp-hello-bot/__pycache__/
 whatsapp-hello-bot/**/__pycache__/
 whatsapp-hello-bot/.pytest_cache/
 whatsapp-hello-bot/data/usage_metrics.json
+whatsapp-hello-bot/data/*.index.json
+whatsapp-hello-bot/data/faq_backup.txt

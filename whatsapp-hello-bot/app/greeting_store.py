@@ -3,7 +3,12 @@ from pathlib import Path
 
 from app.config import GREETING_FILE
 
-DEFAULT_MESSAGE = "hello, how are you"
+DEFAULT_MESSAGE = (
+    "Hi! I'm the PTSA chatbot for this school event.\n\n"
+    "My answers are based only on information provided by the PTSA organizers. "
+    "If I don't know something, please ask an admin/organizer directly in your group chat.\n\n"
+    "Send me your question anytime — for example: Where should I park?"
+)
 
 
 def get_greeting() -> str:

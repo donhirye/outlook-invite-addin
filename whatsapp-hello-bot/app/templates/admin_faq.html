@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Event FAQ — Admin</title>
+  <style>
+    :root {
+      --bg: #0f2a24;
+      --panel: #17352d;
+      --ink: #f3f7f5;
+      --muted: #a8c0b7;
+      --accent: #25d366;
+      --accent-ink: #0b1f19;
+      --danger: #ffb4a8;
+      --ok: #9be7c4;
+      --border: rgba(255, 255, 255, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
+        var(--bg);
+      display: grid;
+      place-items: start center;
+      padding: 1.5rem;
+    }
+    .card {
+      width: min(48rem, 100%);
+      margin-top: 1rem;
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    h1 {
+      margin: 0 0 0.35rem;
+      font-size: 1.4rem;
+      font-weight: 650;
+    }
+    p {
+      margin: 0 0 1.25rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+    nav {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+      margin-bottom: 1.25rem;
+    }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+    }
+    nav a.active {
+      color: var(--accent-ink);
+      background: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    label {
+      display: block;
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 0.4rem;
+    }
+    input[type="text"],
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--ink);
+      border-radius: 0.65rem;
+      padding: 0.85rem;
+      font: inherit;
+      margin-bottom: 1rem;
+    }
+    textarea {
+      min-height: 22rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.9rem;
+      line-height: 1.45;
+      resize: vertical;
+    }
+    textarea.short {
+      min-height: 4.5rem;
+      font-family: "Segoe UI", system-ui, sans-serif;
+    }
+    .panel {
+      margin: 0 0 1.5rem;
+      padding: 1rem 0 0;
+      border-top: 1px solid var(--border);
+    }
+    .panel h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.1rem;
+    }
+    .copy-box {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.35);
+      color: #d7ffe9;
+      border-radius: 0.65rem;
+      padding: 0.85rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin-bottom: 0.75rem;
+    }
+    button, .link-btn {
+      appearance: none;
+      border: 0;
+      border-radius: 0.65rem;
+      padding: 0.7rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--accent-ink);
+      text-decoration: none;
+    }
+    .row {
+      display: flex;
+      gap: 0.75rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    .link-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .flash {
+      margin-bottom: 1rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.65rem;
+      background: rgba(155, 231, 196, 0.12);
+      color: var(--ok);
+      border: 1px solid rgba(155, 231, 196, 0.25);
+    }
+    .flash.error {
+      background: rgba(255, 180, 168, 0.12);
+      color: var(--danger);
+      border-color: rgba(255, 180, 168, 0.25);
+    }
+    .meta {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-top: 1rem;
+    }
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85em;
+      color: #d7ffe9;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <nav>
+      <a href="/admin">Greeting</a>
+      <a class="active" href="/admin/faq">FAQ</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>Event FAQ + WhatsApp group link</h1>
+    <p>
+      Use this page for both pieces parents need:
+      <strong>FAQ answers</strong> and the <strong>group chat link</strong>
+      (the “subject line” is the prefilled WhatsApp text).
+    </p>
+    {% if saved == 'faq' %}
+      <div class="flash">FAQ saved and search index rebuilt.</div>
+    {% elif saved == 'link' %}
+      <div class="flash">WhatsApp group link settings saved.</div>
+    {% endif %}
+    {% if error %}
+      <div class="flash error">{{ error }}</div>
+    {% endif %}
+
+    <section class="panel" style="border-top:0; padding-top:0;">
+      <h2>1. WhatsApp group link (“subject line”)</h2>
+      <p>
+        This is <em>not</em> the FAQ. It only sets the draft message parents see
+        when they tap your group link. Paste the generated message into your
+        WhatsApp parent group.
+      </p>
+      <form method="post" action="/admin/faq/link">
+        <label for="bot_phone">Bot WhatsApp number (country code, no +)</label>
+        <input
+          id="bot_phone"
+          name="bot_phone"
+          type="text"
+          inputmode="numeric"
+          placeholder="15552032022"
+          value="{{ bot_phone }}"
+        />
+        <label for="prefill_text">Prefill / subject line</label>
+        <textarea
+          id="prefill_text"
+          name="prefill_text"
+          class="short"
+          required
+        >{{ prefill_text }}</textarea>
+        <div class="row">
+          <button type="submit">Save link settings</button>
+        </div>
+      </form>
+      {% if wa_me_link %}
+        <p class="meta">Ready-to-copy group message:</p>
+        <div class="copy-box">{{ group_message }}</div>
+        <p class="meta">Direct link:</p>
+        <div class="copy-box">{{ wa_me_link }}</div>
+      {% else %}
+        <p class="meta">
+          Enter the bot phone number and save to generate the group link.
+        </p>
+      {% endif %}
+      <p class="meta">Link settings storage: <code>{{ link_storage }}</code></p>
+    </section>
+
+    <section class="panel">
+      <h2>2. Event FAQ (answers)</h2>
+      <p>
+        Saves go to durable storage (<code>{{ storage }}</code>) and rebuild the
+        search index. WhatsApp <code>/faq</code> adds appear here too.
+      </p>
+      <form method="post" action="/admin/faq">
+        <label for="faq_text">FAQ text</label>
+        <textarea id="faq_text" name="faq_text" required>{{ faq_text }}</textarea>
+        <div class="row">
+          <button type="submit">Save FAQ</button>
+          <a class="link-btn" href="/admin/faq">Reload</a>
+        </div>
+      </form>
+      <p class="meta">
+        Tip: keep Q&amp;A blocks as <code>Q: ...</code> / <code>A: ...</code> so
+        retrieval stays accurate as the FAQ grows.
+      </p>
+    </section>
+  </main>
+</body>
+</html>
