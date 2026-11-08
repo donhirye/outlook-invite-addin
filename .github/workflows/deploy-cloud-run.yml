@@ -1,0 +1,247 @@
+# One-click production deploy for the WhatsApp PTSA bot.
+# Trigger: GitHub Actions → this workflow → "Run workflow" on main only.
+# Does NOT run on push/merge.
+
+name: Deploy WhatsApp bot to Cloud Run
+
+"on":
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "If true, run tests + auth check only (no Cloud Run deploy)"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: production-whatsapp-faq-bot
+  cancel-in-progress: false
+
+env:
+  PROJECT_ID: vi1234
+  REGION: us-central1
+  SERVICE_NAME: whatsapp-faq-bot
+  APP_DIR: whatsapp-hello-bot
+  # Set these as GitHub Actions variables/secrets after WIF setup:
+  #   secrets.GCP_WORKLOAD_IDENTITY_PROVIDER
+  #   secrets.GCP_SERVICE_ACCOUNT
+  # Optional override if the service URL changes:
+  #   vars.CLOUD_RUN_SERVICE_URL
+
+jobs:
+  test:
+    name: Test whatsapp-hello-bot
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsapp-hello-bot
+    steps:
+      - name: Check out selected commit
+        uses: actions/checkout@v4
+
+      - name: Note selected ref
+        run: echo "Running tests for ref ${{ github.ref }} commit ${{ github.sha }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: whatsapp-hello-bot/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pytest httpx
+
+      - name: Run automated tests
+        env:
+          ADMIN_PASSWORD: changeme
+          SECRET_KEY: test-secret-not-for-production
+          WHATSAPP_VERIFY_TOKEN: my-verify-token
+          FAQ_GCS_BUCKET: ""
+          OPENAI_API_KEY: ""
+        run: pytest tests -q --tb=short
+
+      - name: Confirm deploy exclusions exist
+        run: |
+          test -f .gcloudignore
+          test -f .dockerignore
+          test -f Dockerfile
+          grep -q '^\.env$' .gcloudignore
+          grep -q '^\.venv/' .gcloudignore
+          grep -q '^playground/' .gcloudignore
+          grep -q '^learnings\.txt$' .gcloudignore
+          echo "Deploy ignore protections present."
+
+  deploy:
+    name: Deploy to Cloud Run
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    outputs:
+      revision: ${{ steps.verify.outputs.revision }}
+      image: ${{ steps.verify.outputs.image }}
+      sha: ${{ github.sha }}
+    steps:
+      - name: Check out selected commit
+        uses: actions/checkout@v4
+
+      - name: Require Workload Identity Federation secrets
+        env:
+          WIF_PROVIDER: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          WIF_SA: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+        run: |
+          if [ -z "$WIF_PROVIDER" ] || [ -z "$WIF_SA" ]; then
+            echo "::error::Missing GitHub secrets GCP_WORKLOAD_IDENTITY_PROVIDER and/or GCP_SERVICE_ACCOUNT."
+            echo "Complete docs/github-actions-wif-setup.md first, then re-run."
+            exit 1
+          fi
+          echo "WIF secrets are present (values not printed)."
+
+      - name: Authenticate to Google Cloud (WIF)
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+        with:
+          project_id: ${{ env.PROJECT_ID }}
+
+      - name: Record pre-deploy revision
+        id: before
+        run: |
+          BEFORE="$(gcloud run services describe "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format='value(status.latestReadyRevisionName)')"
+          echo "revision=${BEFORE}" >> "$GITHUB_OUTPUT"
+          echo "Current production revision: ${BEFORE}"
+
+      - name: Dry run summary
+        if: ${{ inputs.dry_run }}
+        run: |
+          echo "## Dry run only — no Cloud Run deploy" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Git SHA: \`${{ github.sha }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Current revision: \`${{ steps.before.outputs.revision }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Tests: passed" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Auth: WIF OK" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Re-run with **dry_run = false** to deploy." >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Deploy from GitHub main (preserve existing env/config)
+        if: ${{ !inputs.dry_run }}
+        working-directory: whatsapp-hello-bot
+        run: |
+          # Intentionally omit --set-env-vars / --update-env-vars / --clear-base-image
+          # / --service-account so existing Cloud Run configuration is preserved.
+          # .gcloudignore excludes .env, .venv, playground, learning artifacts, CSVs.
+          gcloud run deploy "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --source=. \
+            --quiet
+
+      - name: Verify new revision is Ready
+        if: ${{ !inputs.dry_run }}
+        id: verify
+        run: |
+          set -euo pipefail
+          REVISION="$(gcloud run services describe "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format='value(status.latestReadyRevisionName)')"
+          IMAGE="$(gcloud run revisions describe "${REVISION}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format='value(spec.containers[0].image)')"
+          READY="$(gcloud run revisions describe "${REVISION}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json | python3 -c "import json,sys; c=json.load(sys.stdin).get('status',{}).get('conditions',[]); print(next((x.get('status') for x in c if x.get('type')=='Ready'),''))")"
+          TRAFFIC="$(gcloud run services describe "${SERVICE_NAME}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json | python3 -c "import json,sys; t=json.load(sys.stdin).get('status',{}).get('traffic',[]); print(t[0].get('percent','') if t else '')")"
+
+          echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+
+          echo "Deployed revision: ${REVISION}"
+          echo "Image: ${IMAGE}"
+          echo "Ready: ${READY}"
+          echo "Traffic percent (first rule): ${TRAFFIC}"
+
+          if [ "${READY}" != "True" ]; then
+            echo "::error::Revision ${REVISION} is not Ready"
+            exit 1
+          fi
+
+          SERVICE_URL="${{ vars.CLOUD_RUN_SERVICE_URL }}"
+          if [ -z "${SERVICE_URL}" ]; then
+            SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --format='value(status.url)')"
+          fi
+          echo "Health check: ${SERVICE_URL}/health"
+          curl -fsS "${SERVICE_URL}/health" | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+
+          # Existence-only check; never rewrite FAQ content during deploy verification.
+          python3 - <<'PY'
+          import json, os, subprocess, sys
+          desc = subprocess.check_output([
+              "gcloud", "run", "services", "describe", os.environ["SERVICE_NAME"],
+              f"--project={os.environ['PROJECT_ID']}",
+              f"--region={os.environ['REGION']}",
+              "--format=json",
+          ], text=True)
+          env = {
+              e.get("name"): e.get("value", "")
+              for e in json.loads(desc)["spec"]["template"]["spec"]["containers"][0].get("env", [])
+          }
+          bucket = env.get("FAQ_GCS_BUCKET") or ""
+          obj = env.get("FAQ_GCS_OBJECT") or ""
+          if not bucket or not obj:
+              print("FAQ_GCS_BUCKET/OBJECT not set; skipping object existence check")
+              sys.exit(0)
+          uri = f"gs://{bucket}/{obj}"
+          print(f"Confirming FAQ object still exists: {uri}")
+          subprocess.check_call(["gcloud", "storage", "ls", uri])
+          print("FAQ object present.")
+          PY
+
+      - name: Write deployment summary
+        if: ${{ !inputs.dry_run }}
+        run: |
+          {
+            echo "## Cloud Run deployment succeeded"
+            echo ""
+            echo "| Field | Value |"
+            echo "|---|---|"
+            echo "| Git SHA | \`${{ github.sha }}\` |"
+            echo "| Previous revision | \`${{ steps.before.outputs.revision }}\` |"
+            echo "| New revision | \`${{ steps.verify.outputs.revision }}\` |"
+            echo "| Image | \`${{ steps.verify.outputs.image }}\` |"
+            echo "| Project | \`${{ env.PROJECT_ID }}\` |"
+            echo "| Region | \`${{ env.REGION }}\` |"
+            echo "| Service | \`${{ env.SERVICE_NAME }}\` |"
+            echo ""
+            echo "### Rollback"
+            echo "If needed, shift traffic back:"
+            echo "\`\`\`bash"
+            echo "gcloud run services update-traffic ${{ env.SERVICE_NAME }} \\"
+            echo "  --region=${{ env.REGION }} --project=${{ env.PROJECT_ID }} \\"
+            echo "  --to-revisions=${{ steps.before.outputs.revision }}=100"
+            echo "\`\`\`"
+          } >> "$GITHUB_STEP_SUMMARY"
