@@ -1,0 +1,34 @@
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+
+#This is telling python where to get the files from
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+'''
+from app.faq_service import answer_faq_question
+
+
+def main() -> None:
+    question = "Where should I park Mr Mihir?"
+    print("Q:", question)
+    print("A:", answer_faq_question(question))
+
+
+if __name__ == "__main__":
+    main()
+
+'''
+from dotenv import load_dotenv
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# utf-8-sig strips Windows Notepad BOM that can break variable names
+load_dotenv(BASE_DIR / ".env", encoding="utf-8-sig")
+import os
+print(os.getenv("OPENAI_API_KEY"))
+
+

@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.env
+.env.*
+!.env.example
+
+# Private WhatsApp / analysis exports
+data/*.csv
+data/**/*.csv
+**/crone_*.csv
+
+# Local experiment outputs
+playground/out/
+*.log

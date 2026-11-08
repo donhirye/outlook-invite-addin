@@ -1,0 +1,12 @@
+whatsapp.py takes:
+
+to_phone — who to message
+body — what text to send
+and POSTs that to Meta’s WhatsApp Cloud API (using the tokens from config.py).
+
+
+=============
+Rule of thumb: OOP isn’t required for FastAPI/LLM apps. Use classes when you have state + behavior that travel together, or multiple implementations of the same role — not just because “OOP is proper.”
+
+=====
+

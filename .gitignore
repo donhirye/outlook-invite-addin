@@ -19,3 +19,15 @@ whatsapp-hello-bot/playground/
 whatsapp-hello-bot/data analysis/
 whatsapp-hello-bot/learnings.txt
 whatsapp-hello-bot/**/*.csv
+
+# Learning workspace
+learning/.venv/
+learning/**/__pycache__/
+learning/.pytest_cache/
+learning/.env
+learning/.env.*
+!learning/.env.example
+learning/data/*.csv
+learning/data/**/*.csv
+learning/**/crone_*.csv
+learning/playground/out/
