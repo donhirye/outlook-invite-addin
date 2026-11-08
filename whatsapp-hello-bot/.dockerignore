@@ -1,10 +1,24 @@
 .venv
+venv
 __pycache__
-*.pyc
+**/__pycache__
+*.py[cod]
 .env
+.env.*
+!.env.example
 .pytest_cache
+.mypy_cache
+.ruff_cache
 data/usage_metrics.json
+data/*.index.json
+data/faq_backup.txt
 .git
+.gitignore
+.gcloudignore
 *.md
 scripts
 tests
+playground
+data analysis
+learnings.txt
+*.csv
