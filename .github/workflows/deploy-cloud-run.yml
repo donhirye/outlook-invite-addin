@@ -59,12 +59,13 @@ jobs:
 
       - name: Run automated tests
         env:
+          PYTHONPATH: .
           ADMIN_PASSWORD: changeme
           SECRET_KEY: test-secret-not-for-production
           WHATSAPP_VERIFY_TOKEN: my-verify-token
           FAQ_GCS_BUCKET: ""
           OPENAI_API_KEY: ""
-        run: pytest tests -q --tb=short
+        run: python -m pytest tests -q --tb=short
 
       - name: Confirm deploy exclusions exist
         run: |
