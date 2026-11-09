@@ -126,7 +126,7 @@ def _link_context(*, saved: bool = False, error: str | None = None) -> dict[str,
         "bot_phone": link["bot_phone"] or "",
         "prefill_text": link["prefill_text"] or "",
         "wa_me_link": link["wa_me_link"],
-        "group_message": link["group_message"],
+        "group_message": link["group_message"] or "",
         "link_storage": link["storage"],
         "saved": saved,
         "error": error,
@@ -179,11 +179,16 @@ async def admin_link_save(
     request: Request,
     bot_phone: str = Form(""),
     prefill_text: str = Form(...),
+    group_message: str = Form(""),
 ) -> Response:
     if not _is_logged_in(request):
         return RedirectResponse(url="/admin", status_code=303)
     try:
-        set_event_link_settings(bot_phone=bot_phone, prefill_text=prefill_text)
+        set_event_link_settings(
+            bot_phone=bot_phone,
+            prefill_text=prefill_text,
+            group_message=group_message,
+        )
     except Exception as exc:
         logger.exception("Failed saving WhatsApp link settings")
         return templates.TemplateResponse(

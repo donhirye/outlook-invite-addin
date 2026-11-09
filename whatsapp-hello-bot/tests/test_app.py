@@ -231,6 +231,10 @@ def test_admin_link_page_generates_copy_message(tmp_path, monkeypatch):
         data={
             "bot_phone": "15552032022",
             "prefill_text": "Hi, I have a question about Kendall 5th Grade Celebration",
+            "group_message": (
+                "Custom pin text for parents\n"
+                "https://wa.me/15552032022?text=old"
+            ),
         },
         follow_redirects=False,
     )
@@ -238,6 +242,7 @@ def test_admin_link_page_generates_copy_message(tmp_path, monkeypatch):
 
     page = client.get("/admin/link")
     assert page.status_code == 200
-    assert "Copy this into the WhatsApp group" in page.text
+    assert "Group message to pin" in page.text
+    assert "Custom pin text for parents" in page.text
     assert "https://wa.me/15552032022?text=" in page.text
     assert "Kendall 5th Grade Celebration" in page.text

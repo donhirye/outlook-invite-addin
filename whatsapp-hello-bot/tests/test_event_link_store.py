@@ -38,3 +38,20 @@ def test_group_paste_message_matches_pinned_style(tmp_path, monkeypatch):
     assert "🤖 Questions about Kendall 5th Grade Celebration?" in msg
     assert "Ask our Event Assistant anytime:" in msg
     assert "https://wa.me/15552032022?text=" in msg
+
+
+def test_custom_group_message_is_saved_and_link_refreshed(tmp_path, monkeypatch):
+    path = tmp_path / "event_link.json"
+    monkeypatch.setattr("app.event_link_store.EVENT_LINK_FILE", path)
+    monkeypatch.setattr("app.event_link_store.FAQ_GCS_BUCKET", "")
+    saved = set_event_link_settings(
+        bot_phone="15552032022",
+        prefill_text="Hi, I have a question about Kendall 5th Grade Celebration",
+        group_message=(
+            "Parents: ask the Event Bot here:\n"
+            "https://wa.me/99999999999?text=old"
+        ),
+    )
+    assert "Parents: ask the Event Bot here:" in saved["group_message"]
+    assert "https://wa.me/15552032022?text=" in saved["group_message"]
+    assert "99999999999" not in saved["group_message"]
