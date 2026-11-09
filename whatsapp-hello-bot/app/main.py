@@ -5,12 +5,14 @@ from typing import Any
 
 from fastapi import FastAPI, Form, Request, Response
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import (
     ADMIN_PASSWORD,
+    BASE_DIR,
     SECRET_KEY,
     TEMPLATES_DIR,
     WHATSAPP_VERIFY_TOKEN,
@@ -42,6 +44,21 @@ app = FastAPI(title="WhatsApp Hello Bot", docs_url="/docs")
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie="hello_bot_session")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 signer = URLSafeSerializer(SECRET_KEY, salt="admin-auth")
+
+BRANDING_DIR = BASE_DIR / "data" / "branding"
+if BRANDING_DIR.is_dir():
+    app.mount(
+        "/static/branding",
+        StaticFiles(directory=str(BRANDING_DIR)),
+        name="branding",
+    )
+
+BRANDING = {
+    "logo_url": "/static/branding/crone_logo.png",
+    "favicon_url": "/static/branding/crone_favicon.png",
+    "pin_poster_url": "/static/branding/crone-ptsa-assistant-pin.png",
+    "pin_poster_filename": "crone-ptsa-assistant-pin.png",
+}
 
 
 @app.on_event("startup")
@@ -120,9 +137,14 @@ async def metrics() -> dict[str, object]:
     return get_metrics()
 
 
+def _branding_context() -> dict[str, str]:
+    return dict(BRANDING)
+
+
 def _link_context(*, saved: bool = False, error: str | None = None) -> dict[str, object]:
     link = event_link_view()
     return {
+        **_branding_context(),
         "bot_phone": link["bot_phone"] or "",
         "prefill_text": link["prefill_text"] or "",
         "wa_me_link": link["wa_me_link"],
@@ -140,7 +162,7 @@ async def admin_page(request: Request) -> Response:
     return templates.TemplateResponse(
         request,
         "admin.html",
-        {"error": None},
+        {**_branding_context(), "error": None},
     )
 
 
@@ -150,7 +172,7 @@ async def admin_login(request: Request, password: str = Form(...)) -> Response:
         return templates.TemplateResponse(
             request,
             "admin.html",
-            {"error": "Wrong password."},
+            {**_branding_context(), "error": "Wrong password."},
             status_code=401,
         )
     _login(request)
@@ -208,6 +230,7 @@ async def admin_intro_page(request: Request, saved: int = 0) -> Response:
         request,
         "admin_intro.html",
         {
+            **_branding_context(),
             "message": get_greeting(),
             "saved": bool(saved),
         },
@@ -246,6 +269,7 @@ async def admin_faq_page(request: Request, saved: int = 0) -> Response:
         request,
         "admin_faq.html",
         {
+            **_branding_context(),
             "faq_text": faq_text,
             "saved": bool(saved),
             "error": error,

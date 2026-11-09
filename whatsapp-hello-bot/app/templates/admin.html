@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Admin login — PTSA Bot</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
   <style>
     :root {
       --bg: #0f2a24;
@@ -71,10 +72,40 @@
     }
     .hint { margin-top: 1rem; font-size: 0.85rem; color: var(--muted); }
     code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: #d7ffe9; }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .brand img {
+      width: 2.75rem;
+      height: 2.75rem;
+      object-fit: contain;
+      border-radius: 999px;
+      background: #000;
+    }
+    .brand-text {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .brand-text strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.95rem;
+    }
   </style>
 </head>
 <body>
   <main class="card">
+    <div class="brand">
+      <img src="{{ logo_url }}" alt="Crone Middle School logo" />
+      <div class="brand-text">
+        <strong>Crone Middle School PTSA</strong>
+        Event Assistant admin
+      </div>
+    </div>
     <h1>Admin login</h1>
     <p>Manage the group link, intro message, and event FAQ.</p>
     {% if error %}

@@ -246,3 +246,9 @@ def test_admin_link_page_generates_copy_message(tmp_path, monkeypatch):
     assert "Custom pin text for parents" in page.text
     assert "https://wa.me/15552032022?text=" in page.text
     assert "Kendall 5th Grade Celebration" in page.text
+    assert "/static/branding/crone-ptsa-assistant-pin.png" in page.text
+    assert "/static/branding/crone_logo.png" in page.text
+
+    poster = client.get("/static/branding/crone-ptsa-assistant-pin.png")
+    assert poster.status_code == 200
+    assert poster.headers["content-type"].startswith("image/")

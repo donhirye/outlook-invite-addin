@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Group link — Admin</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
   <style>
     :root {
       --bg: #0f2a24;
@@ -38,6 +39,29 @@
       border-radius: 1rem;
       padding: 1.75rem;
       box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .brand img {
+      width: 2.75rem;
+      height: 2.75rem;
+      object-fit: contain;
+      border-radius: 999px;
+      background: #000;
+    }
+    .brand-text {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .brand-text strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.95rem;
     }
     h1 { margin: 0 0 0.35rem; font-size: 1.4rem; font-weight: 650; }
     p { margin: 0 0 1.25rem; color: var(--muted); line-height: 1.45; }
@@ -85,6 +109,26 @@
       word-break: break-word;
       margin-bottom: 0.75rem;
     }
+    .poster-wrap {
+      margin: 1.25rem 0 0.75rem;
+      padding: 1rem;
+      border: 1px solid var(--border);
+      border-radius: 0.85rem;
+      background: rgba(0, 0, 0, 0.22);
+    }
+    .poster-wrap h2 {
+      margin: 0 0 0.35rem;
+      font-size: 1.05rem;
+      font-weight: 650;
+    }
+    .poster-preview {
+      display: block;
+      width: min(22rem, 100%);
+      margin: 0.85rem auto 1rem;
+      border-radius: 0.85rem;
+      border: 1px solid var(--border);
+      background: #000;
+    }
     button, .link-btn {
       appearance: none;
       border: 0;
@@ -96,6 +140,7 @@
       background: var(--accent);
       color: var(--accent-ink);
       text-decoration: none;
+      display: inline-block;
     }
     .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
     .link-btn {
@@ -122,6 +167,13 @@
 </head>
 <body>
   <main class="card">
+    <div class="brand">
+      <img src="{{ logo_url }}" alt="Crone Middle School logo" />
+      <div class="brand-text">
+        <strong>Crone Middle School PTSA</strong>
+        Event Assistant admin
+      </div>
+    </div>
     <nav>
       <a class="active" href="/admin/link">Group link</a>
       <a href="/admin/intro">Intro message</a>
@@ -166,6 +218,28 @@
         >Copy group message</button>
       </div>
     </form>
+
+    <section class="poster-wrap">
+      <h2>Pin poster (Option B)</h2>
+      <p style="margin-bottom: 0;">
+        Download this image, post it in the WhatsApp group with the caption/link
+        above, then pin the message.
+      </p>
+      <img
+        class="poster-preview"
+        src="{{ pin_poster_url }}"
+        alt="Crone PTSA Assistant WhatsApp pin poster"
+      />
+      <div class="row">
+        <a
+          class="link-btn"
+          href="{{ pin_poster_url }}"
+          download="{{ pin_poster_filename }}"
+        >Download pin poster</a>
+        <a class="link-btn" href="{{ logo_url }}" download="crone_logo.png">Download school logo</a>
+      </div>
+    </section>
+
     {% if wa_me_link %}
       <p class="meta">Direct link only:</p>
       <div class="copy-box" id="wa-link">{{ wa_me_link }}</div>
