@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Intro message — Admin</title>
+  <style>
+    :root {
+      --bg: #0f2a24;
+      --panel: #17352d;
+      --ink: #f3f7f5;
+      --muted: #a8c0b7;
+      --accent: #25d366;
+      --accent-ink: #0b1f19;
+      --danger: #ffb4a8;
+      --ok: #9be7c4;
+      --border: rgba(255, 255, 255, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
+        var(--bg);
+      display: grid;
+      place-items: start center;
+      padding: 1.5rem;
+    }
+    .card {
+      width: min(48rem, 100%);
+      margin-top: 1rem;
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.4rem; font-weight: 650; }
+    p { margin: 0 0 1.25rem; color: var(--muted); line-height: 1.45; }
+    nav { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+    }
+    nav a.active {
+      color: var(--accent-ink);
+      background: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+    textarea {
+      width: 100%;
+      min-height: 16rem;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--ink);
+      border-radius: 0.65rem;
+      padding: 0.85rem;
+      font: inherit;
+      line-height: 1.45;
+      margin-bottom: 1rem;
+      resize: vertical;
+    }
+    button, .link-btn {
+      appearance: none;
+      border: 0;
+      border-radius: 0.65rem;
+      padding: 0.7rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--accent-ink);
+      text-decoration: none;
+    }
+    .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .link-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .flash {
+      margin-bottom: 1rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.65rem;
+      background: rgba(155, 231, 196, 0.12);
+      color: var(--ok);
+      border: 1px solid rgba(155, 231, 196, 0.25);
+    }
+    .meta { font-size: 0.85rem; color: var(--muted); margin-top: 1rem; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <nav>
+      <a href="/admin/link">Group link</a>
+      <a class="active" href="/admin/intro">Intro message</a>
+      <a href="/admin/faq">FAQ</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>Intro message</h1>
+    <p>
+      This is the first bot reply parents get after they tap Send on the
+      prefilled WhatsApp message (or send Hi). WhatsApp does not allow the bot
+      to message them before they send something.
+    </p>
+    {% if saved %}
+      <div class="flash">Intro message saved.</div>
+    {% endif %}
+    <form method="post" action="/admin/intro">
+      <label for="message">Intro / greeting text</label>
+      <textarea id="message" name="message" required>{{ message }}</textarea>
+      <div class="row">
+        <button type="submit">Save intro message</button>
+      </div>
+    </form>
+    <p class="meta">
+      Tip: say who you are (PTSA chatbot), that answers come from organizer FAQ,
+      and that unknown questions should go to an admin in the group.
+    </p>
+  </main>
+</body>
+</html>
