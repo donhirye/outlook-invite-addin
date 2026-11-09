@@ -41,5 +41,7 @@ data/faq_backup.txt
 
 # Docs and local tooling not needed to build the image
 *.md
+*.xlsm
+~$*
 scripts/
 tests/
