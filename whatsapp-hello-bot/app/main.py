@@ -20,27 +20,16 @@ from app.config import (
     WHATSAPP_VERIFY_TOKEN,
     credential_status,
 )
+from app.engine_config import get_selected_engine_id, set_selected_engine_id
+from app.engines.pipeline import process_message
+from app.engines.registry import list_engines
 from app.event_link_store import event_link_view, set_event_link_settings
-from app.faq_admin import (
-    FAQ_USAGE_TEXT,
-    HELP_TEXT,
-    append_faq_entry,
-    format_parent_answer,
-    is_faq_admin,
-    is_faq_command,
-    is_help_command,
-    is_opener_message,
-    parse_faq_command,
-)
 from app.faq_rag import rebuild_index
-from app.faq_service import answer_faq_question
 from app.faq_store import clear_faq_cache, faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
-from app.guided_engine import advance as advance_guided
 from app.guided_engine import preview_topic
 from app.guided_metrics import get_guided_metrics
-from app.guided_router import begin_guided, route_message
-from app.guided_state import already_seen_message, get_session as get_guided_session
+from app.guided_state import already_seen_message
 from app.guided_store import (
     get_topic,
     guided_storage_label,
@@ -49,6 +38,11 @@ from app.guided_store import (
     set_topic_enabled,
 )
 from app.metrics import get_metrics, record_question
+from app.observability.product_metrics import (
+    compute_engine_analytics,
+    compute_product_analytics,
+)
+from app.observability.tracing import get_trace, load_traces
 from app.whatsapp import send_choices, send_text_message
 
 logging.basicConfig(level=logging.INFO)
@@ -170,12 +164,9 @@ def _extract_inbound_text(message: dict[str, Any]) -> str:
     return ""
 
 
-async def _send_guided_result(phone: str, result: dict[str, Any]) -> None:
-    messages = result.get("messages") or []
-    choices = result.get("choices")
+async def _send_answer_result(phone: str, messages: list[str], choices: Any) -> None:
     if not messages:
         return
-    # Send all but last as plain text; attach choices to the final prompt.
     for body in messages[:-1]:
         await send_text_message(phone, body)
     await send_choices(phone, messages[-1], choices)
@@ -462,6 +453,86 @@ async def admin_guided_preview(
     )
 
 
+@app.get("/admin/analytics", response_class=HTMLResponse)
+async def admin_analytics_page(
+    request: Request,
+    tab: str = "product",
+    days: int = 30,
+    engine: str = "all",
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    days = max(1, min(days, 365))
+    product = compute_product_analytics(
+        since_days=days,
+        engine_id=None if engine == "all" else engine,
+    )
+    engine_stats = compute_engine_analytics(since_days=days)
+    traces = load_traces(limit=50)
+    eval_summary = _load_eval_summary()
+    return templates.TemplateResponse(
+        request,
+        "admin_analytics.html",
+        {
+            **_branding_context(),
+            "tab": tab if tab in {"product", "engine", "evaluations"} else "product",
+            "days": days,
+            "engine_filter": engine,
+            "product": product,
+            "engine_stats": engine_stats,
+            "engines": list_engines(),
+            "selected_engine": get_selected_engine_id(),
+            "traces": traces,
+            "eval_summary": eval_summary,
+            "saved": False,
+            "error": None,
+        },
+    )
+
+
+@app.post("/admin/analytics/engine")
+async def admin_analytics_set_engine(
+    request: Request,
+    engine_id: str = Form(...),
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        set_selected_engine_id(engine_id)
+    except ValueError as exc:
+        return RedirectResponse(
+            url=f"/admin/analytics?tab=engine&error={exc}",
+            status_code=303,
+        )
+    return RedirectResponse(url="/admin/analytics?tab=engine", status_code=303)
+
+
+@app.get("/admin/analytics/trace/{trace_id}", response_class=HTMLResponse)
+async def admin_analytics_trace(request: Request, trace_id: str) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    trace = get_trace(trace_id)
+    return templates.TemplateResponse(
+        request,
+        "admin_analytics_trace.html",
+        {
+            **_branding_context(),
+            "trace": trace,
+            "trace_id": trace_id,
+        },
+    )
+
+
+def _load_eval_summary() -> dict[str, Any]:
+    path = BASE_DIR / "evals" / "reports" / "latest_summary.json"
+    if not path.exists():
+        return {"empty": True}
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {"empty": True, "error": "Could not read evaluation summary"}
+
+
 @app.get("/webhook")
 async def verify_webhook(
     request: Request,
@@ -481,7 +552,7 @@ async def verify_webhook(
 
 @app.post("/webhook")
 async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
-    """Receive inbound WhatsApp messages and reply with FAQ or guided help."""
+    """Receive inbound WhatsApp messages via shared answering-engine pipeline."""
     try:
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
@@ -503,89 +574,23 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                     if not question:
                         continue
                     started = time.perf_counter()
-
-                    # Active guided session continues before help/FAQ routing.
-                    if GUIDED_ENABLED and get_guided_session(from_phone):
-                        result = advance_guided(from_phone, question)
-                        await _send_guided_result(from_phone, result)
-                        e2e_ms = (time.perf_counter() - started) * 1000
-                        record_question(from_phone, e2e_ms=e2e_ms)
-                        logger.info("e2e_ms=%.1f kind=guided_continue", e2e_ms)
-                        continue
-
-                    # Help / menu
-                    if is_help_command(question):
-                        await send_text_message(from_phone, HELP_TEXT)
-                        e2e_ms = (time.perf_counter() - started) * 1000
-                        record_question(from_phone, e2e_ms=e2e_ms)
-                        logger.info("e2e_ms=%.1f kind=help", e2e_ms)
-                        continue
-
-                    # Prefill / greeting openers → PTSA intro (not FAQ search)
-                    if mtype == "text" and is_opener_message(question):
-                        await send_text_message(from_phone, get_greeting())
-                        e2e_ms = (time.perf_counter() - started) * 1000
-                        record_question(from_phone, e2e_ms=e2e_ms)
-                        logger.info("e2e_ms=%.1f kind=greeting", e2e_ms)
-                        continue
-
-                    # Admin FAQ append
-                    if is_faq_command(question):
-                        if not is_faq_admin(from_phone):
-                            await send_text_message(
-                                from_phone,
-                                "Only event admins can use /faq.",
-                            )
-                        else:
-                            parsed = parse_faq_command(question)
-                            if not parsed:
-                                await send_text_message(from_phone, FAQ_USAGE_TEXT)
-                            else:
-                                q_text, a_text = parsed
-                                confirmation = append_faq_entry(q_text, a_text)
-                                await send_text_message(from_phone, confirmation)
-                        e2e_ms = (time.perf_counter() - started) * 1000
-                        record_question(from_phone, e2e_ms=e2e_ms)
-                        logger.info("e2e_ms=%.1f kind=faq_admin", e2e_ms)
-                        continue
-
-                    # Guided conversations (feature-flagged)
-                    if GUIDED_ENABLED:
-                        decision = route_message(from_phone, question)
-                        kind = decision.get("kind")
-                        if kind == "start_guided":
-                            result = begin_guided(from_phone, decision["topic_id"])
-                            await _send_guided_result(from_phone, result)
-                            e2e_ms = (time.perf_counter() - started) * 1000
-                            record_question(from_phone, e2e_ms=e2e_ms)
-                            logger.info(
-                                "e2e_ms=%.1f kind=guided_start topic=%s",
-                                e2e_ms,
-                                decision["topic_id"],
-                            )
-                            continue
-                        if kind == "human":
-                            await send_text_message(
-                                from_phone,
-                                decision.get("reply")
-                                or "Please contact the school office for help with that.",
-                            )
-                            e2e_ms = (time.perf_counter() - started) * 1000
-                            record_question(from_phone, e2e_ms=e2e_ms)
-                            logger.info("e2e_ms=%.1f kind=human", e2e_ms)
-                            continue
-
-                    # Normal parent FAQ question (Mode A)
-                    logger.info(
-                        "Answering FAQ for %s (question_len=%s)",
-                        from_phone,
-                        len(question),
+                    result = process_message(
+                        phone=from_phone,
+                        text=question,
+                        message_id=message_id,
+                        message_type=mtype,
                     )
-                    answer = format_parent_answer(answer_faq_question(question))
-                    await send_text_message(from_phone, answer)
+                    await _send_answer_result(
+                        from_phone, list(result.messages or []), result.choices
+                    )
                     e2e_ms = (time.perf_counter() - started) * 1000
                     record_question(from_phone, e2e_ms=e2e_ms)
-                    logger.info("e2e_ms=%.1f kind=faq_answer", e2e_ms)
+                    logger.info(
+                        "e2e_ms=%.1f kind=%s engine=%s",
+                        e2e_ms,
+                        result.route,
+                        result.engine_id,
+                    )
     except Exception:
         # Always acknowledge quickly so Meta does not disable the webhook.
         logger.exception("Error while handling webhook")

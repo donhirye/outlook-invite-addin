@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Trace {{ trace_id }}</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
+  <style>
+    body { margin:0; font-family:"Segoe UI",system-ui,sans-serif; background:#0f2a24; color:#f3f7f5; padding:1.5rem; }
+    .card { max-width:48rem; margin:0 auto; background:#17352d; border:1px solid rgba(255,255,255,.12); border-radius:1rem; padding:1.5rem; }
+    a { color:#9be7c4; }
+    pre { white-space:pre-wrap; background:rgba(0,0,0,.35); padding:1rem; border-radius:.75rem; overflow:auto; }
+    .meta { color:#a8c0b7; font-size:.9rem; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <p><a href="/admin/analytics?tab=engine">← Back to Analytics</a></p>
+    <h1>Trace</h1>
+    <p class="meta"><code>{{ trace_id }}</code></p>
+    {% if not trace %}
+      <p>Trace not found in local store.</p>
+    {% else %}
+      <pre>{{ trace | tojson(indent=2) }}</pre>
+      <p class="meta">Search Cloud Logging for this trace_id for deeper technical logs.</p>
+    {% endif %}
+  </main>
+</body>
+</html>

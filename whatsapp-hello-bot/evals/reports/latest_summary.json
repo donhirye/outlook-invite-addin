@@ -1,0 +1,125 @@
+{
+  "dataset_version": "v1",
+  "case_count": 77,
+  "mode": "deterministic_mocked_safe",
+  "label": "Deterministic / offline-safe evaluation (LLM optional empty)",
+  "generated_at": "2026-11-09T16:54:41.747244+00:00",
+  "live_cost_cap_usd": null,
+  "engines": [
+    {
+      "engine_id": "engine1_legacy",
+      "passed": 72,
+      "failed": 5,
+      "pass_rate": 0.935,
+      "avg_latency_ms": 348.6,
+      "by_category": {
+        "faq_exact_or_paraphrase": {
+          "passed": 17,
+          "failed": 3
+        },
+        "guided_trigger": {
+          "passed": 12,
+          "failed": 0
+        },
+        "already_provided_context": {
+          "passed": 0,
+          "failed": 1
+        },
+        "correction": {
+          "passed": 0,
+          "failed": 1
+        },
+        "human": {
+          "passed": 2,
+          "failed": 0
+        },
+        "unknown": {
+          "passed": 1,
+          "failed": 0
+        },
+        "prompt_injection": {
+          "passed": 1,
+          "failed": 0
+        },
+        "multi_turn": {
+          "passed": 1,
+          "failed": 0
+        },
+        "cancel": {
+          "passed": 1,
+          "failed": 0
+        },
+        "paraphrase_mixed": {
+          "passed": 35,
+          "failed": 0
+        },
+        "duplicate_webhook": {
+          "passed": 1,
+          "failed": 0
+        },
+        "demo_marker": {
+          "passed": 1,
+          "failed": 0
+        }
+      }
+    },
+    {
+      "engine_id": "engine2_hybrid",
+      "passed": 73,
+      "failed": 4,
+      "pass_rate": 0.948,
+      "avg_latency_ms": 316.9,
+      "by_category": {
+        "faq_exact_or_paraphrase": {
+          "passed": 17,
+          "failed": 3
+        },
+        "guided_trigger": {
+          "passed": 12,
+          "failed": 0
+        },
+        "already_provided_context": {
+          "passed": 1,
+          "failed": 0
+        },
+        "correction": {
+          "passed": 0,
+          "failed": 1
+        },
+        "human": {
+          "passed": 2,
+          "failed": 0
+        },
+        "unknown": {
+          "passed": 1,
+          "failed": 0
+        },
+        "prompt_injection": {
+          "passed": 1,
+          "failed": 0
+        },
+        "multi_turn": {
+          "passed": 1,
+          "failed": 0
+        },
+        "cancel": {
+          "passed": 1,
+          "failed": 0
+        },
+        "paraphrase_mixed": {
+          "passed": 35,
+          "failed": 0
+        },
+        "duplicate_webhook": {
+          "passed": 1,
+          "failed": 0
+        },
+        "demo_marker": {
+          "passed": 1,
+          "failed": 0
+        }
+      }
+    }
+  ],
+  "empty": false
+}

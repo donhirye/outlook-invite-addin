@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Analytics — Admin</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
+  <style>
+    :root {
+      --bg: #0f2a24; --panel: #17352d; --ink: #f3f7f5; --muted: #a8c0b7;
+      --accent: #25d366; --accent-ink: #0b1f19; --border: rgba(255,255,255,0.12);
+      --ok: #9be7c4; --danger: #ffb4a8;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; min-height: 100vh; font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
+        var(--bg);
+      display: grid; place-items: start center; padding: 1.5rem;
+    }
+    .card {
+      width: min(56rem, 100%); margin-top: 1rem;
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border); border-radius: 1rem; padding: 1.75rem;
+    }
+    .brand { display:flex; gap:.75rem; align-items:center; margin-bottom:1rem; }
+    .brand img { width:2.75rem; height:2.75rem; border-radius:999px; background:#000; object-fit:contain; }
+    .brand-text { font-size:.85rem; color:var(--muted); }
+    .brand-text strong { display:block; color:var(--ink); font-size:.95rem; }
+    h1 { margin:0 0 .35rem; font-size:1.4rem; }
+    h2 { margin:1.2rem 0 .5rem; font-size:1.05rem; }
+    p { color:var(--muted); line-height:1.45; }
+    nav, .tabs { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1rem; }
+    nav a, .tabs a, button, .link-btn {
+      color:var(--muted); text-decoration:none; border:1px solid var(--border);
+      border-radius:.65rem; padding:.45rem .75rem; font-size:.9rem; background:transparent;
+    }
+    nav a.active, .tabs a.active { background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:600; }
+    button { background:var(--accent); color:var(--accent-ink); border:0; font-weight:600; cursor:pointer; }
+    .metrics { display:grid; grid-template-columns:repeat(auto-fit,minmax(8rem,1fr)); gap:.75rem; }
+    .metric { border:1px solid var(--border); border-radius:.75rem; padding:.75rem; background:rgba(0,0,0,.2); }
+    .metric .n { font-size:1.2rem; font-weight:700; color:#d7ffe9; }
+    .metric .l { font-size:.8rem; color:var(--muted); }
+    table { width:100%; border-collapse:collapse; font-size:.85rem; }
+    th, td { text-align:left; padding:.45rem .35rem; border-bottom:1px solid var(--border); vertical-align:top; }
+    .meta { font-size:.85rem; color:var(--muted); }
+    code { color:#d7ffe9; font-size:.85em; }
+    select { background:rgba(0,0,0,.25); color:var(--ink); border:1px solid var(--border); border-radius:.5rem; padding:.4rem; }
+    .empty { padding:1rem; border:1px dashed var(--border); border-radius:.75rem; color:var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <img src="{{ logo_url }}" alt="Crone logo" />
+      <div class="brand-text"><strong>Crone Middle School PTSA</strong>Event Assistant admin</div>
+    </div>
+    <nav>
+      <a href="/admin/link">Group link</a>
+      <a href="/admin/intro">Intro message</a>
+      <a href="/admin/faq">FAQ</a>
+      <a href="/admin/guided">Guided</a>
+      <a class="active" href="/admin/analytics">Analytics</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>Analytics</h1>
+    <p>Product usage, answering-engine performance, and evaluation results. No raw phone numbers or message bodies.</p>
+
+    <form method="get" action="/admin/analytics" class="meta" style="display:flex;gap:.75rem;flex-wrap:wrap;align-items:center;">
+      <input type="hidden" name="tab" value="{{ tab }}" />
+      <label>Days <select name="days">
+        {% for d in [7, 30, 90] %}
+          <option value="{{ d }}" {% if days == d %}selected{% endif %}>{{ d }}</option>
+        {% endfor %}
+      </select></label>
+      <label>Engine <select name="engine">
+        <option value="all" {% if engine_filter == 'all' %}selected{% endif %}>All</option>
+        <option value="engine1_legacy" {% if engine_filter == 'engine1_legacy' %}selected{% endif %}>Engine 1</option>
+        <option value="engine2_hybrid" {% if engine_filter == 'engine2_hybrid' %}selected{% endif %}>Engine 2</option>
+      </select></label>
+      <button type="submit">Apply</button>
+    </form>
+
+    <div class="tabs">
+      <a class="{% if tab=='product' %}active{% endif %}" href="/admin/analytics?tab=product&days={{ days }}&engine={{ engine_filter }}">Product</a>
+      <a class="{% if tab=='engine' %}active{% endif %}" href="/admin/analytics?tab=engine&days={{ days }}&engine={{ engine_filter }}">Engine</a>
+      <a class="{% if tab=='evaluations' %}active{% endif %}" href="/admin/analytics?tab=evaluations&days={{ days }}&engine={{ engine_filter }}">Evaluations</a>
+    </div>
+
+    {% if tab == 'product' %}
+      {% if product.empty %}
+        <div class="empty">No analytics events yet for this range. Metrics appear after WhatsApp traffic is processed.</div>
+      {% endif %}
+      <div class="metrics">
+        <div class="metric"><div class="n">{{ product.dau }}</div><div class="l">DAU</div></div>
+        <div class="metric"><div class="n">{{ product.wau }}</div><div class="l">WAU</div></div>
+        <div class="metric"><div class="n">{{ product.unique_users }}</div><div class="l">Unique users</div></div>
+        <div class="metric"><div class="n">{{ product.total_messages }}</div><div class="l">Messages</div></div>
+        <div class="metric"><div class="n">{{ product.repeat_users }}</div><div class="l">Repeat users</div></div>
+        <div class="metric"><div class="n">{{ product.guided_completion_rate }}</div><div class="l">Guided completion</div></div>
+        <div class="metric"><div class="n">{{ product.reported_resolution_rate }}</div><div class="l">Reported resolution</div></div>
+        <div class="metric"><div class="n">{{ product.feedback_response_rate }}</div><div class="l">Feedback response</div></div>
+        <div class="metric"><div class="n">{{ product.knowledge_coverage }}</div><div class="l">Knowledge coverage</div></div>
+        <div class="metric"><div class="n">{{ product.guided_abandonment_estimate }}</div><div class="l">Guided abandon (est.)</div></div>
+        <div class="metric"><div class="n">{{ product.estimated_admin_minutes_saved }}</div><div class="l">Est. admin minutes</div></div>
+      </div>
+      <p class="meta">{{ product.session_definition }}</p>
+      <p class="meta">{{ product.knowledge_coverage_definition }}</p>
+      <p class="meta">{{ product.admin_time_note }} ({{ product.admin_time_assumption_minutes }} min/FAQ-route)</p>
+      <h2>Routing distribution</h2>
+      <table>
+        <tr><th>Route</th><th>Count</th></tr>
+        {% for route, count in product.routing_distribution.items() %}
+          <tr><td>{{ route }}</td><td>{{ count }}</td></tr>
+        {% else %}
+          <tr><td colspan="2">No data</td></tr>
+        {% endfor %}
+      </table>
+    {% endif %}
+
+    {% if tab == 'engine' %}
+      <h2>Selected engine</h2>
+      <p>Current: <code>{{ selected_engine }}</code>. Parents never see this control. Active guided chats stay pinned to their engine.</p>
+      <form method="post" action="/admin/analytics/engine">
+        <select name="engine_id">
+          {% for eng in engines %}
+            <option value="{{ eng.id }}" {% if eng.id == selected_engine %}selected{% endif %} {% if not eng.selectable %}disabled{% endif %}>
+              {{ eng.title }} {% if not eng.implemented %}(unavailable){% endif %}
+            </option>
+          {% endfor %}
+        </select>
+        <button type="submit">Save engine</button>
+      </form>
+      <h2>Per-engine stats</h2>
+      {% if engine_stats.empty %}
+        <div class="empty">No engine events yet.</div>
+      {% else %}
+        <table>
+          <tr><th>Engine</th><th>Messages</th><th>Avg latency</th><th>LLM / msg</th><th>Error rate</th></tr>
+          {% for eid, row in engine_stats.by_engine.items() %}
+            <tr>
+              <td>{{ eid }}</td>
+              <td>{{ row.messages }}</td>
+              <td>{{ row.avg_latency_ms }}</td>
+              <td>{{ row.llm_per_message }}</td>
+              <td>{{ row.error_rate }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+      {% endif %}
+      <h2>Trace explorer</h2>
+      <p class="meta">Structured traces only (hashed user id, no message bodies). Use Cloud Logging with the same <code>trace_id</code> for deep debug.</p>
+      <table>
+        <tr><th>Time</th><th>Engine</th><th>Route</th><th>Flow</th><th>Latency</th><th>Status</th></tr>
+        {% for t in traces %}
+          <tr>
+            <td><a href="/admin/analytics/trace/{{ t.trace_id }}">{{ t.ts }}</a></td>
+            <td>{{ t.engine_id }}</td>
+            <td>{{ t.route }}</td>
+            <td>{{ t.flow_id or '—' }}</td>
+            <td>{{ t.latency_ms }}</td>
+            <td>{{ t.status }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="6">No traces yet.</td></tr>
+        {% endfor %}
+      </table>
+    {% endif %}
+
+    {% if tab == 'evaluations' %}
+      <h2>Evaluation results</h2>
+      {% if eval_summary.empty %}
+        <div class="empty">
+          No evaluation summary found. Run locally:<br />
+          <code>python -m evals.run --engine engine1_legacy</code><br />
+          <code>python -m evals.run --engine engine2_hybrid</code>
+        </div>
+      {% else %}
+        <div class="metrics">
+          <div class="metric"><div class="n">{{ eval_summary.dataset_version }}</div><div class="l">Dataset</div></div>
+          <div class="metric"><div class="n">{{ eval_summary.case_count }}</div><div class="l">Cases</div></div>
+          <div class="metric"><div class="n">{{ eval_summary.mode }}</div><div class="l">Mode</div></div>
+        </div>
+        <table>
+          <tr><th>Engine</th><th>Passed</th><th>Failed</th><th>Pass rate</th><th>Avg latency ms</th></tr>
+          {% for row in eval_summary.engines %}
+            <tr>
+              <td>{{ row.engine_id }}</td>
+              <td>{{ row.passed }}</td>
+              <td>{{ row.failed }}</td>
+              <td>{{ row.pass_rate }}</td>
+              <td>{{ row.avg_latency_ms }}</td>
+            </tr>
+          {% endfor %}
+        </table>
+        <p class="meta">Label: {{ eval_summary.label }}. Live-model runs are never shown as mocked.</p>
+      {% endif %}
+    {% endif %}
+  </main>
+</body>
+</html>

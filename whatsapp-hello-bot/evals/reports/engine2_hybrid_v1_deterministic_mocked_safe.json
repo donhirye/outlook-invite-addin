@@ -1,0 +1,842 @@
+{
+  "engine_id": "engine2_hybrid",
+  "passed": 73,
+  "failed": 4,
+  "pass_rate": 0.948,
+  "avg_latency_ms": 316.9,
+  "by_category": {
+    "faq_exact_or_paraphrase": {
+      "passed": 17,
+      "failed": 3
+    },
+    "guided_trigger": {
+      "passed": 12,
+      "failed": 0
+    },
+    "already_provided_context": {
+      "passed": 1,
+      "failed": 0
+    },
+    "correction": {
+      "passed": 0,
+      "failed": 1
+    },
+    "human": {
+      "passed": 2,
+      "failed": 0
+    },
+    "unknown": {
+      "passed": 1,
+      "failed": 0
+    },
+    "prompt_injection": {
+      "passed": 1,
+      "failed": 0
+    },
+    "multi_turn": {
+      "passed": 1,
+      "failed": 0
+    },
+    "cancel": {
+      "passed": 1,
+      "failed": 0
+    },
+    "paraphrase_mixed": {
+      "passed": 35,
+      "failed": 0
+    },
+    "duplicate_webhook": {
+      "passed": 1,
+      "failed": 0
+    },
+    "demo_marker": {
+      "passed": 1,
+      "failed": 0
+    }
+  },
+  "results": [
+    {
+      "id": "case_001",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 3.7
+    },
+    {
+      "id": "case_002",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.3
+    },
+    {
+      "id": "case_003",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.2
+    },
+    {
+      "id": "case_004",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.3
+    },
+    {
+      "id": "case_005",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 3.4
+    },
+    {
+      "id": "case_006",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.8
+    },
+    {
+      "id": "case_007",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.2
+    },
+    {
+      "id": "case_008",
+      "category": "faq_exact_or_paraphrase",
+      "passed": false,
+      "failures": [
+        "route expected=faq got=guided_start",
+        "missing fact: preferred"
+      ],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.8
+    },
+    {
+      "id": "case_009",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.3
+    },
+    {
+      "id": "case_010",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.2
+    },
+    {
+      "id": "case_011",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.2
+    },
+    {
+      "id": "case_012",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.0
+    },
+    {
+      "id": "case_013",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.9
+    },
+    {
+      "id": "case_014",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.3
+    },
+    {
+      "id": "case_015",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.5
+    },
+    {
+      "id": "case_016",
+      "category": "faq_exact_or_paraphrase",
+      "passed": false,
+      "failures": [
+        "route expected=faq got=guided_start",
+        "missing fact: [DEMO ANSWER]",
+        "missing [DEMO ANSWER] marker"
+      ],
+      "route": "guided_start",
+      "flow_id": "ptsa_events",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.9
+    },
+    {
+      "id": "case_017",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.4
+    },
+    {
+      "id": "case_018",
+      "category": "faq_exact_or_paraphrase",
+      "passed": false,
+      "failures": [
+        "route expected=faq got=guided_start",
+        "missing fact: [DEMO ANSWER]",
+        "missing [DEMO ANSWER] marker"
+      ],
+      "route": "guided_start",
+      "flow_id": "clubs",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.3
+    },
+    {
+      "id": "case_019",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 3.0
+    },
+    {
+      "id": "case_020",
+      "category": "faq_exact_or_paraphrase",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.8
+    },
+    {
+      "id": "case_021",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 8.2
+    },
+    {
+      "id": "case_022",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_continue",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.7
+    },
+    {
+      "id": "case_023",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.6
+    },
+    {
+      "id": "case_024",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.9
+    },
+    {
+      "id": "case_025",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "spiritwear",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.4
+    },
+    {
+      "id": "case_026",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "spiritwear",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.7
+    },
+    {
+      "id": "case_027",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "clubs",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.1
+    },
+    {
+      "id": "case_028",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "ptsa_events",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.6
+    },
+    {
+      "id": "case_029",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "ptsa_events",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.6
+    },
+    {
+      "id": "case_030",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.1
+    },
+    {
+      "id": "case_031",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.9
+    },
+    {
+      "id": "case_032",
+      "category": "guided_trigger",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.6
+    },
+    {
+      "id": "case_033",
+      "category": "already_provided_context",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 9.1
+    },
+    {
+      "id": "case_034",
+      "category": "correction",
+      "passed": false,
+      "failures": [
+        "missing fact: First Student"
+      ],
+      "route": "guided_continue",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine1_legacy",
+      "latency_ms": 3.5
+    },
+    {
+      "id": "case_035",
+      "category": "human",
+      "passed": true,
+      "failures": [],
+      "route": "human",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.4
+    },
+    {
+      "id": "case_036",
+      "category": "human",
+      "passed": true,
+      "failures": [],
+      "route": "human",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.4
+    },
+    {
+      "id": "case_037",
+      "category": "unknown",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1648.8
+    },
+    {
+      "id": "case_038",
+      "category": "prompt_injection",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1747.5
+    },
+    {
+      "id": "case_039",
+      "category": "multi_turn",
+      "passed": true,
+      "failures": [],
+      "route": "guided_continue",
+      "flow_id": "conferences",
+      "engine_id": "engine1_legacy",
+      "latency_ms": 3.3
+    },
+    {
+      "id": "case_040",
+      "category": "cancel",
+      "passed": true,
+      "failures": [],
+      "route": "guided_continue",
+      "flow_id": null,
+      "engine_id": "engine1_legacy",
+      "latency_ms": 3.0
+    },
+    {
+      "id": "case_041",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_continue",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.7
+    },
+    {
+      "id": "case_042",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1412.4
+    },
+    {
+      "id": "case_043",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.6
+    },
+    {
+      "id": "case_044",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "spiritwear",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.1
+    },
+    {
+      "id": "case_045",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "clubs",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.3
+    },
+    {
+      "id": "case_046",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "ptsa_events",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.4
+    },
+    {
+      "id": "case_047",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1813.7
+    },
+    {
+      "id": "case_048",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1560.3
+    },
+    {
+      "id": "case_049",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.7
+    },
+    {
+      "id": "case_050",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1571.5
+    },
+    {
+      "id": "case_051",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.9
+    },
+    {
+      "id": "case_052",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.4
+    },
+    {
+      "id": "case_053",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_continue",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.6
+    },
+    {
+      "id": "case_054",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.2
+    },
+    {
+      "id": "case_055",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 3.9
+    },
+    {
+      "id": "case_056",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2.3
+    },
+    {
+      "id": "case_057",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1587.5
+    },
+    {
+      "id": "case_058",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.1
+    },
+    {
+      "id": "case_059",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1560.6
+    },
+    {
+      "id": "case_060",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "clubs",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.1
+    },
+    {
+      "id": "case_061",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "spiritwear",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.0
+    },
+    {
+      "id": "case_062",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "spiritwear",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.8
+    },
+    {
+      "id": "case_063",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 5.4
+    },
+    {
+      "id": "case_064",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.2
+    },
+    {
+      "id": "case_065",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1535.1
+    },
+    {
+      "id": "case_066",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1422.9
+    },
+    {
+      "id": "case_067",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1626.5
+    },
+    {
+      "id": "case_068",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "ptsa_events",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.4
+    },
+    {
+      "id": "case_069",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "ptsa_events",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 6.3
+    },
+    {
+      "id": "case_070",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2311.1
+    },
+    {
+      "id": "case_071",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "spiritwear",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 7.1
+    },
+    {
+      "id": "case_072",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 1792.4
+    },
+    {
+      "id": "case_073",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_start",
+      "flow_id": "conferences",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 8.7
+    },
+    {
+      "id": "case_074",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 3.4
+    },
+    {
+      "id": "case_075",
+      "category": "paraphrase_mixed",
+      "passed": true,
+      "failures": [],
+      "route": "guided_continue",
+      "flow_id": "lost_and_found",
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 2501.8
+    },
+    {
+      "id": "case_076",
+      "category": "duplicate_webhook",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 3.7
+    },
+    {
+      "id": "case_077",
+      "category": "demo_marker",
+      "passed": true,
+      "failures": [],
+      "route": "faq",
+      "flow_id": null,
+      "engine_id": "engine2_hybrid",
+      "latency_ms": 4.6
+    }
+  ]
+}

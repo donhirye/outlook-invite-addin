@@ -1,0 +1,48 @@
+name: Evaluate answering engines
+
+on:
+  pull_request:
+    paths:
+      - "whatsapp-hello-bot/**"
+  workflow_dispatch:
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: whatsapp-hello-bot
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install deps
+        run: |
+          python -m pip install -U pip
+          pip install -r requirements.txt pytest
+      - name: Unit tests
+        env:
+          PYTHONPATH: .
+          FAQ_GCS_BUCKET: ""
+          GUIDED_ENABLED: "true"
+          OPENAI_API_KEY: ""
+          ADMIN_PASSWORD: changeme
+          SECRET_KEY: ci-secret
+          WHATSAPP_VERIFY_TOKEN: ci-token
+        run: python -m pytest tests -q --tb=short
+      - name: Deterministic engine eval
+        env:
+          PYTHONPATH: .
+          FAQ_GCS_BUCKET: ""
+          GUIDED_ENABLED: "true"
+          OPENAI_API_KEY: ""
+          ADMIN_PASSWORD: changeme
+          SECRET_KEY: ci-secret
+          WHATSAPP_VERIFY_TOKEN: ci-token
+        run: python -m evals.run --engine all --rebuild-cases
+      - name: Upload eval summary
+        uses: actions/upload-artifact@v4
+        with:
+          name: engine-eval-summary
+          path: whatsapp-hello-bot/evals/reports/latest_summary.json

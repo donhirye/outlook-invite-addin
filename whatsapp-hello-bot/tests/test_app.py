@@ -76,21 +76,28 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
     sent = {}
     metrics_file = tmp_path / "usage_metrics.json"
 
-    async def fake_send(to_phone: str, body: str):
+    async def fake_send(to_phone: str, body: str, choices=None):
         sent["to"] = to_phone
         sent["body"] = body
         return {"ok": True}
 
     monkeypatch.setattr("app.main.send_text_message", fake_send)
+    monkeypatch.setattr("app.main.send_choices", fake_send)
     monkeypatch.setattr(
-        "app.main.answer_faq_question",
-        lambda question: f"Parents should park in Lot C.",
+        "app.engines.engine1_legacy.answer_faq_question",
+        lambda question, faq_path=None: "Parents should park in Lot C.",
+    )
+    monkeypatch.setattr(
+        "app.faq_service.answer_faq_question",
+        lambda question, faq_path=None: "Parents should park in Lot C.",
     )
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen.json")
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state.json")
     monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
-    monkeypatch.setattr("app.main.GUIDED_ENABLED", True)
+    monkeypatch.setattr("app.observability.analytics_store.EVENTS_FILE", tmp_path / "events.jsonl")
+    monkeypatch.setattr("app.observability.tracing.TRACES_FILE", tmp_path / "traces.jsonl")
+    monkeypatch.setattr("app.engine_config.CONFIG_FILE", tmp_path / "engine_config.json")
 
     payload = {
         "object": "whatsapp_business_account",
@@ -130,7 +137,7 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
     faq_file = tmp_path / "faq.txt"
     faq_file.write_text("Arrival:\n8:15 AM\n", encoding="utf-8")
 
-    async def fake_send(to_phone: str, body: str):
+    async def fake_send(to_phone: str, body: str, choices=None):
         sent["to"] = to_phone
         sent["body"] = body
         return {"ok": True}
@@ -144,6 +151,7 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
         return cleaned
 
     monkeypatch.setattr("app.main.send_text_message", fake_send)
+    monkeypatch.setattr("app.main.send_choices", fake_send)
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.faq_admin.get_faq_text", fake_get)
     monkeypatch.setattr("app.faq_admin.set_faq_text", fake_set)
@@ -152,6 +160,9 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
     monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen_admin.json")
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state_admin.json")
     monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr("app.observability.analytics_store.EVENTS_FILE", tmp_path / "events.jsonl")
+    monkeypatch.setattr("app.observability.tracing.TRACES_FILE", tmp_path / "traces.jsonl")
+    monkeypatch.setattr("app.engine_config.CONFIG_FILE", tmp_path / "engine_config.json")
 
     payload = {
         "object": "whatsapp_business_account",
