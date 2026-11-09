@@ -32,7 +32,7 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
     class FakeResponses:
         def create(self, **kwargs):
             assert kwargs["model"] == "gpt-5.6-luna"
-            assert kwargs["temperature"] == 0
+            assert kwargs.get("temperature", 0) == 0
             assert "ONLY the FAQ excerpts" in kwargs["instructions"]
             assert "Lot C" in kwargs["input"]
             assert "Where should I park?" in kwargs["input"]

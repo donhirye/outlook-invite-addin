@@ -243,12 +243,21 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
 
         client = OpenAI(api_key=OPENAI_API_KEY)
         openai_started = time.perf_counter()
-        response = client.responses.create(
-            model=OPENAI_MODEL,
-            instructions=SYSTEM_INSTRUCTIONS,
-            input=user_input,
-            temperature=FAQ_LLM_TEMPERATURE,
-        )
+        create_kwargs = {
+            "model": OPENAI_MODEL,
+            "instructions": SYSTEM_INSTRUCTIONS,
+            "input": user_input,
+            "temperature": FAQ_LLM_TEMPERATURE,
+        }
+        try:
+            response = client.responses.create(**create_kwargs)
+        except Exception as exc:
+            # Some newer models (e.g. gpt-5-mini) reject temperature.
+            if "temperature" in str(exc).lower():
+                create_kwargs.pop("temperature", None)
+                response = client.responses.create(**create_kwargs)
+            else:
+                raise
         openai_call_ms = (time.perf_counter() - openai_started) * 1000
         llm_invocations = 1
 
