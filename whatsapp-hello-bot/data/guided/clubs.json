@@ -1,0 +1,77 @@
+{
+  "id": "clubs",
+  "title": "Clubs and activities",
+  "enabled": true,
+  "priority": 4,
+  "triggers": [
+    "register for a club",
+    "join art club",
+    "art club",
+    "pay for art club",
+    "sign up for club",
+    "join a club",
+    "activity registration",
+    "sports registration"
+  ],
+  "start_step": "which_activity",
+  "escalation": "Contact the school office, activity sponsor, or athletics office for current registration help. This bot cannot submit forms or take payment.",
+  "steps": {
+    "which_activity": {
+      "prompt": "Which activity are you interested in?",
+      "choices": [
+        {
+          "id": "art_club",
+          "label": "Art Club",
+          "next": "art_have_form"
+        },
+        {
+          "id": "sports",
+          "label": "Sports",
+          "next": "sports_answer"
+        },
+        {
+          "id": "other",
+          "label": "Other activity",
+          "next": "other_activity"
+        }
+      ]
+    },
+    "art_have_form": {
+      "prompt": "Do you already have the registration form?",
+      "choices": [
+        {
+          "id": "yes",
+          "label": "Yes",
+          "next": "art_yes"
+        },
+        {
+          "id": "no",
+          "label": "No",
+          "next": "art_no"
+        }
+      ]
+    },
+    "art_yes": {
+      "prompt": "For this demo, submit the completed form and $25 semester fee to the school office before the registration deadline. [DEMO ANSWER]",
+      "end": true,
+      "ask_resolution": true
+    },
+    "art_no": {
+      "prompt": "Parents discussed obtaining Art Club forms from the school office. Ask your child to pick one up.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "sports_answer": {
+      "prompt": "For this demo, sports registration is handled through the school athletics office. A completed registration form and current sports physical are required. [DEMO ANSWER]",
+      "end": true,
+      "ask_resolution": true,
+      "recommend_human": true
+    },
+    "other_activity": {
+      "prompt": "For this demo, the school activities coordinator can provide a list of clubs, meeting times, and registration instructions. [DEMO ANSWER]",
+      "end": true,
+      "ask_resolution": true,
+      "recommend_human": true
+    }
+  }
+}

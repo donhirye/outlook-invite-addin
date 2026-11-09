@@ -87,6 +87,10 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
         lambda question: f"Parents should park in Lot C.",
     )
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
+    monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen.json")
+    monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state.json")
+    monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr("app.main.GUIDED_ENABLED", True)
 
     payload = {
         "object": "whatsapp_business_account",
@@ -145,6 +149,9 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
     monkeypatch.setattr("app.faq_admin.set_faq_text", fake_set)
     monkeypatch.setattr("app.faq_admin.rebuild_index", lambda *a, **k: {"chunks": []})
     monkeypatch.setattr("app.faq_admin.FAQ_ADMIN_PHONES", {"15551234567"})
+    monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen_admin.json")
+    monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state_admin.json")
+    monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
 
     payload = {
         "object": "whatsapp_business_account",

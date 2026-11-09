@@ -1,0 +1,74 @@
+{
+  "id": "ptsa_events",
+  "title": "PTSA events and volunteering",
+  "enabled": true,
+  "priority": 5,
+  "triggers": [
+    "want to volunteer",
+    "i want to volunteer",
+    "volunteer",
+    "color run",
+    "donate supplies",
+    "donate food",
+    "drop off donations",
+    "what events",
+    "help with a ptsa",
+    "ptsa event",
+    "register for color"
+  ],
+  "start_step": "participate",
+  "escalation": "Please check the latest PTSA announcement in the parent group or contact the event organizer. This bot cannot register you or contact organizers for you.",
+  "deadlines": {
+    "color run": "For this demo, Color Run registration closes November 12, 2026. [DEMO ANSWER]",
+    "reflections": "For this demo, Reflections entries are due December 5, 2026. [DEMO ANSWER]",
+    "yearbook": "For this demo, yearbook orders close March 15, 2027. [DEMO ANSWER]",
+    "ptsa meeting": "For this demo, the next PTSA meeting is November 18, 2026, at 7:00 PM in the school library. [DEMO ANSWER]"
+  },
+  "steps": {
+    "participate": {
+      "prompt": "How would you like to participate?",
+      "choices": [
+        {
+          "id": "register",
+          "label": "Register my child",
+          "next": "register_answer"
+        },
+        {
+          "id": "volunteer",
+          "label": "Volunteer",
+          "next": "volunteer_answer"
+        },
+        {
+          "id": "donate",
+          "label": "Donate supplies/food",
+          "next": "donate_answer"
+        },
+        {
+          "id": "deadline",
+          "label": "Find an event deadline",
+          "next": "deadline_ask"
+        }
+      ]
+    },
+    "register_answer": {
+      "prompt": "PTSA event registration links are shared in the parent group. Check the current announcement for the event you're interested in.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "volunteer_answer": {
+      "prompt": "For this demo, volunteers are needed for registration, event setup, refreshments, and cleanup. Most shifts are 60–90 minutes. [DEMO ANSWER]",
+      "end": true,
+      "ask_resolution": true
+    },
+    "donate_answer": {
+      "prompt": "For this demo, donations can be dropped off at the school main office between 8:00 AM and 3:00 PM. Label them with the event name. [DEMO ANSWER]",
+      "end": true,
+      "ask_resolution": true
+    },
+    "deadline_ask": {
+      "prompt": "Which event are you asking about? (Example: Color Run, Reflections, yearbook)",
+      "await_text": true,
+      "handler": "deadline_lookup"
+    }
+  }
+}

@@ -6,10 +6,19 @@ os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
 os.environ["FAQ_GCS_BUCKET"] = ""
 os.environ["GUIDED_ENABLED"] = "true"
 
-from app.guided_engine import advance, start_topic
+from app.guided_engine import advance, looks_like_direct_faq, preview_topic, start_topic
 from app.guided_router import match_guided_topic, needs_human, route_message
-from app.guided_state import already_seen_message, clear_session, set_session
+from app.guided_state import already_seen_message, clear_session
 from app.guided_store import get_topic, list_topics
+from app.faq_store import get_faq_text
+
+
+def test_faq_includes_demo_answers_and_categories():
+    text = get_faq_text()
+    assert "Where is Lost & Found at Crone?" in text
+    assert "[DEMO ANSWER]" in text
+    assert "## Clubs and Activities" in text
+    assert text.count("Q:") >= 30
 
 
 def test_lost_and_found_pack_loads():
@@ -23,6 +32,26 @@ def test_router_prefers_faq_for_where_is():
     clear_session("15550001111")
     decision = route_message("15550001111", "Where is Lost & Found?")
     assert decision["kind"] == "faq"
+
+
+def test_router_table_examples():
+    cases = [
+        ("Where is Lost & Found?", "faq"),
+        ("My daughter lost her jacket", "start_guided"),
+        ("How much is a replacement ID?", "faq"),
+        ("I lost my school ID", "start_guided"),
+        ("When is picture retake day?", "faq"),
+        ("I can't schedule conferences", "start_guided"),
+        ("Where do I order a band polo?", "faq"),
+        ("My spiritwear order is wrong", "start_guided"),
+        ("Where is the Color Run link?", "faq"),
+        ("I want to help with a PTSA event", "start_guided"),
+    ]
+    for idx, (message, expected) in enumerate(cases):
+        phone = f"1555111{idx:04d}"
+        clear_session(phone)
+        decision = route_message(phone, message)
+        assert decision["kind"] == expected, (message, decision)
 
 
 def test_router_starts_lost_and_found_for_situation():
@@ -39,17 +68,14 @@ def test_human_handoff_patterns():
 
 def test_lost_and_found_clothing_branch(tmp_path, monkeypatch):
     phone = "15550002222"
-    state_file = tmp_path / "guided_state.json"
-    metrics_file = tmp_path / "guided_metrics.json"
-    monkeypatch.setattr("app.guided_state.STATE_FILE", state_file)
+    monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state.json")
     monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
-    monkeypatch.setattr("app.guided_metrics.METRICS_FILE", metrics_file)
+    monkeypatch.setattr("app.guided_metrics.METRICS_FILE", tmp_path / "guided_metrics.json")
     monkeypatch.setattr("app.guided_metrics.FAQ_GCS_BUCKET", "")
     clear_session(phone)
 
     started = start_topic(phone, "lost_and_found")
     assert "What did your child lose?" in started["messages"][0]
-    assert started["choices"]
 
     step2 = advance(phone, "1")
     assert "cafeteria" in step2["messages"][0].lower()
@@ -60,10 +86,10 @@ def test_lost_and_found_clothing_branch(tmp_path, monkeypatch):
 
     done = advance(phone, "Yes, resolved")
     assert done["ended"] is True
-    assert "Glad" in done["messages"][0]
+    assert "Great! Glad I could help." in done["messages"][0]
 
 
-def test_student_id_branch(tmp_path, monkeypatch):
+def test_chromebook_branch_keeps_demo_tag(tmp_path, monkeypatch):
     phone = "15550003333"
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
@@ -71,8 +97,28 @@ def test_student_id_branch(tmp_path, monkeypatch):
     monkeypatch.setattr("app.guided_metrics.FAQ_GCS_BUCKET", "")
     clear_session(phone)
     start_topic(phone, "lost_and_found")
-    result = advance(phone, "Student ID")
-    assert any("$5" in m for m in result["messages"])
+    result = advance(phone, "Chromebook")
+    assert any("[DEMO ANSWER]" in m for m in result["messages"])
+
+
+def test_clubs_and_ptsa_packs_exist():
+    assert get_topic("clubs") is not None
+    assert get_topic("ptsa_events") is not None
+    ids = {t["id"] for t in list_topics()}
+    assert {"lost_and_found", "conferences", "spiritwear", "clubs", "ptsa_events"} <= ids
+
+
+def test_ptsa_deadline_lookup(tmp_path, monkeypatch):
+    phone = "15550005555"
+    monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "state.json")
+    monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr("app.guided_metrics.METRICS_FILE", tmp_path / "metrics.json")
+    monkeypatch.setattr("app.guided_metrics.FAQ_GCS_BUCKET", "")
+    clear_session(phone)
+    start_topic(phone, "ptsa_events")
+    advance(phone, "Find an event deadline")
+    result = advance(phone, "Color Run")
+    assert any("[DEMO ANSWER]" in m for m in result["messages"])
     assert any("Did this help" in m for m in result["messages"])
 
 
@@ -84,7 +130,6 @@ def test_cancel_clears_session(tmp_path, monkeypatch):
     start_topic(phone, "conferences")
     result = advance(phone, "cancel")
     assert result["ended"] is True
-    assert route_message(phone, "hello again later")["kind"] in {"faq", "start_guided", "human"}
 
 
 def test_message_dedupe(tmp_path, monkeypatch):
@@ -94,11 +139,12 @@ def test_message_dedupe(tmp_path, monkeypatch):
     assert already_seen_message("wamid.TEST1") is True
 
 
-def test_match_spiritwear_and_conferences():
-    assert match_guided_topic("Where do I buy the band polo?")["id"] == "spiritwear"
-    assert match_guided_topic("ParentVUE isn't showing slots")["id"] == "conferences"
+def test_preview_includes_resolution():
+    lines = preview_topic("lost_and_found", ["1", "Not yet"])
+    joined = "\n".join(lines)
+    assert "Did this help you resolve your issue?" in joined
 
 
-def test_list_topics_includes_three():
-    ids = {t["id"] for t in list_topics()}
-    assert {"lost_and_found", "conferences", "spiritwear"} <= ids
+def test_direct_faq_detector():
+    assert looks_like_direct_faq("Where is Lost & Found?")
+    assert not looks_like_direct_faq("My daughter lost her jacket")

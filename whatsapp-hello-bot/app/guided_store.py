@@ -38,6 +38,9 @@ def _validate_topic(data: dict[str, Any]) -> dict[str, Any]:
     triggers = data.get("triggers") or []
     if not isinstance(triggers, list):
         raise ValueError("triggers must be a list")
+    deadlines = data.get("deadlines") or {}
+    if not isinstance(deadlines, dict):
+        raise ValueError("deadlines must be an object map")
     return {
         "id": topic_id,
         "title": title,
@@ -47,6 +50,11 @@ def _validate_topic(data: dict[str, Any]) -> dict[str, Any]:
         "start_step": start,
         "escalation": str(data.get("escalation") or "").strip(),
         "steps": steps,
+        "deadlines": {
+            str(k).strip(): str(v).strip()
+            for k, v in deadlines.items()
+            if str(k).strip() and str(v).strip()
+        },
     }
 
 

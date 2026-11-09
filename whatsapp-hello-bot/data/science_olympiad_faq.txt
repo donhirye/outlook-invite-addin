@@ -1,16 +1,108 @@
-SCIENCE OLYMPIAD — SAMPLE FAQ
+Crone Middle School PTSA — Parent FAQ (DEMO)
+Demo materials for invited testers. Untagged answers may be parent-reported from the 6th Graders WhatsApp group; they are not official school verification. Answers marked [DEMO ANSWER] include invented demo details.
 
-Arrival:
-Students should arrive by 8:15 AM.
+## Lost & Found
 
-Parking:
-Parents should park in Lot C.
+Q: Where is Lost & Found at Crone?
+A: Crone has two Lost & Found locations: one in the cafeteria/lunchroom and another outside the gym. Students should check both locations.
 
-Lunch:
-Lunch is not provided. Students should bring their own lunch.
+Q: Can parents enter the school to collect lost items?
+A: Students are generally expected to retrieve their own belongings from Lost & Found. If you need to make a special arrangement, contact the school office.
 
-Check-in:
-Students check in at the main gym entrance.
+Q: What if my child cannot find an item in Lost & Found?
+A: Ask your child to check both Lost & Found locations and then check with the school office. If the item hasn't been turned in yet, it may help to check again later.
 
-IMPORTANT:
-This is sample development data and should be replaced with the real Science Olympiad FAQ.
+Q: What if my child leaves something on the school bus?
+A: Contact First Student with your child's bus number and route details. Parents have reported that drivers sometimes retain found belongings on the bus until the following morning.
+
+Q: How much does a replacement student ID cost?
+A: Parents reported that replacement student IDs are available through the school office for $5.
+
+Q: Can my child buy lunch without a student ID?
+A: Parents reported that students can still purchase school lunch without physically presenting their student ID. Your child can ask cafeteria staff for assistance.
+
+Q: Can the bot tell me whether a lost item has been found?
+A: No. The bot does not have access to the school's live Lost & Found inventory. Your child should check the Lost & Found locations or contact the school office.
+
+Q: How do I report a missing Chromebook?
+A: Ask your child to notify their teacher and the school office. The school technology team will open a missing-device report and provide an update within two school days. [DEMO ANSWER]
+
+Q: Can I get a replacement PE uniform?
+A: Replacement PE uniforms can be purchased through the school office for $15 per set. Ask your child to confirm the available sizes before purchasing. [DEMO ANSWER]
+
+Q: What happens to unclaimed Lost & Found items?
+A: Unclaimed items are collected at the end of each grading quarter. Families receive a reminder before remaining clothing is donated. [DEMO ANSWER]
+
+## School Calendar
+
+Q: Is there school tomorrow?
+A: Please check the current administrator-provided school calendar. If no current calendar is loaded in this bot, use the official Crone Middle School calendar or school announcements.
+
+Q: When is the next early release day?
+A: Please check the current school calendar in school announcements or the official school calendar. This bot answers from administrator-approved text only when that date is present here.
+
+Q: When is picture retake day?
+A: The picture retake date discussed by parents for fall 2026 was October 20, 2026. For upcoming retakes, check the latest school announcement.
+
+Q: Where can I find the Spirit Week dress-up schedule?
+A: The school typically shares the dress-up schedule through school announcements. For this demo, the themes are Monday: Pajama Day, Tuesday: Sports Day, Wednesday: Twin Day, Thursday: Decades Day, and Friday: School Colors. [DEMO ANSWER]
+
+Q: When is the next PTSA meeting?
+A: For this demo, the next PTSA meeting is November 18, 2026, at 7:00 PM in the school library. [DEMO ANSWER]
+
+## Clubs and Activities
+
+Q: How do I register for Art Club?
+A: Parents discussed obtaining Art Club registration forms from the school office. Ask your child to check with the office for the current form and registration instructions.
+
+Q: Can I register for Art Club online?
+A: For this demo, online registration is available through the school's activities portal. Registration closes five school days before the first meeting. [DEMO ANSWER]
+
+Q: How much does Art Club cost?
+A: For this demo, Art Club costs $25 per semester, including basic art supplies. [DEMO ANSWER]
+
+Q: How do I register for basketball?
+A: For this demo, basketball registration is handled through the school athletics office. Families must complete a registration form and submit a current sports physical before tryouts. [DEMO ANSWER]
+
+Q: Where do I order chorus, band, or orchestra polos?
+A: Parents discussed performance polo ordering through PushCoin. Check with the activity director for the required polo and current ordering instructions.
+
+Q: When does Art Club meet?
+A: For this demo, Art Club meets on Tuesdays from 3:15 PM to 4:15 PM in the art classroom. [DEMO ANSWER]
+
+## PTSA Events and Volunteering
+
+Q: How do I register for Color Run?
+A: Color Run registration information was shared in the parent group. For a current event, use the latest registration link provided by the PTSA organizer.
+
+Q: How can I volunteer for PTSA events?
+A: PTSA organizers share volunteer signup opportunities in the parent group. Look for the current signup announcement or contact the event organizer.
+
+Q: What volunteer opportunities are available?
+A: For this demo, the PTSA needs volunteers for event setup, registration tables, refreshments, and cleanup. Most shifts last 60–90 minutes. [DEMO ANSWER]
+
+Q: Where should I drop off donations?
+A: For this demo, donations can be dropped off at the school main office between 8:00 AM and 3:00 PM on school days. Label donations with the event name. [DEMO ANSWER]
+
+Q: How do I submit a Reflections entry?
+A: For this demo, students should submit their artwork or writing through the PTSA Reflections coordinator. Each entry must include a completed student entry form and artist statement. [DEMO ANSWER]
+
+Q: How do I order a yearbook?
+A: For this demo, yearbooks can be ordered through the school office or the school's approved online ordering portal. Orders close on March 15, 2027. [DEMO ANSWER]
+
+## School Procedures
+
+Q: How do I schedule parent-teacher conferences?
+A: Parents discussed scheduling conferences through ParentVUE. Check the current school instructions for available appointments.
+
+Q: Should students attend parent-teacher conferences?
+A: For the October 2026 conferences, a group administrator indicated that student attendance was preferred.
+
+Q: What if no conference slots are available?
+A: Contact your child's teacher to ask whether additional appointment times or another meeting arrangement are available.
+
+Q: Where can I find a map of Crone?
+A: For this demo, a printed school map is available at the main office, and a digital map can be requested from the school secretary. [DEMO ANSWER]
+
+Q: How do gym lockers work?
+A: For this demo, students receive an assigned gym locker at the beginning of the semester. They should use the school-approved lock and report any locker problems to their PE teacher. [DEMO ANSWER]

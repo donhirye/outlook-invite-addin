@@ -16,16 +16,20 @@
     "lost my",
     "lost his",
     "lost her",
+    "lost their",
     "pe shirt",
     "case-it",
     "case it",
-    "jacket somewhere",
-    "missing jacket",
+    "jacket",
     "lost chromebook",
-    "student id"
+    "lost their id",
+    "lost my id",
+    "lost his id",
+    "lost her id",
+    "i lost my school id"
   ],
   "start_step": "identify_item",
-  "escalation": "Please have your child check with the school office, or contact the office directly for next steps. This bot cannot see Lost & Found inventory.",
+  "escalation": "Please have your child check with the school office, or contact the office directly for next steps. This bot cannot see Lost & Found inventory and cannot contact staff for you.",
   "steps": {
     "identify_item": {
       "prompt": "I can help! What did your child lose?",
@@ -53,7 +57,7 @@
       ]
     },
     "clothing_checked": {
-      "prompt": "Has your child checked Lost & Found in the cafeteria and outside the gym?",
+      "prompt": "Has your child checked both Lost & Found locations — the cafeteria and outside the gym?",
       "choices": [
         {
           "id": "not_yet",
@@ -73,23 +77,23 @@
       "ask_resolution": true
     },
     "clothing_checked_office": {
-      "prompt": "Have your child ask the school office whether the item has been turned in. It may also help to check again later.",
+      "prompt": "Have your child check with the school office and look again later in case the item has been turned in.",
       "end": true,
       "ask_resolution": true
     },
     "student_id_answer": {
-      "prompt": "Parents reported that replacement IDs are available through the school office for $5. Please confirm the current fee and procedure with the office.",
+      "prompt": "Parents reported that a replacement student ID costs $5 and can be obtained through the school office.",
       "end": true,
       "ask_resolution": true
     },
     "chromebook_answer": {
-      "prompt": "Please notify the school office and your child's teacher promptly. They can explain the school's missing-device procedure. This bot cannot report or track devices.",
+      "prompt": "Please notify your child's teacher and the school office. The technology team will create a missing-device report and contact you within two school days. [DEMO ANSWER]",
       "end": true,
       "ask_resolution": true,
       "recommend_human": true
     },
     "bus_answer": {
-      "prompt": "Parents recommended contacting First Student with the bus number and route details. Some drivers retain found items for the next morning, but this is not guaranteed.",
+      "prompt": "Contact First Student with the bus number and route details. Parents reported that some drivers keep found items until the following morning.",
       "end": true,
       "ask_resolution": true
     }

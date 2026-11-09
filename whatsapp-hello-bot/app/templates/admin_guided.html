@@ -241,11 +241,32 @@
         <a class="link-btn" href="/admin/guided">Reload</a>
       </div>
     </form>
+
+    <h2>Preview / test mode</h2>
+    <p>
+      Walks the default first-choice path (or a custom path). Does not message WhatsApp.
+      Preserve <code>[DEMO ANSWER]</code> exactly in fictional steps.
+    </p>
+    <form method="get" action="/admin/guided/preview" class="row" style="margin-bottom:1rem;">
+      <input type="hidden" name="topic_id" id="preview_topic_id" value="{{ selected_id }}" />
+      <label for="preview_path" style="width:100%;">
+        Optional choice path (use <code>|</code> between replies), e.g.
+        <code>1|Not yet</code> or <code>deadline|Color Run</code>
+      </label>
+      <textarea id="preview_path" name="path" style="min-height:4rem;">{{ preview_path or '' }}</textarea>
+      <button type="submit">Run preview</button>
+    </form>
+    {% if preview_lines %}
+      <div class="copy-box" style="white-space:pre-wrap; border:1px solid var(--border); border-radius:0.65rem; padding:0.85rem; background:rgba(0,0,0,0.35); color:#d7ffe9; font-family:ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size:0.85rem; margin-bottom:1rem;">{{ preview_lines | join('\n\n---\n\n') }}</div>
+    {% endif %}
+
     <script>
       const TOPIC_JSON = {{ topic_jsons | tojson }};
       function swapTopic(id) {
         const area = document.getElementById('topic_json');
+        const previewTopic = document.getElementById('preview_topic_id');
         if (area && TOPIC_JSON[id]) area.value = TOPIC_JSON[id];
+        if (previewTopic) previewTopic.value = id;
       }
     </script>
     {% endif %}
@@ -253,6 +274,7 @@
     <p class="meta">
       Tip: keep factual one-liners in the FAQ tab. Use Guided for branching situations.
       Parents can type <code>cancel</code> to leave a flow.
+      Demo materials — not verified official school guidance.
     </p>
     <p class="meta">Stored at <code>{{ storage }}</code></p>
   </main>

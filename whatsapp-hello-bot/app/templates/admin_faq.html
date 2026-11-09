@@ -157,21 +157,50 @@
     {% if error %}
       <div class="flash error">{{ error }}</div>
     {% endif %}
+    <label for="faq_filter">Search / filter (client-side)</label>
+    <input
+      id="faq_filter"
+      type="text"
+      placeholder="Type to highlight matching lines…"
+      style="width:100%; border:1px solid var(--border); background:rgba(0,0,0,0.25); color:var(--ink); border-radius:0.65rem; padding:0.85rem; font:inherit; margin-bottom:0.75rem;"
+    />
     <form method="post" action="/admin/faq">
-      <label for="faq_text">FAQ text</label>
+      <label for="faq_text">FAQ text (organized by category)</label>
       <textarea id="faq_text" name="faq_text" required>{{ faq_text }}</textarea>
       <div class="row">
         <button type="submit">Save FAQ</button>
         <a class="link-btn" href="/admin/faq">Reload</a>
       </div>
     </form>
+    <p class="meta" id="faq_filter_status"></p>
     <p class="meta">
       Tip: keep Q&amp;A blocks as <code>Q: ...</code> / <code>A: ...</code>.
+      Keep <code>[DEMO ANSWER]</code> exactly when present — parents see that tag.
     </p>
     <p class="meta">
       <strong>Source: Google Docs</strong> — placeholder on bot answers for now;
       real Google Doc linking comes later.
     </p>
+    <script>
+      const box = document.getElementById('faq_text');
+      const filter = document.getElementById('faq_filter');
+      const status = document.getElementById('faq_filter_status');
+      const original = box ? box.value : '';
+      filter?.addEventListener('input', () => {
+        const q = (filter.value || '').trim().toLowerCase();
+        if (!q) {
+          box.value = original;
+          status.textContent = '';
+          return;
+        }
+        const blocks = original.split(/\n(?=Q:)/i);
+        const matched = blocks.filter((b) => b.toLowerCase().includes(q));
+        box.value = matched.join('\n');
+        status.textContent = matched.length
+          ? `Showing ${matched.length} matching block(s). Clear search to restore full FAQ before saving.`
+          : 'No matches. Clear search to restore full FAQ before saving.';
+      });
+    </script>
   </main>
 </body>
 </html>

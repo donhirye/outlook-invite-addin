@@ -8,19 +8,22 @@
     "spirit wear",
     "wrong t-shirt",
     "wrong shirt",
+    "shirt order is wrong",
     "band polo",
     "performance polo",
     "chorus polo",
     "orchestra polo",
     "order never arrived",
+    "hasn't arrived",
+    "hasnt arrived",
     "pushcoin",
     "push coin"
   ],
   "start_step": "need_help",
-  "escalation": "Keep your order confirmation and contact the approved vendor or school organizer. This bot cannot track orders or issue refunds.",
+  "escalation": "Keep your order confirmation and contact the approved vendor or school organizer. This bot cannot track orders, process exchanges, or issue refunds.",
   "steps": {
     "need_help": {
-      "prompt": "What do you need help with for spiritwear or performance uniforms?",
+      "prompt": "What do you need help with?",
       "choices": [
         {
           "id": "order_polo",
@@ -40,18 +43,18 @@
       ]
     },
     "order_polo": {
-      "prompt": "Parents have discussed ordering performance polos for chorus, band, and orchestra (including PushCoin when offered). Use the current school-approved ordering link or ask the activity sponsor for this year's instructions.",
+      "prompt": "Parents discussed ordering performance polos through PushCoin. Check with the activity director for the current ordering instructions.",
       "end": true,
       "ask_resolution": true
     },
     "wrong_item": {
-      "prompt": "Please keep your order confirmation and contact the approved vendor about an exchange or correction. This bot cannot change or refund orders.",
+      "prompt": "Keep your order confirmation and take a photo of the incorrect item. For this demo, exchanges are accepted within 14 days of delivery through the spiritwear vendor. [DEMO ANSWER]",
       "end": true,
       "ask_resolution": true,
       "recommend_human": true
     },
     "missing_order": {
-      "prompt": "Check your confirmation and expected delivery date, then contact the vendor with your order number. This bot cannot track shipments.",
+      "prompt": "Check your order confirmation for the expected delivery date. For this demo, most spiritwear orders arrive within 10–14 school days. Contact the vendor if your order is overdue. [DEMO ANSWER]",
       "end": true,
       "ask_resolution": true,
       "recommend_human": true

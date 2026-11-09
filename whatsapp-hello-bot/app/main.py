@@ -37,6 +37,7 @@ from app.faq_service import answer_faq_question
 from app.faq_store import faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
 from app.guided_engine import advance as advance_guided
+from app.guided_engine import preview_topic
 from app.guided_metrics import get_guided_metrics
 from app.guided_router import begin_guided, route_message
 from app.guided_state import already_seen_message, get_session as get_guided_session
@@ -366,6 +367,8 @@ async def admin_guided_page(request: Request, saved: int = 0) -> Response:
             "saved": bool(saved),
             "error": None,
             "selected_id": topics[0]["id"] if topics else "",
+            "preview_lines": None,
+            "preview_path": "",
         },
     )
 
@@ -406,6 +409,8 @@ async def admin_guided_save(
                 "saved": False,
                 "error": f"Could not save topic: {exc}",
                 "selected_id": topic_id,
+                "preview_lines": None,
+                "preview_path": "",
             },
             status_code=400,
         )
@@ -422,6 +427,36 @@ async def admin_guided_toggle(
         return RedirectResponse(url="/admin", status_code=303)
     set_topic_enabled(topic_id, enabled in {"1", "true", "on", "yes"})
     return RedirectResponse(url="/admin/guided?saved=1", status_code=303)
+
+
+@app.get("/admin/guided/preview", response_class=HTMLResponse)
+async def admin_guided_preview(
+    request: Request,
+    topic_id: str = "",
+    path: str = "",
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    choices_path = [p.strip() for p in (path or "").split("|") if p.strip()]
+    lines = preview_topic(topic_id, choices_path or None)
+    topics = list_topics(enabled_only=False)
+    return templates.TemplateResponse(
+        request,
+        "admin_guided.html",
+        {
+            **_branding_context(),
+            "topics": topics,
+            "topic_jsons": {t["id"]: json_dumps_topic(t) for t in topics},
+            "metrics": get_guided_metrics(),
+            "storage": guided_storage_label(),
+            "guided_enabled": GUIDED_ENABLED,
+            "saved": False,
+            "error": None,
+            "selected_id": topic_id or (topics[0]["id"] if topics else ""),
+            "preview_lines": lines,
+            "preview_path": path,
+        },
+    )
 
 
 @app.get("/webhook")
