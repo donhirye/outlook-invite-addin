@@ -8,7 +8,9 @@ os.environ.setdefault("FAQ_ADMIN_PHONES", "15551234567")
 os.environ["FAQ_GCS_BUCKET"] = ""
 
 from app.faq_admin import (
+    SOURCE_PLACEHOLDER,
     append_faq_entry,
+    format_parent_answer,
     is_faq_admin,
     is_faq_command,
     is_help_command,
@@ -62,6 +64,18 @@ def test_admin_phone_check(monkeypatch):
     assert is_faq_admin("15551234567")
     assert is_faq_admin("+1 (555) 123-4567")
     assert not is_faq_admin("19999999999")
+
+
+def test_format_parent_answer_adds_source_placeholder():
+    out = format_parent_answer("Parents should park in Lot C.")
+    assert "*FAQ answer*" in out
+    assert "Lot C" in out
+    assert SOURCE_PLACEHOLDER in out
+
+
+def test_format_parent_answer_skips_source_on_fallback():
+    out = format_parent_answer("I couldn't find that information in the event FAQ.")
+    assert SOURCE_PLACEHOLDER not in out
 
 
 def test_append_faq_entry(tmp_path, monkeypatch):

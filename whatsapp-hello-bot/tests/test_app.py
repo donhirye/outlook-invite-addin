@@ -204,6 +204,9 @@ def test_admin_faq_ui_roundtrip(tmp_path, monkeypatch):
     page = client.get("/admin/faq")
     assert page.status_code == 200
     assert "Old FAQ" in page.text
+    assert "Settings" in page.text
+    assert "Source: Google Docs" in page.text
+    assert "wa.me" in page.text or "Bot WhatsApp number" in page.text
 
     saved = client.post(
         "/admin/faq",

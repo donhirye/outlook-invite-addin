@@ -158,11 +158,19 @@ async def admin_logout(request: Request) -> Response:
 
 
 @app.post("/admin/message")
-async def admin_save_message(request: Request, message: str = Form(...)) -> Response:
+async def admin_save_message(
+    request: Request,
+    message: str = Form(...),
+    next: str = Form("/admin?saved=1"),
+) -> Response:
     if not _is_logged_in(request):
         return RedirectResponse(url="/admin", status_code=303)
     set_greeting(message)
-    return RedirectResponse(url="/admin?saved=1", status_code=303)
+    # Only allow in-app admin redirects (avoid open redirects).
+    dest = (next or "").strip() or "/admin?saved=1"
+    if not dest.startswith("/admin"):
+        dest = "/admin?saved=1"
+    return RedirectResponse(url=dest, status_code=303)
 
 
 def _admin_faq_context(
@@ -177,6 +185,7 @@ def _admin_faq_context(
         "saved": saved,
         "error": error,
         "storage": faq_storage_label(),
+        "greeting": get_greeting(),
         "bot_phone": link["bot_phone"] or "",
         "prefill_text": link["prefill_text"] or "",
         "wa_me_link": link["wa_me_link"],

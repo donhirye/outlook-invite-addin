@@ -139,6 +139,9 @@ def append_faq_entry(
     )
 
 
+SOURCE_PLACEHOLDER = "Source: Google Docs"
+
+
 def format_parent_answer(answer: str) -> str:
     cleaned = (answer or "").strip()
     if not cleaned:
@@ -146,4 +149,6 @@ def format_parent_answer(answer: str) -> str:
     # Keep refusal/fallback messages plain; dress up normal answers lightly.
     if cleaned.startswith("I couldn't find") or cleaned.startswith("Sorry,"):
         return cleaned
-    return f"*FAQ answer*\n{cleaned}"
+    if SOURCE_PLACEHOLDER.lower() in cleaned.lower():
+        return f"*FAQ answer*\n{cleaned}"
+    return f"*FAQ answer*\n{cleaned}\n\n_{SOURCE_PLACEHOLDER}_"
