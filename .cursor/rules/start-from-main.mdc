@@ -1,0 +1,32 @@
+---
+description: Always start new work from latest GitHub main on a fresh feature branch (laptop and Cursor mobile/Cloud Agents).
+alwaysApply: true
+---
+
+# Start every change from latest main
+
+This repo’s production source of truth is GitHub `main`.
+
+## When starting new work (especially Cursor mobile / Cloud Agents)
+
+1. Use the latest `main` as the base (`git fetch` + checkout `main` + pull, or Cloud Agent equivalent).
+2. Create a **new** feature branch: `feature/<short-description>`.
+3. Confirm and state the starting commit SHA of `main` before editing.
+4. **Do not** continue or commit onto old branches such as `cursor/faq-admin-cloudrun-3ba8` or other stale `cursor/*` tips after `main` has moved.
+5. **Do not** commit directly to `main` for normal feature work.
+
+## Why
+
+Reusing an old Cursor branch causes divergence: ahead of `main` by new commits but missing commits already on `main`. That breaks clean merge/deploy.
+
+## After the work
+
+- Push the **new** feature branch and open a PR → `main`.
+- Deploy only from `main` via the Cloud Run GitHub Actions workflow (or explicit user approval).
+
+## Bad vs good
+
+```text
+❌ Continue editing on cursor/faq-admin-cloudrun-3ba8
+✅ git checkout main && git pull && git checkout -b feature/admin-tabs
+```
