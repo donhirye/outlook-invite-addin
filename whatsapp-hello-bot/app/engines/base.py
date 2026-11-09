@@ -52,6 +52,8 @@ class AnswerResult:
     state_transition: str | None = None
     model_usage: ModelUsage = field(default_factory=ModelUsage)
     fallback: str | None = None
+    # answered | unanswered | error — no question/answer text stored with this.
+    answer_outcome: str | None = None
     error: str | None = None
     sources: list[str] = field(default_factory=list)
     ended: bool = False

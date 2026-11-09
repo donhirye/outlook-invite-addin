@@ -62,7 +62,7 @@ def process_message(
         guided_session=get_session(phone),
         pinned_engine_id=get_pinned_engine(phone),
     )
-    trace = new_trace(phone, message_id, engine.id)
+    trace = new_trace(phone, message_id, engine.id, question_text=text)
     trace.span("engine_selected", engine_id=engine.id, version=engine.version)
     started = time.perf_counter()
     try:

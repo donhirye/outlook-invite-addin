@@ -37,6 +37,7 @@ class TraceContext:
     user_hash: str
     message_fp: str
     engine_id: str
+    question_text: str = ""
     spans: list[TraceSpan] = field(default_factory=list)
     started: float = field(default_factory=time.perf_counter)
 
@@ -46,12 +47,19 @@ class TraceContext:
         return sp
 
 
-def new_trace(phone: str, message_id: str, engine_id: str) -> TraceContext:
+def new_trace(
+    phone: str,
+    message_id: str,
+    engine_id: str,
+    *,
+    question_text: str = "",
+) -> TraceContext:
     return TraceContext(
         trace_id=str(uuid.uuid4()),
         user_hash=phone_hash(phone),
         message_fp=message_fingerprint(message_id),
         engine_id=engine_id,
+        question_text=(question_text or "").strip(),
     )
 
 
@@ -75,7 +83,45 @@ def _persist_trace(record: dict[str, Any]) -> None:
                 logger.exception("Failed mirroring trace to GCS")
 
 
+def derive_answer_outcome(result: AnswerResult) -> str:
+    """Classify whether the parent got a usable answer."""
+    if result.answer_outcome in {"answered", "unanswered", "error"}:
+        return result.answer_outcome
+    if result.error or result.route == "error":
+        return "error"
+    if result.fallback in {
+        "faq_not_found",
+        "faq_fallback",
+        "exception",
+        "unimplemented",
+    }:
+        return "unanswered"
+    joined = "\n".join(result.messages or []).strip().lower()
+    if "couldn't find that information" in joined or joined.startswith("sorry,"):
+        return "unanswered"
+    if result.route in {
+        "faq",
+        "guided_start",
+        "guided_continue",
+        "human",
+        "help",
+        "greeting",
+        "faq_admin",
+    }:
+        return "answered"
+    return "unknown"
+
+
+def _answer_text(result: AnswerResult) -> str:
+    parts = [str(m).strip() for m in (result.messages or []) if str(m).strip()]
+    return "\n\n".join(parts)
+
+
 def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: float) -> dict[str, Any]:
+    outcome = derive_answer_outcome(result)
+    result.answer_outcome = outcome
+    question = trace.question_text
+    answer = _answer_text(result)
     record = {
         "trace_id": trace.trace_id,
         "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -100,9 +146,12 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
         "latency_ms": round(latency_ms, 1),
         "error": result.error,
         "fallback": result.fallback,
+        "answer_outcome": outcome,
+        "question_text": question,
+        "answer_text": answer,
         "status": "error" if result.error else "ok",
         "spans": [asdict(s) for s in trace.spans],
-        # Never include raw message body or phone.
+        # Phone numbers are still hashed; question/answer text are stored for evals.
     }
     _persist_trace(record)
     append_event(
@@ -118,6 +167,9 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
             "latency_ms": round(latency_ms, 1),
             "status": record["status"],
             "fallback": result.fallback,
+            "answer_outcome": outcome,
+            "question_text": question,
+            "answer_text": answer,
         }
     )
     logger.info(

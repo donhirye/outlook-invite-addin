@@ -13,6 +13,7 @@ from app.observability.analytics_store import (
     load_events,
     sessionize,
 )
+from app.observability.tracing import load_traces
 
 # Configurable estimate assumptions (minutes).
 DEFAULT_MINUTES_PER_REPETITIVE_QUESTION = 3.0
@@ -89,6 +90,11 @@ def compute_product_analytics(
     answered = faq_like + guided_like + routes.get("human", 0)
     knowledge_coverage = round(answered / total, 3) if events else 0.0
 
+    outcomes = Counter(str(e.get("answer_outcome") or "unknown") for e in events)
+    unanswered_count = int(outcomes.get("unanswered", 0))
+    answered_count = int(outcomes.get("answered", 0))
+    outcome_known = unanswered_count + answered_count + int(outcomes.get("error", 0))
+
     admin_minutes = round(faq_like * minutes_per_question, 1)
 
     return {
@@ -129,12 +135,52 @@ def compute_product_analytics(
             "Share of processed messages routed to faq, guided, or human handoff "
             "(not a correctness score)."
         ),
+        "answered_count": answered_count,
+        "unanswered_count": unanswered_count,
+        "unanswered_rate": round(unanswered_count / outcome_known, 3)
+        if outcome_known
+        else 0.0,
+        "answer_outcome_distribution": dict(outcomes),
+        "unanswered_definition": (
+            "Messages classified unanswered (FAQ not found / FAQ error). "
+            "Question and answer text are stored on each turn for later evals."
+        ),
+        "qa_log": _qa_log(since_days=since_days, limit=50),
         "estimated_admin_minutes_saved": admin_minutes,
         "admin_time_assumption_minutes": minutes_per_question,
         "admin_time_note": "Estimate only: FAQ-route count × configurable minutes.",
         "session_definition": "New session after 30 minutes of inactivity per user_hash.",
         "empty": len(events) == 0,
     }
+
+
+def _qa_log(*, since_days: int = 30, limit: int = 50) -> list[dict[str, Any]]:
+    """Recent question/answer pairs for admin review and eval harvesting."""
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(days=max(1, since_days))
+    rows: list[dict[str, Any]] = []
+    for t in load_traces(limit=max(limit * 4, 100)):
+        ts = _parse_ts(t.get("ts"))
+        if ts is not None and ts < cutoff:
+            continue
+        question = (t.get("question_text") or "").strip()
+        answer = (t.get("answer_text") or "").strip()
+        if not question and not answer:
+            continue
+        rows.append(
+            {
+                "ts": t.get("ts"),
+                "trace_id": t.get("trace_id"),
+                "engine_id": t.get("engine_id"),
+                "route": t.get("route"),
+                "answer_outcome": t.get("answer_outcome") or "unknown",
+                "question_text": question,
+                "answer_text": answer,
+            }
+        )
+        if len(rows) >= limit:
+            break
+    return rows
 
 
 def compute_engine_analytics(*, since_days: int = 30) -> dict[str, Any]:

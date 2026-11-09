@@ -45,16 +45,11 @@
     .metric .l { font-size:.8rem; color:var(--muted); }
     table { width:100%; border-collapse:collapse; font-size:.85rem; }
     th, td { text-align:left; padding:.45rem .35rem; border-bottom:1px solid var(--border); vertical-align:top; }
+    td { max-width:16rem; overflow-wrap:anywhere; }
     .meta { font-size:.85rem; color:var(--muted); }
     code { color:#d7ffe9; font-size:.85em; }
     select { background:rgba(0,0,0,.25); color:var(--ink); border:1px solid var(--border); border-radius:.5rem; padding:.4rem; }
     .empty { padding:1rem; border:1px dashed var(--border); border-radius:.75rem; color:var(--muted); }
-    .phase2 {
-      margin-top:1.4rem; padding:1rem 1.1rem; border:1px dashed var(--border);
-      border-radius:.85rem; background:rgba(0,0,0,.12);
-    }
-    .phase2 h2 { margin-top:0; }
-    .phase2 .metrics { opacity:.92; }
     .primary-metrics { margin-top:.75rem; grid-template-columns:repeat(auto-fit,minmax(10rem,1fr)); }
   </style>
 </head>
@@ -100,41 +95,32 @@
       {% if product.empty %}
         <div class="empty">No analytics events yet for this range. Metrics appear after WhatsApp traffic is processed.</div>
       {% endif %}
-      <p class="meta">Phase 1 focus: who used the bot, and how much they messaged. Poster click tracking is not wired yet — unique users are people who sent at least one message.</p>
+      <p class="meta">Phase 1: usage + whether we answered. Poster clicks are not tracked yet. Unique users = people who sent at least one message. Question and answer text are stored for evals (phones stay hashed).</p>
       <div class="metrics primary-metrics">
         <div class="metric"><div class="n">{{ product.unique_users }}</div><div class="l">Unique users</div></div>
         <div class="metric"><div class="n">{{ product.total_messages }}</div><div class="l">Messages</div></div>
+        <div class="metric"><div class="n">{{ product.answered_count }}</div><div class="l">Answered</div></div>
+        <div class="metric"><div class="n">{{ product.unanswered_count }}</div><div class="l">Unanswered</div></div>
+        <div class="metric"><div class="n">{{ product.unanswered_rate }}</div><div class="l">Unanswered rate</div></div>
       </div>
+      <p class="meta">{{ product.unanswered_definition }} Outcome labels and Q&amp;A text apply to traffic after this deploy.</p>
 
-      <section class="phase2" aria-label="Phase 2 metrics">
-        <h2>Phase 2 metrics (collecting now)</h2>
-        <p class="meta">Still computed in the backend so we can bring some back later. Not part of the Phase 1 product readout.</p>
-        <div class="metrics">
-          <div class="metric"><div class="n">{{ product.dau }}</div><div class="l">DAU</div></div>
-          <div class="metric"><div class="n">{{ product.wau }}</div><div class="l">WAU</div></div>
-          <div class="metric"><div class="n">{{ product.repeat_users }}</div><div class="l">Repeat users</div></div>
-          <div class="metric"><div class="n">{{ product.sessions }}</div><div class="l">Sessions</div></div>
-          <div class="metric"><div class="n">{{ product.messages_per_session }}</div><div class="l">Msgs / session</div></div>
-          <div class="metric"><div class="n">{{ product.guided_completion_rate }}</div><div class="l">Guided completion</div></div>
-          <div class="metric"><div class="n">{{ product.reported_resolution_rate }}</div><div class="l">Reported resolution</div></div>
-          <div class="metric"><div class="n">{{ product.feedback_response_rate }}</div><div class="l">Feedback response</div></div>
-          <div class="metric"><div class="n">{{ product.knowledge_coverage }}</div><div class="l">Knowledge coverage</div></div>
-          <div class="metric"><div class="n">{{ product.guided_abandonment_estimate }}</div><div class="l">Guided abandon (est.)</div></div>
-          <div class="metric"><div class="n">{{ product.estimated_admin_minutes_saved }}</div><div class="l">Est. admin minutes</div></div>
-        </div>
-        <p class="meta">{{ product.session_definition }}</p>
-        <p class="meta">{{ product.knowledge_coverage_definition }}</p>
-        <p class="meta">{{ product.admin_time_note }} ({{ product.admin_time_assumption_minutes }} min/FAQ-route)</p>
-        <h2>Routing distribution</h2>
-        <table>
-          <tr><th>Route</th><th>Count</th></tr>
-          {% for route, count in product.routing_distribution.items() %}
-            <tr><td>{{ route }}</td><td>{{ count }}</td></tr>
-          {% else %}
-            <tr><td colspan="2">No data</td></tr>
-          {% endfor %}
-        </table>
-      </section>
+      <h2>Recent Q&amp;A (for evals)</h2>
+      <p class="meta">Latest turns with stored question + bot reply. Click a time to open the full trace.</p>
+      <table>
+        <tr><th>Time</th><th>Outcome</th><th>Route</th><th>Question</th><th>Answer</th></tr>
+        {% for row in product.qa_log %}
+          <tr>
+            <td><a href="/admin/analytics/trace/{{ row.trace_id }}">{{ row.ts }}</a></td>
+            <td>{{ row.answer_outcome }}</td>
+            <td>{{ row.route }}</td>
+            <td>{{ row.question_text }}</td>
+            <td>{{ row.answer_text }}</td>
+          </tr>
+        {% else %}
+          <tr><td colspan="5">No Q&amp;A stored yet for this range.</td></tr>
+        {% endfor %}
+      </table>
     {% endif %}
 
     {% if tab == 'engine' %}

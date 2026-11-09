@@ -124,9 +124,16 @@ class LegacyEngine:
         # Mode A FAQ path (may use LLM fallback inside faq_service).
         raw = answer_faq_question(text)
         answer = format_parent_answer(raw)
-        used_llm = not raw.startswith("I couldn't find") and "FAQ answer" in (
-            f"*FAQ answer*\n{raw}" if True else ""
-        )
+        lowered = (raw or "").strip().lower()
+        if not raw or lowered.startswith("sorry,"):
+            fallback = "faq_fallback"
+            outcome = "unanswered"
+        elif "couldn't find that information" in lowered:
+            fallback = "faq_not_found"
+            outcome = "unanswered"
+        else:
+            fallback = None
+            outcome = "answered"
         # Heuristic metadata only — faq_service logs retrieval_mode separately.
         return AnswerResult(
             messages=[answer],
@@ -136,7 +143,8 @@ class LegacyEngine:
             intent="faq",
             sources=["faq_store"],
             model_usage=ModelUsage(invocations=0),  # exact LLM use logged in faq_service
-            fallback=None if raw and not raw.startswith("Sorry,") else "faq_fallback",
+            fallback=fallback,
+            answer_outcome=outcome,
         )
 
 
