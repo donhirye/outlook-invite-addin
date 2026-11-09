@@ -34,7 +34,7 @@ from app.faq_admin import (
 )
 from app.faq_rag import rebuild_index
 from app.faq_service import answer_faq_question
-from app.faq_store import faq_storage_label, get_faq_text, set_faq_text
+from app.faq_store import clear_faq_cache, faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
 from app.guided_engine import advance as advance_guided
 from app.guided_engine import preview_topic
@@ -305,6 +305,9 @@ async def admin_faq_page(request: Request, saved: int = 0) -> Response:
     error = None
     faq_text = ""
     try:
+        # Always re-read durable storage in admin so uploads/edits aren't hidden
+        # by the process-local FAQ cache.
+        clear_faq_cache()
         faq_text = get_faq_text()
     except Exception as exc:
         logger.exception("Failed loading FAQ for admin UI")
