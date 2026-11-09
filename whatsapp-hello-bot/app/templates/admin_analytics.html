@@ -105,19 +105,21 @@
       <p class="meta">{{ product.unanswered_definition }} Outcome labels and Q&amp;A text apply to traffic after this deploy.</p>
 
       <h2>Recent Q&amp;A (for evals)</h2>
-      <p class="meta">Latest turns with stored question + bot reply. Click a time to open the full trace.</p>
+      <p class="meta">Latest turns with stored question + bot reply. Match = keyword overlap; Confidence = LLM self-score (or match score on direct hits). Temperature is fixed at 0 (not the same as confidence). Click a time to open the full trace.</p>
       <table>
-        <tr><th>Time</th><th>Outcome</th><th>Route</th><th>Question</th><th>Answer</th></tr>
+        <tr><th>Time</th><th>Outcome</th><th>Mode</th><th>Match</th><th>Confidence</th><th>Question</th><th>Answer</th></tr>
         {% for row in product.qa_log %}
           <tr>
             <td><a href="/admin/analytics/trace/{{ row.trace_id }}">{{ row.ts }}</a></td>
             <td>{{ row.answer_outcome }}</td>
-            <td>{{ row.route }}</td>
+            <td>{{ row.retrieval_mode or '—' }}</td>
+            <td>{% if row.faq_match_score is not none %}{{ row.faq_match_score }}{% else %}—{% endif %}</td>
+            <td>{% if row.answer_confidence is not none %}{{ row.answer_confidence }}{% else %}—{% endif %}</td>
             <td>{{ row.question_text }}</td>
             <td>{{ row.answer_text }}</td>
           </tr>
         {% else %}
-          <tr><td colspan="5">No Q&amp;A stored yet for this range.</td></tr>
+          <tr><td colspan="7">No Q&amp;A stored yet for this range.</td></tr>
         {% endfor %}
       </table>
     {% endif %}

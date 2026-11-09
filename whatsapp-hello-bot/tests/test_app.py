@@ -83,14 +83,19 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
 
     monkeypatch.setattr("app.main.send_text_message", fake_send)
     monkeypatch.setattr("app.main.send_choices", fake_send)
-    monkeypatch.setattr(
-        "app.engines.engine1_legacy.answer_faq_question",
-        lambda question, faq_path=None: "Parents should park in Lot C.",
-    )
-    monkeypatch.setattr(
-        "app.faq_service.answer_faq_question",
-        lambda question, faq_path=None: "Parents should park in Lot C.",
-    )
+    from app.faq_service import FaqAnswer
+
+    def _fake_faq(question, faq_path=None):
+        return FaqAnswer(
+            answer="Parents should park in Lot C.",
+            confidence=0.95,
+            match_score=0.2,
+            retrieval_mode="rag",
+            llm_invocations=1,
+        )
+
+    monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen.json")
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state.json")

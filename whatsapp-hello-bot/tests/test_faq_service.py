@@ -25,11 +25,14 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
     faq_file.write_text("Parking:\nParents should park in Lot C.\n", encoding="utf-8")
 
     class FakeResponse:
-        output_text = "Parents should park in Lot C."
+        output_text = (
+            '{"answer":"Parents should park in Lot C.","confidence":0.91}'
+        )
 
     class FakeResponses:
         def create(self, **kwargs):
             assert kwargs["model"] == "gpt-5.6-luna"
+            assert kwargs["temperature"] == 0
             assert "ONLY the FAQ excerpts" in kwargs["instructions"]
             assert "Lot C" in kwargs["input"]
             assert "Where should I park?" in kwargs["input"]
@@ -55,10 +58,18 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
         ],
     )
     monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
-    monkeypatch.setattr(faq_service, "match_faq_qa", lambda question, faq_text: None)
+    monkeypatch.setattr(
+        faq_service, "score_faq_qa", lambda question, faq_text: (None, 0.2)
+    )
 
-    answer = faq_service.answer_faq_question("Where should I park?")
-    assert answer == "Parents should park in Lot C."
+    detailed = faq_service.answer_faq_detailed("Where should I park?")
+    assert detailed.answer == "Parents should park in Lot C."
+    assert detailed.confidence == 0.91
+    assert detailed.match_score == 0.2
+    assert detailed.llm_invocations == 1
+    assert faq_service.answer_faq_question("Where should I park?") == (
+        "Parents should park in Lot C."
+    )
 
 
 def test_direct_qa_match_returns_tomato():

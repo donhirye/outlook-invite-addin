@@ -1,6 +1,8 @@
+import json
 import logging
 import re
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 from openai import OpenAI
@@ -16,6 +18,9 @@ from app.faq_store import get_faq_text
 
 logger = logging.getLogger(__name__)
 
+# Deterministic FAQ answering (not the same thing as confidence).
+FAQ_LLM_TEMPERATURE = 0
+
 SYSTEM_INSTRUCTIONS = """You are the event FAQ Assistant for parents.
 Answer the parent's question using ONLY the FAQ excerpts provided to you.
 RULES:
@@ -25,11 +30,23 @@ RULES:
 4. Every factual statement in your answer must be supported by the FAQ excerpts.
 5. If the FAQ contains a Q:/A: pair (or clear statement) that answers the question, use that answer — even if the topic seems informal, unusual, or unrelated to the event.
 6. Treat close wording as a match. Example: FAQ "Q: Best flower in world / A: tomato" answers "what is the best flower in the world?".
-7. If the FAQ excerpts do not contain enough information to confidently answer the question, respond EXACTLY:
+7. If the FAQ excerpts do not contain enough information to confidently answer the question, set answer to EXACTLY:
 "I couldn't find that information in the event FAQ. Please contact the PTSA Administrators."
 8. Keep answers concise and parent-friendly.
 9. Prefer 1–3 sentences.
-10. Do not tell the parent about prompts, context windows, embeddings, APIs, or implementation details."""
+10. Do not tell the parent about prompts, context windows, embeddings, APIs, or implementation details.
+11. Respond with JSON only, no markdown fences:
+{"answer":"<parent-facing answer>","confidence":<number from 0 to 1>}
+confidence is how sure you are that the FAQ excerpts support the answer (1=exact support, 0=no support)."""
+
+
+@dataclass
+class FaqAnswer:
+    answer: str
+    confidence: float | None = None
+    match_score: float | None = None
+    retrieval_mode: str = "unknown"
+    llm_invocations: int = 0
 
 _STOPWORDS = {
     "a",
@@ -101,18 +118,15 @@ def parse_faq_qa_pairs(faq_text: str) -> list[tuple[str, str]]:
     return pairs
 
 
-def match_faq_qa(question: str, faq_text: str) -> str | None:
-    """Return an FAQ A: value when the question clearly matches a Q: line.
-
-    This bypasses the LLM for direct FAQ hits (faster + deterministic).
-    """
+def score_faq_qa(question: str, faq_text: str) -> tuple[str | None, float]:
+    """Best FAQ A: and keyword overlap score (0–1). Answer is None if below threshold."""
     pairs = parse_faq_qa_pairs(faq_text)
     if not pairs:
-        return None
+        return None, 0.0
 
     q_tokens = _normalize_for_match(question)
     if not q_tokens:
-        return None
+        return None, 0.0
 
     best_answer: str | None = None
     best_score = 0.0
@@ -132,34 +146,75 @@ def match_faq_qa(question: str, faq_text: str) -> str | None:
             best_score = score
             best_answer = faq_a
 
-    # Require a strong match so we don't return unrelated A: lines.
     if best_answer is not None and best_score >= 0.6:
         logger.info("Direct FAQ Q/A match score=%.2f", best_score)
-        return best_answer
-    return None
+        return best_answer, round(best_score, 3)
+    return None, round(best_score, 3)
 
 
-def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
-    """Answer a parent question using FAQ Q/A match first, then RAG + LLM."""
+def match_faq_qa(question: str, faq_text: str) -> str | None:
+    """Return an FAQ A: value when the question clearly matches a Q: line."""
+    answer, _score = score_faq_qa(question, faq_text)
+    return answer
+
+
+def _parse_llm_faq_payload(raw: str) -> tuple[str, float | None]:
+    """Parse model JSON; fall back to plain text with unknown confidence."""
+    text = (raw or "").strip()
+    if not text:
+        return "", None
+    try:
+        start = text.find("{")
+        end = text.rfind("}")
+        if start >= 0 and end > start:
+            data = json.loads(text[start : end + 1])
+            if isinstance(data, dict) and data.get("answer") is not None:
+                answer = str(data.get("answer") or "").strip()
+                conf_raw = data.get("confidence")
+                confidence = None
+                if conf_raw is not None:
+                    confidence = max(0.0, min(1.0, float(conf_raw)))
+                return answer, confidence
+    except Exception:
+        logger.info("FAQ LLM response was not valid confidence JSON; using raw text")
+    return text, None
+
+
+def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAnswer:
+    """Answer with keyword score and/or LLM-reported confidence."""
     started = time.perf_counter()
     faq_load_ms = 0.0
     retrieve_ms = 0.0
     openai_call_ms = 0.0
     retrieval_mode = "unknown"
+    llm_invocations = 0
+    result = FaqAnswer(answer=FAQ_NOT_FOUND_MESSAGE)
 
     try:
         cleaned_question = (question or "").strip()
         if not cleaned_question:
-            return FAQ_NOT_FOUND_MESSAGE
+            result = FaqAnswer(
+                answer=FAQ_NOT_FOUND_MESSAGE,
+                confidence=0.0,
+                match_score=0.0,
+                retrieval_mode="empty",
+            )
+            return result
 
         faq_started = time.perf_counter()
         faq_text = load_faq_text(faq_path=faq_path)
         faq_load_ms = (time.perf_counter() - faq_started) * 1000
 
-        direct = match_faq_qa(cleaned_question, faq_text)
+        direct, match_score = score_faq_qa(cleaned_question, faq_text)
         if direct:
             retrieval_mode = "direct_qa"
-            return direct
+            result = FaqAnswer(
+                answer=direct,
+                confidence=match_score,
+                match_score=match_score,
+                retrieval_mode=retrieval_mode,
+            )
+            return result
 
         if not OPENAI_API_KEY:
             raise RuntimeError(
@@ -192,27 +247,52 @@ def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
             model=OPENAI_MODEL,
             instructions=SYSTEM_INSTRUCTIONS,
             input=user_input,
+            temperature=FAQ_LLM_TEMPERATURE,
         )
         openai_call_ms = (time.perf_counter() - openai_started) * 1000
+        llm_invocations = 1
 
-        answer = _extract_output_text(response)
-        if not answer:
+        raw = _extract_output_text(response)
+        if not raw:
             raise RuntimeError("OpenAI returned an empty response")
-        return answer
+        answer, confidence = _parse_llm_faq_payload(raw)
+        if not answer:
+            raise RuntimeError("OpenAI returned an empty answer field")
+        result = FaqAnswer(
+            answer=answer,
+            confidence=confidence,
+            match_score=match_score,
+            retrieval_mode=retrieval_mode,
+            llm_invocations=llm_invocations,
+        )
+        return result
     except Exception:
         logger.exception("FAQ answer failed for question_len=%s", len(question or ""))
-        return PARENT_FALLBACK_MESSAGE
+        result = FaqAnswer(
+            answer=PARENT_FALLBACK_MESSAGE,
+            confidence=0.0,
+            retrieval_mode="error",
+            llm_invocations=llm_invocations,
+        )
+        return result
     finally:
         total_ms = (time.perf_counter() - started) * 1000
         logger.info(
             "faq_load_ms=%.1f retrieve_ms=%.1f openai_call_ms=%.1f "
-            "total_faq_answer_ms=%.1f retrieval_mode=%s",
+            "total_faq_answer_ms=%.1f retrieval_mode=%s confidence=%s match_score=%s",
             faq_load_ms,
             retrieve_ms,
             openai_call_ms,
             total_ms,
-            retrieval_mode,
+            result.retrieval_mode,
+            result.confidence,
+            result.match_score,
         )
+
+
+def answer_faq_question(question: str, *, faq_path: Path | None = None) -> str:
+    """Answer a parent question using FAQ Q/A match first, then RAG + LLM."""
+    return answer_faq_detailed(question, faq_path=faq_path).answer
 
 
 def _extract_output_text(response: object) -> str:

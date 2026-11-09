@@ -132,6 +132,8 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
         "route": result.route,
         "faq_id": result.faq_id,
         "faq_match_score": result.faq_match_score,
+        "answer_confidence": result.answer_confidence,
+        "retrieval_mode": result.retrieval_mode,
         "intent": result.intent,
         "extracted_keys": sorted((result.extracted or {}).keys()),
         "flow_id": result.flow_id,
@@ -170,6 +172,9 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
             "answer_outcome": outcome,
             "question_text": question,
             "answer_text": answer,
+            "faq_match_score": result.faq_match_score,
+            "answer_confidence": result.answer_confidence,
+            "retrieval_mode": result.retrieval_mode,
         }
     )
     logger.info(

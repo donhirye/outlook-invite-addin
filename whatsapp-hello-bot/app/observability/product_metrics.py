@@ -174,6 +174,9 @@ def _qa_log(*, since_days: int = 30, limit: int = 50) -> list[dict[str, Any]]:
                 "engine_id": t.get("engine_id"),
                 "route": t.get("route"),
                 "answer_outcome": t.get("answer_outcome") or "unknown",
+                "faq_match_score": t.get("faq_match_score"),
+                "answer_confidence": t.get("answer_confidence"),
+                "retrieval_mode": t.get("retrieval_mode") or "",
                 "question_text": question,
                 "answer_text": answer,
             }

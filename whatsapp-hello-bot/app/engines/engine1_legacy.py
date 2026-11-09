@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.config import GUIDED_ENABLED
+from app.config import GUIDED_ENABLED, OPENAI_MODEL
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext, ModelUsage
 from app.engines.registry import register_engine
 from app.faq_admin import (
@@ -16,7 +16,7 @@ from app.faq_admin import (
     is_opener_message,
     parse_faq_command,
 )
-from app.faq_service import answer_faq_question
+from app.faq_service import answer_faq_detailed
 from app.greeting_store import get_greeting
 from app.guided_engine import advance as advance_guided
 from app.guided_router import begin_guided, route_message
@@ -122,7 +122,8 @@ class LegacyEngine:
                 )
 
         # Mode A FAQ path (may use LLM fallback inside faq_service).
-        raw = answer_faq_question(text)
+        faq = answer_faq_detailed(text)
+        raw = faq.answer
         answer = format_parent_answer(raw)
         lowered = (raw or "").strip().lower()
         if not raw or lowered.startswith("sorry,"):
@@ -134,7 +135,6 @@ class LegacyEngine:
         else:
             fallback = None
             outcome = "answered"
-        # Heuristic metadata only — faq_service logs retrieval_mode separately.
         return AnswerResult(
             messages=[answer],
             route="faq",
@@ -142,9 +142,15 @@ class LegacyEngine:
             engine_version=self.version,
             intent="faq",
             sources=["faq_store"],
-            model_usage=ModelUsage(invocations=0),  # exact LLM use logged in faq_service
+            model_usage=ModelUsage(
+                model=OPENAI_MODEL if faq.llm_invocations else None,
+                invocations=faq.llm_invocations,
+            ),
             fallback=fallback,
             answer_outcome=outcome,
+            faq_match_score=faq.match_score,
+            answer_confidence=faq.confidence,
+            retrieval_mode=faq.retrieval_mode,
         )
 
 

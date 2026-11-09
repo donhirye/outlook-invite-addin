@@ -45,6 +45,8 @@ class AnswerResult:
     engine_version: str = "1.0.0"
     faq_id: str | None = None
     faq_match_score: float | None = None
+    answer_confidence: float | None = None
+    retrieval_mode: str | None = None
     flow_id: str | None = None
     step_id: str | None = None
     intent: str | None = None
