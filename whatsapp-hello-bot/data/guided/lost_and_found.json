@@ -1,0 +1,97 @@
+{
+  "id": "lost_and_found",
+  "title": "Lost & Found",
+  "enabled": true,
+  "priority": 1,
+  "triggers": [
+    "lost something",
+    "can't find",
+    "cant find",
+    "left his",
+    "left her",
+    "left their",
+    "forgot something",
+    "left on the bus",
+    "lost a",
+    "lost my",
+    "lost his",
+    "lost her",
+    "pe shirt",
+    "case-it",
+    "case it",
+    "jacket somewhere",
+    "missing jacket",
+    "lost chromebook",
+    "student id"
+  ],
+  "start_step": "identify_item",
+  "escalation": "Please have your child check with the school office, or contact the office directly for next steps. This bot cannot see Lost & Found inventory.",
+  "steps": {
+    "identify_item": {
+      "prompt": "I can help! What did your child lose?",
+      "choices": [
+        {
+          "id": "clothing",
+          "label": "Clothing / supplies",
+          "next": "clothing_checked"
+        },
+        {
+          "id": "student_id",
+          "label": "Student ID",
+          "next": "student_id_answer"
+        },
+        {
+          "id": "chromebook",
+          "label": "Chromebook",
+          "next": "chromebook_answer"
+        },
+        {
+          "id": "bus",
+          "label": "Left on the bus",
+          "next": "bus_answer"
+        }
+      ]
+    },
+    "clothing_checked": {
+      "prompt": "Has your child checked Lost & Found in the cafeteria and outside the gym?",
+      "choices": [
+        {
+          "id": "not_yet",
+          "label": "Not yet",
+          "next": "clothing_not_yet"
+        },
+        {
+          "id": "checked",
+          "label": "Checked, not found",
+          "next": "clothing_checked_office"
+        }
+      ]
+    },
+    "clothing_not_yet": {
+      "prompt": "Ask your child to check both locations during the school day. Students are generally expected to retrieve their own belongings.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "clothing_checked_office": {
+      "prompt": "Have your child ask the school office whether the item has been turned in. It may also help to check again later.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "student_id_answer": {
+      "prompt": "Parents reported that replacement IDs are available through the school office for $5. Please confirm the current fee and procedure with the office.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "chromebook_answer": {
+      "prompt": "Please notify the school office and your child's teacher promptly. They can explain the school's missing-device procedure. This bot cannot report or track devices.",
+      "end": true,
+      "ask_resolution": true,
+      "recommend_human": true
+    },
+    "bus_answer": {
+      "prompt": "Parents recommended contacting First Student with the bus number and route details. Some drivers retain found items for the next morning, but this is not guaranteed.",
+      "end": true,
+      "ask_resolution": true
+    }
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "id": "spiritwear",
+  "title": "Spiritwear and uniforms",
+  "enabled": true,
+  "priority": 3,
+  "triggers": [
+    "spiritwear",
+    "spirit wear",
+    "wrong t-shirt",
+    "wrong shirt",
+    "band polo",
+    "performance polo",
+    "chorus polo",
+    "orchestra polo",
+    "order never arrived",
+    "pushcoin",
+    "push coin"
+  ],
+  "start_step": "need_help",
+  "escalation": "Keep your order confirmation and contact the approved vendor or school organizer. This bot cannot track orders or issue refunds.",
+  "steps": {
+    "need_help": {
+      "prompt": "What do you need help with for spiritwear or performance uniforms?",
+      "choices": [
+        {
+          "id": "order_polo",
+          "label": "Order a polo",
+          "next": "order_polo"
+        },
+        {
+          "id": "wrong_item",
+          "label": "Wrong item received",
+          "next": "wrong_item"
+        },
+        {
+          "id": "missing_order",
+          "label": "Order hasn't arrived",
+          "next": "missing_order"
+        }
+      ]
+    },
+    "order_polo": {
+      "prompt": "Parents have discussed ordering performance polos for chorus, band, and orchestra (including PushCoin when offered). Use the current school-approved ordering link or ask the activity sponsor for this year's instructions.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "wrong_item": {
+      "prompt": "Please keep your order confirmation and contact the approved vendor about an exchange or correction. This bot cannot change or refund orders.",
+      "end": true,
+      "ask_resolution": true,
+      "recommend_human": true
+    },
+    "missing_order": {
+      "prompt": "Check your confirmation and expected delivery date, then contact the vendor with your order number. This bot cannot track shipments.",
+      "end": true,
+      "ask_resolution": true,
+      "recommend_human": true
+    }
+  }
+}

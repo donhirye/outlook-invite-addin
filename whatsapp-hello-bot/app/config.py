@@ -73,6 +73,14 @@ FAQ_NOT_FOUND_MESSAGE = (
     "Please contact the event organizer."
 )
 
+# Guided conversations (Lost & Found, conferences, spiritwear, ...)
+GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
 
 def credential_status() -> dict[str, object]:
     return {

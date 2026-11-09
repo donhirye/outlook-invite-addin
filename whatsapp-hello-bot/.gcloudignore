@@ -30,6 +30,9 @@ learnings.txt
 
 # Runtime / local-only data
 data/usage_metrics.json
+data/guided_state.json
+data/guided_metrics.json
+data/webhook_seen.json
 data/*.index.json
 data/faq_backup.txt
 

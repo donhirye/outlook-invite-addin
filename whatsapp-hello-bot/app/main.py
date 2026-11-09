@@ -1,3 +1,4 @@
+import json
 import logging
 import time
 from pathlib import Path
@@ -13,6 +14,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from app.config import (
     ADMIN_PASSWORD,
     BASE_DIR,
+    GUIDED_ENABLED,
     SECRET_KEY,
     TEMPLATES_DIR,
     WHATSAPP_VERIFY_TOKEN,
@@ -34,8 +36,19 @@ from app.faq_rag import rebuild_index
 from app.faq_service import answer_faq_question
 from app.faq_store import faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
+from app.guided_engine import advance as advance_guided
+from app.guided_metrics import get_guided_metrics
+from app.guided_router import begin_guided, route_message
+from app.guided_state import already_seen_message, get_session as get_guided_session
+from app.guided_store import (
+    get_topic,
+    guided_storage_label,
+    list_topics,
+    set_topic,
+    set_topic_enabled,
+)
 from app.metrics import get_metrics, record_question
-from app.whatsapp import send_text_message
+from app.whatsapp import send_choices, send_text_message
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -134,7 +147,37 @@ async def health() -> dict[str, str]:
 @app.get("/metrics")
 async def metrics() -> dict[str, object]:
     """Simple usage counters for local/prod inspection."""
-    return get_metrics()
+    data = get_metrics()
+    data["guided"] = get_guided_metrics()
+    data["guided_enabled"] = GUIDED_ENABLED
+    return data
+
+
+def _extract_inbound_text(message: dict[str, Any]) -> str:
+    mtype = message.get("type")
+    if mtype == "text":
+        return ((message.get("text") or {}).get("body") or "").strip()
+    if mtype == "interactive":
+        interactive = message.get("interactive") or {}
+        itype = interactive.get("type")
+        if itype == "button_reply":
+            reply = interactive.get("button_reply") or {}
+            return (reply.get("id") or reply.get("title") or "").strip()
+        if itype == "list_reply":
+            reply = interactive.get("list_reply") or {}
+            return (reply.get("id") or reply.get("title") or "").strip()
+    return ""
+
+
+async def _send_guided_result(phone: str, result: dict[str, Any]) -> None:
+    messages = result.get("messages") or []
+    choices = result.get("choices")
+    if not messages:
+        return
+    # Send all but last as plain text; attach choices to the final prompt.
+    for body in messages[:-1]:
+        await send_text_message(phone, body)
+    await send_choices(phone, messages[-1], choices)
 
 
 def _branding_context() -> dict[str, str]:
@@ -301,6 +344,86 @@ async def admin_faq_save(request: Request, faq_text: str = Form(...)) -> Respons
     return RedirectResponse(url="/admin/faq?saved=1", status_code=303)
 
 
+@app.get("/admin/guided", response_class=HTMLResponse)
+async def admin_guided_page(request: Request, saved: int = 0) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    topics = list_topics(enabled_only=False)
+    topic_jsons = {
+        t["id"]: json_dumps_topic(t)
+        for t in topics
+    }
+    return templates.TemplateResponse(
+        request,
+        "admin_guided.html",
+        {
+            **_branding_context(),
+            "topics": topics,
+            "topic_jsons": topic_jsons,
+            "metrics": get_guided_metrics(),
+            "storage": guided_storage_label(),
+            "guided_enabled": GUIDED_ENABLED,
+            "saved": bool(saved),
+            "error": None,
+            "selected_id": topics[0]["id"] if topics else "",
+        },
+    )
+
+
+def json_dumps_topic(topic: dict[str, Any]) -> str:
+    return json.dumps(topic, indent=2)
+
+
+@app.post("/admin/guided/save", response_class=HTMLResponse)
+async def admin_guided_save(
+    request: Request,
+    topic_id: str = Form(...),
+    topic_json: str = Form(...),
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        raw = json.loads(topic_json)
+        if isinstance(raw, dict) and not raw.get("id"):
+            raw["id"] = topic_id
+        saved_topic = set_topic(raw)
+        if saved_topic["id"] != topic_id and get_topic(topic_id):
+            # Allow renaming via JSON id; keep explicit.
+            pass
+    except Exception as exc:
+        logger.exception("Failed saving guided topic")
+        topics = list_topics(enabled_only=False)
+        return templates.TemplateResponse(
+            request,
+            "admin_guided.html",
+            {
+                **_branding_context(),
+                "topics": topics,
+                "topic_jsons": {t["id"]: json_dumps_topic(t) for t in topics},
+                "metrics": get_guided_metrics(),
+                "storage": guided_storage_label(),
+                "guided_enabled": GUIDED_ENABLED,
+                "saved": False,
+                "error": f"Could not save topic: {exc}",
+                "selected_id": topic_id,
+            },
+            status_code=400,
+        )
+    return RedirectResponse(url="/admin/guided?saved=1", status_code=303)
+
+
+@app.post("/admin/guided/toggle")
+async def admin_guided_toggle(
+    request: Request,
+    topic_id: str = Form(...),
+    enabled: str = Form("off"),
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    set_topic_enabled(topic_id, enabled in {"1", "true", "on", "yes"})
+    return RedirectResponse(url="/admin/guided?saved=1", status_code=303)
+
+
 @app.get("/webhook")
 async def verify_webhook(
     request: Request,
@@ -320,20 +443,37 @@ async def verify_webhook(
 
 @app.post("/webhook")
 async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
-    """Receive inbound WhatsApp messages and reply with an FAQ-grounded answer."""
+    """Receive inbound WhatsApp messages and reply with FAQ or guided help."""
     try:
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
                 value = change.get("value", {})
                 messages = value.get("messages", []) or []
                 for message in messages:
-                    if message.get("type") != "text":
+                    mtype = message.get("type")
+                    if mtype not in {"text", "interactive"}:
                         continue
                     from_phone = message.get("from")
                     if not from_phone:
                         continue
-                    question = (message.get("text") or {}).get("body") or ""
+                    message_id = (message.get("id") or "").strip()
+                    if message_id and already_seen_message(message_id):
+                        logger.info("Skipping duplicate WhatsApp message_id=%s", message_id)
+                        continue
+
+                    question = _extract_inbound_text(message)
+                    if not question:
+                        continue
                     started = time.perf_counter()
+
+                    # Active guided session continues before help/FAQ routing.
+                    if GUIDED_ENABLED and get_guided_session(from_phone):
+                        result = advance_guided(from_phone, question)
+                        await _send_guided_result(from_phone, result)
+                        e2e_ms = (time.perf_counter() - started) * 1000
+                        record_question(from_phone, e2e_ms=e2e_ms)
+                        logger.info("e2e_ms=%.1f kind=guided_continue", e2e_ms)
+                        continue
 
                     # Help / menu
                     if is_help_command(question):
@@ -344,7 +484,7 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                         continue
 
                     # Prefill / greeting openers → PTSA intro (not FAQ search)
-                    if is_opener_message(question):
+                    if mtype == "text" and is_opener_message(question):
                         await send_text_message(from_phone, get_greeting())
                         e2e_ms = (time.perf_counter() - started) * 1000
                         record_question(from_phone, e2e_ms=e2e_ms)
@@ -371,7 +511,33 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                         logger.info("e2e_ms=%.1f kind=faq_admin", e2e_ms)
                         continue
 
-                    # Normal parent FAQ question
+                    # Guided conversations (feature-flagged)
+                    if GUIDED_ENABLED:
+                        decision = route_message(from_phone, question)
+                        kind = decision.get("kind")
+                        if kind == "start_guided":
+                            result = begin_guided(from_phone, decision["topic_id"])
+                            await _send_guided_result(from_phone, result)
+                            e2e_ms = (time.perf_counter() - started) * 1000
+                            record_question(from_phone, e2e_ms=e2e_ms)
+                            logger.info(
+                                "e2e_ms=%.1f kind=guided_start topic=%s",
+                                e2e_ms,
+                                decision["topic_id"],
+                            )
+                            continue
+                        if kind == "human":
+                            await send_text_message(
+                                from_phone,
+                                decision.get("reply")
+                                or "Please contact the school office for help with that.",
+                            )
+                            e2e_ms = (time.perf_counter() - started) * 1000
+                            record_question(from_phone, e2e_ms=e2e_ms)
+                            logger.info("e2e_ms=%.1f kind=human", e2e_ms)
+                            continue
+
+                    # Normal parent FAQ question (Mode A)
                     logger.info(
                         "Answering FAQ for %s (question_len=%s)",
                         from_phone,

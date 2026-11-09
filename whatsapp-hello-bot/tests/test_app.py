@@ -252,3 +252,14 @@ def test_admin_link_page_generates_copy_message(tmp_path, monkeypatch):
     poster = client.get("/static/branding/crone-ptsa-assistant-pin.png")
     assert poster.status_code == 200
     assert poster.headers["content-type"].startswith("image/")
+
+
+def test_admin_guided_page_lists_topics():
+    client.get("/admin/logout")
+    client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
+    page = client.get("/admin/guided")
+    assert page.status_code == 200
+    assert "Guided topics" in page.text
+    assert "lost_and_found" in page.text
+    assert "Resolution metrics" in page.text
+    assert 'href="/admin/guided"' in page.text

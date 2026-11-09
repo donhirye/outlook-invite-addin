@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Guided topics — Admin</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
+  <style>
+    :root {
+      --bg: #0f2a24;
+      --panel: #17352d;
+      --ink: #f3f7f5;
+      --muted: #a8c0b7;
+      --accent: #25d366;
+      --accent-ink: #0b1f19;
+      --danger: #ffb4a8;
+      --ok: #9be7c4;
+      --border: rgba(255, 255, 255, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
+        var(--bg);
+      display: grid;
+      place-items: start center;
+      padding: 1.5rem;
+    }
+    .card {
+      width: min(52rem, 100%);
+      margin-top: 1rem;
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.75rem;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+    .brand img {
+      width: 2.75rem;
+      height: 2.75rem;
+      object-fit: contain;
+      border-radius: 999px;
+      background: #000;
+    }
+    .brand-text {
+      font-size: 0.85rem;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+    .brand-text strong {
+      display: block;
+      color: var(--ink);
+      font-size: 0.95rem;
+    }
+    h1 { margin: 0 0 0.35rem; font-size: 1.4rem; font-weight: 650; }
+    h2 { margin: 1.25rem 0 0.5rem; font-size: 1.05rem; font-weight: 650; }
+    p { margin: 0 0 1rem; color: var(--muted); line-height: 1.45; }
+    nav { display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    nav a {
+      color: var(--muted);
+      text-decoration: none;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      padding: 0.45rem 0.75rem;
+      font-size: 0.9rem;
+    }
+    nav a.active {
+      color: var(--accent-ink);
+      background: var(--accent);
+      border-color: transparent;
+      font-weight: 600;
+    }
+    label { display: block; font-size: 0.85rem; color: var(--muted); margin-bottom: 0.4rem; }
+    select, textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(0, 0, 0, 0.25);
+      color: var(--ink);
+      border-radius: 0.65rem;
+      padding: 0.85rem;
+      font: inherit;
+      margin-bottom: 1rem;
+    }
+    textarea {
+      min-height: 22rem;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.85rem;
+      resize: vertical;
+    }
+    button, .link-btn {
+      appearance: none;
+      border: 0;
+      border-radius: 0.65rem;
+      padding: 0.7rem 1rem;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      background: var(--accent);
+      color: var(--accent-ink);
+      text-decoration: none;
+      display: inline-block;
+    }
+    .row { display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap; }
+    .link-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+    .flash {
+      margin-bottom: 1rem;
+      padding: 0.75rem 0.9rem;
+      border-radius: 0.65rem;
+      background: rgba(155, 231, 196, 0.12);
+      color: var(--ok);
+      border: 1px solid rgba(155, 231, 196, 0.25);
+    }
+    .flash.error {
+      background: rgba(255, 180, 168, 0.12);
+      color: var(--danger);
+      border-color: rgba(255, 180, 168, 0.25);
+    }
+    .meta { font-size: 0.85rem; color: var(--muted); margin-top: 1rem; }
+    .metrics {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+      gap: 0.75rem;
+      margin: 0 0 1.25rem;
+    }
+    .metric {
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      padding: 0.75rem;
+      background: rgba(0, 0, 0, 0.2);
+    }
+    .metric .n {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #d7ffe9;
+    }
+    .metric .l { font-size: 0.8rem; color: var(--muted); }
+    .topic-list { margin: 0 0 1rem; padding: 0; list-style: none; }
+    .topic-list li {
+      display: flex;
+      justify-content: space-between;
+      gap: 0.75rem;
+      align-items: center;
+      padding: 0.55rem 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.92rem;
+    }
+    code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.85em; color: #d7ffe9; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <img src="{{ logo_url }}" alt="Crone Middle School logo" />
+      <div class="brand-text">
+        <strong>Crone Middle School PTSA</strong>
+        Event Assistant admin
+      </div>
+    </div>
+    <nav>
+      <a href="/admin/link">Group link</a>
+      <a href="/admin/intro">Intro message</a>
+      <a href="/admin/faq">FAQ</a>
+      <a class="active" href="/admin/guided">Guided</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>Guided topics</h1>
+    <p>
+      Multi-step help (Lost &amp; Found, conferences, spiritwear).
+      FAQ tab still owns one-shot factual answers. Runtime flag:
+      <code>GUIDED_ENABLED={{ guided_enabled }}</code>
+    </p>
+    {% if saved %}
+      <div class="flash">Guided topic settings saved.</div>
+    {% endif %}
+    {% if error %}
+      <div class="flash error">{{ error }}</div>
+    {% endif %}
+
+    <h2>Resolution metrics</h2>
+    <div class="metrics">
+      <div class="metric"><div class="n">{{ metrics.guided_started }}</div><div class="l">Started</div></div>
+      <div class="metric"><div class="n">{{ metrics.guided_completed }}</div><div class="l">Completed</div></div>
+      <div class="metric"><div class="n">{{ metrics.resolved }}</div><div class="l">Resolved</div></div>
+      <div class="metric"><div class="n">{{ metrics.partial }}</div><div class="l">Partial</div></div>
+      <div class="metric"><div class="n">{{ metrics.unresolved }}</div><div class="l">Unresolved</div></div>
+    </div>
+
+    <h2>Topics</h2>
+    <ul class="topic-list">
+      {% for topic in topics %}
+        <li>
+          <span>
+            <strong>{{ topic.title }}</strong>
+            <span class="meta">({{ topic.id }}) {% if topic.enabled %}on{% else %}off{% endif %}</span>
+          </span>
+          <form method="post" action="/admin/guided/toggle" class="row">
+            <input type="hidden" name="topic_id" value="{{ topic.id }}" />
+            {% if topic.enabled %}
+              <input type="hidden" name="enabled" value="off" />
+              <button type="submit" class="link-btn">Disable</button>
+            {% else %}
+              <input type="hidden" name="enabled" value="on" />
+              <button type="submit">Enable</button>
+            {% endif %}
+          </form>
+        </li>
+      {% else %}
+        <li>No guided topics found in storage.</li>
+      {% endfor %}
+    </ul>
+
+    {% if topics %}
+    <form method="post" action="/admin/guided/save">
+      <label for="topic_id">Edit topic JSON</label>
+      <select id="topic_id" name="topic_id" onchange="swapTopic(this.value)">
+        {% for topic in topics %}
+          <option value="{{ topic.id }}" {% if topic.id == selected_id %}selected{% endif %}>
+            {{ topic.title }}
+          </option>
+        {% endfor %}
+      </select>
+      <label for="topic_json">Approved content (prompts, choices, escalation)</label>
+      <textarea id="topic_json" name="topic_json" required>{{ topic_jsons[selected_id] }}</textarea>
+      <div class="row">
+        <button type="submit">Save topic</button>
+        <a class="link-btn" href="/admin/guided">Reload</a>
+      </div>
+    </form>
+    <script>
+      const TOPIC_JSON = {{ topic_jsons | tojson }};
+      function swapTopic(id) {
+        const area = document.getElementById('topic_json');
+        if (area && TOPIC_JSON[id]) area.value = TOPIC_JSON[id];
+      }
+    </script>
+    {% endif %}
+
+    <p class="meta">
+      Tip: keep factual one-liners in the FAQ tab. Use Guided for branching situations.
+      Parents can type <code>cancel</code> to leave a flow.
+    </p>
+    <p class="meta">Stored at <code>{{ storage }}</code></p>
+  </main>
+</body>
+</html>

@@ -1,0 +1,66 @@
+{
+  "id": "conferences",
+  "title": "Parent-teacher conferences",
+  "enabled": true,
+  "priority": 2,
+  "triggers": [
+    "conference",
+    "conferences",
+    "parentvue",
+    "parent vue",
+    "schedule a conference",
+    "no slots",
+    "time slots",
+    "should my child attend"
+  ],
+  "start_step": "need_help",
+  "escalation": "Contact your child's teacher or the school office for conference scheduling help.",
+  "steps": {
+    "need_help": {
+      "prompt": "What do you need help with for conferences?",
+      "choices": [
+        {
+          "id": "how_schedule",
+          "label": "How to schedule",
+          "next": "how_schedule"
+        },
+        {
+          "id": "no_slots",
+          "label": "No time slots",
+          "next": "no_slots"
+        },
+        {
+          "id": "child_attend",
+          "label": "Should child attend?",
+          "next": "child_attend"
+        },
+        {
+          "id": "need_schedule",
+          "label": "Do I need one?",
+          "next": "need_schedule"
+        }
+      ]
+    },
+    "how_schedule": {
+      "prompt": "Conferences are typically scheduled through ParentVUE. Please check the school's current conference instructions for the exact steps and dates.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "no_slots": {
+      "prompt": "Contact your child's teacher to ask about additional availability or another meeting option.",
+      "end": true,
+      "ask_resolution": true,
+      "recommend_human": true
+    },
+    "child_attend": {
+      "prompt": "For recent conferences, a group administrator said student attendance was preferred. Confirm the instructions for your upcoming conference with the school or teacher.",
+      "end": true,
+      "ask_resolution": true
+    },
+    "need_schedule": {
+      "prompt": "Check the current school announcement or teacher invitation. If it is unclear whether you need a conference, contact the teacher.",
+      "end": true,
+      "ask_resolution": true
+    }
+  }
+}

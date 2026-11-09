@@ -14,8 +14,10 @@ HELP_TEXT = (
     "My answers are based only on information provided by the PTSA organizers. "
     "If I don't know something, please ask an admin/organizer directly in your group chat.\n\n"
     "*Examples*\n"
-    "• Where should I park?\n"
-    "• What time should students arrive?\n\n"
+    "• Where is Lost & Found?\n"
+    "• My child lost a jacket\n"
+    "• How do I schedule a conference?\n\n"
+    "During a guided chat, send cancel to stop.\n"
     "Organizers can add FAQ entries with /faq (admin only)."
 )
 
