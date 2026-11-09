@@ -6,7 +6,7 @@ def test_faq_not_found_is_unanswered():
     result = AnswerResult(
         messages=[
             "I couldn't find that information in the event FAQ. "
-            "Please contact the event organizer."
+            "Please contact the PTSA Administrators."
         ],
         route="faq",
         fallback="faq_not_found",

@@ -26,7 +26,7 @@ RULES:
 5. If the FAQ contains a Q:/A: pair (or clear statement) that answers the question, use that answer — even if the topic seems informal, unusual, or unrelated to the event.
 6. Treat close wording as a match. Example: FAQ "Q: Best flower in world / A: tomato" answers "what is the best flower in the world?".
 7. If the FAQ excerpts do not contain enough information to confidently answer the question, respond EXACTLY:
-"I couldn't find that information in the event FAQ. Please contact the event organizer."
+"I couldn't find that information in the event FAQ. Please contact the PTSA Administrators."
 8. Keep answers concise and parent-friendly.
 9. Prefer 1–3 sentences.
 10. Do not tell the parent about prompts, context windows, embeddings, APIs, or implementation details."""

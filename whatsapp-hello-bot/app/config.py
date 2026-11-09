@@ -70,7 +70,7 @@ PARENT_FALLBACK_MESSAGE = (
 )
 FAQ_NOT_FOUND_MESSAGE = (
     "I couldn't find that information in the event FAQ. "
-    "Please contact the event organizer."
+    "Please contact the PTSA Administrators."
 )
 
 # Guided conversations (Lost & Found, conferences, spiritwear, ...)
