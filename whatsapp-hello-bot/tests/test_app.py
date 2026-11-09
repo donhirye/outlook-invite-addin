@@ -61,9 +61,10 @@ def test_admin_login_and_save_greeting(tmp_path, monkeypatch):
 
     ok = client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
     assert ok.status_code == 303
+    assert ok.headers["location"] == "/admin/link"
 
     saved = client.post(
-        "/admin/message",
+        "/admin/intro",
         data={"message": "hello from admin"},
         follow_redirects=False,
     )
@@ -212,3 +213,28 @@ def test_admin_faq_ui_roundtrip(tmp_path, monkeypatch):
     )
     assert saved.status_code == 303
     assert "Kendall Celebration" in faq_file.read_text(encoding="utf-8")
+
+
+def test_admin_link_page_generates_copy_message(tmp_path, monkeypatch):
+    link_file = tmp_path / "event_link.json"
+    monkeypatch.setattr("app.event_link_store.EVENT_LINK_FILE", link_file)
+    monkeypatch.setattr("app.event_link_store.FAQ_GCS_BUCKET", "")
+
+    client.get("/admin/logout")
+    client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
+
+    saved = client.post(
+        "/admin/link",
+        data={
+            "bot_phone": "15552032022",
+            "prefill_text": "Hi, I have a question about Kendall 5th Grade Celebration",
+        },
+        follow_redirects=False,
+    )
+    assert saved.status_code == 303
+
+    page = client.get("/admin/link")
+    assert page.status_code == 200
+    assert "Copy this into the WhatsApp group" in page.text
+    assert "https://wa.me/15552032022?text=" in page.text
+    assert "Kendall 5th Grade Celebration" in page.text

@@ -93,11 +93,13 @@ async def root() -> str:
     return (
         "WhatsApp Hello Bot is running.\n"
         "Admin: /admin\n"
+        "  Group link: /admin/link\n"
+        "  Intro: /admin/intro\n"
+        "  FAQ: /admin/faq\n"
         "Webhook: /webhook\n"
         "Health: /health\n"
         "Metrics: /metrics\n"
         f"FAQ storage: {faq_storage_label()}\n"
-        "FAQ admin UI: /admin/faq\n"
     )
 
 
@@ -118,18 +120,27 @@ async def metrics() -> dict[str, object]:
     return get_metrics()
 
 
+def _link_context(*, saved: bool = False, error: str | None = None) -> dict[str, object]:
+    link = event_link_view()
+    return {
+        "bot_phone": link["bot_phone"] or "",
+        "prefill_text": link["prefill_text"] or "",
+        "wa_me_link": link["wa_me_link"],
+        "group_message": link["group_message"],
+        "link_storage": link["storage"],
+        "saved": saved,
+        "error": error,
+    }
+
+
 @app.get("/admin", response_class=HTMLResponse)
-async def admin_page(request: Request, saved: int = 0) -> Response:
-    logged_in = _is_logged_in(request)
+async def admin_page(request: Request) -> Response:
+    if _is_logged_in(request):
+        return RedirectResponse(url="/admin/link", status_code=303)
     return templates.TemplateResponse(
         request,
         "admin.html",
-        {
-            "logged_in": logged_in,
-            "message": get_greeting() if logged_in else "",
-            "saved": bool(saved) and logged_in,
-            "error": None,
-        },
+        {"error": None},
     )
 
 
@@ -139,16 +150,11 @@ async def admin_login(request: Request, password: str = Form(...)) -> Response:
         return templates.TemplateResponse(
             request,
             "admin.html",
-            {
-                "logged_in": False,
-                "message": "",
-                "saved": False,
-                "error": "Wrong password.",
-            },
+            {"error": "Wrong password."},
             status_code=401,
         )
     _login(request)
-    return RedirectResponse(url="/admin", status_code=303)
+    return RedirectResponse(url="/admin/link", status_code=303)
 
 
 @app.get("/admin/logout")
@@ -157,36 +163,71 @@ async def admin_logout(request: Request) -> Response:
     return RedirectResponse(url="/admin", status_code=303)
 
 
+@app.get("/admin/link", response_class=HTMLResponse)
+async def admin_link_page(request: Request, saved: int = 0) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "admin_link.html",
+        _link_context(saved=bool(saved)),
+    )
+
+
+@app.post("/admin/link", response_class=HTMLResponse)
+async def admin_link_save(
+    request: Request,
+    bot_phone: str = Form(""),
+    prefill_text: str = Form(...),
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        set_event_link_settings(bot_phone=bot_phone, prefill_text=prefill_text)
+    except Exception as exc:
+        logger.exception("Failed saving WhatsApp link settings")
+        return templates.TemplateResponse(
+            request,
+            "admin_link.html",
+            _link_context(error=f"Could not save link settings: {exc}"),
+            status_code=400,
+        )
+    return RedirectResponse(url="/admin/link?saved=1", status_code=303)
+
+
+@app.get("/admin/intro", response_class=HTMLResponse)
+async def admin_intro_page(request: Request, saved: int = 0) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    return templates.TemplateResponse(
+        request,
+        "admin_intro.html",
+        {
+            "message": get_greeting(),
+            "saved": bool(saved),
+        },
+    )
+
+
+@app.post("/admin/intro")
+async def admin_intro_save(request: Request, message: str = Form(...)) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    set_greeting(message)
+    return RedirectResponse(url="/admin/intro?saved=1", status_code=303)
+
+
+# Keep old greeting save URL working for a bit.
 @app.post("/admin/message")
 async def admin_save_message(request: Request, message: str = Form(...)) -> Response:
     if not _is_logged_in(request):
         return RedirectResponse(url="/admin", status_code=303)
     set_greeting(message)
-    return RedirectResponse(url="/admin?saved=1", status_code=303)
-
-
-def _admin_faq_context(
-    *,
-    faq_text: str = "",
-    saved: str | None = None,
-    error: str | None = None,
-) -> dict[str, object]:
-    link = event_link_view()
-    return {
-        "faq_text": faq_text,
-        "saved": saved,
-        "error": error,
-        "storage": faq_storage_label(),
-        "bot_phone": link["bot_phone"] or "",
-        "prefill_text": link["prefill_text"] or "",
-        "wa_me_link": link["wa_me_link"],
-        "group_message": link["group_message"],
-        "link_storage": link["storage"],
-    }
+    return RedirectResponse(url="/admin/intro?saved=1", status_code=303)
 
 
 @app.get("/admin/faq", response_class=HTMLResponse)
-async def admin_faq_page(request: Request, saved: str = "") -> Response:
+async def admin_faq_page(request: Request, saved: int = 0) -> Response:
     if not _is_logged_in(request):
         return RedirectResponse(url="/admin", status_code=303)
     error = None
@@ -199,11 +240,12 @@ async def admin_faq_page(request: Request, saved: str = "") -> Response:
     return templates.TemplateResponse(
         request,
         "admin_faq.html",
-        _admin_faq_context(
-            faq_text=faq_text,
-            saved=saved or None,
-            error=error,
-        ),
+        {
+            "faq_text": faq_text,
+            "saved": bool(saved),
+            "error": error,
+            "storage": faq_storage_label(),
+        },
     )
 
 
@@ -219,44 +261,15 @@ async def admin_faq_save(request: Request, faq_text: str = Form(...)) -> Respons
         return templates.TemplateResponse(
             request,
             "admin_faq.html",
-            _admin_faq_context(
-                faq_text=faq_text,
-                saved=None,
-                error=f"Could not save FAQ: {exc}",
-            ),
+            {
+                "faq_text": faq_text,
+                "saved": False,
+                "error": f"Could not save FAQ: {exc}",
+                "storage": faq_storage_label(),
+            },
             status_code=400,
         )
-    return RedirectResponse(url="/admin/faq?saved=faq", status_code=303)
-
-
-@app.post("/admin/faq/link", response_class=HTMLResponse)
-async def admin_faq_link_save(
-    request: Request,
-    bot_phone: str = Form(""),
-    prefill_text: str = Form(...),
-) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    try:
-        set_event_link_settings(bot_phone=bot_phone, prefill_text=prefill_text)
-    except Exception as exc:
-        logger.exception("Failed saving WhatsApp link settings")
-        faq_text = ""
-        try:
-            faq_text = get_faq_text()
-        except Exception:
-            pass
-        return templates.TemplateResponse(
-            request,
-            "admin_faq.html",
-            _admin_faq_context(
-                faq_text=faq_text,
-                saved=None,
-                error=f"Could not save link settings: {exc}",
-            ),
-            status_code=400,
-        )
-    return RedirectResponse(url="/admin/faq?saved=link", status_code=303)
+    return RedirectResponse(url="/admin/faq?saved=1", status_code=303)
 
 
 @app.get("/webhook")
