@@ -179,4 +179,4 @@ def format_parent_answer(
         source_line = f"Source: {name}\n{url}"
     else:
         source_line = f"Source: {name}"
-    return f"*FAQ answer*\n{cleaned}\n\n_{source_line}_"
+    return f"*FAQ answer*\n{cleaned}\n\n{source_line}"
