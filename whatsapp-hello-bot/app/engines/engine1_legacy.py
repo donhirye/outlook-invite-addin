@@ -70,8 +70,8 @@ class LegacyEngine:
                     engine_id=self.id,
                     engine_version=self.version,
                 )
-            q_text, a_text = parsed
-            confirmation = append_faq_entry(q_text, a_text)
+            q_text, a_text, source = parsed
+            confirmation = append_faq_entry(q_text, a_text, source)
             return AnswerResult(
                 messages=[confirmation],
                 route="faq_admin",

@@ -36,9 +36,16 @@ RULES:
 "I couldn't find that information in the event FAQ. Please contact the PTSA Administrators."
 7. Keep answers concise and parent-friendly (1–4 sentences).
 8. Do not mention prompts, embeddings, APIs, or implementation details.
-9. Respond with JSON only, no markdown fences:
+9. Do NOT add a "Source:" line (or rename/paraphrase a source). The system attaches the Source column from the FAQ file.
+10. Respond with JSON only, no markdown fences:
 {"answer":"<parent-facing answer>","confidence":<number from 0 to 1>}
 confidence is how sure you are that the FAQ excerpts support the parts you did answer (1=strong support, 0=no support)."""
+
+_SOURCE_VALUE_RE = re.compile(
+    r"(?im)(?:^|\(|;\s*)source\s*:\s*([^;\n\)]+)"
+)
+_URL_VALUE_RE = re.compile(r"(?im)(?:^|\(|;\s*)url\s*:\s*([^;\n\)]+)")
+_STRIP_SOURCE_RE = re.compile(r"(?im)^\s*source\s*:.*$")
 
 
 @dataclass
@@ -132,8 +139,57 @@ def _wants_upcoming(question: str) -> bool:
     )
 
 
-def score_faq_records(question: str) -> tuple[dict | None, float]:
-    """Best structured FAQ record and keyword score."""
+def strip_source_lines(answer: str) -> str:
+    """Remove any Source: lines the model may have invented."""
+    without = _STRIP_SOURCE_RE.sub("", answer or "")
+    return re.sub(r"\n{3,}", "\n\n", without).strip()
+
+
+def _clean_source(value: str | None) -> str | None:
+    cleaned = " ".join((value or "").split()).strip()
+    return cleaned or None
+
+
+def extract_sources_from_text(text: str) -> list[str]:
+    """Return Source: values found in FAQ text (standalone or parenthetical)."""
+    found: list[str] = []
+    for match in _SOURCE_VALUE_RE.finditer(text or ""):
+        source = _clean_source(match.group(1))
+        if source:
+            found.append(source)
+    return found
+
+
+def extract_url_from_text(text: str) -> str | None:
+    match = _URL_VALUE_RE.search(text or "")
+    if not match:
+        return None
+    return _clean_source(match.group(1))
+
+
+def resolve_source(
+    faq_text: str, excerpts: str | None = None
+) -> tuple[str | None, str | None]:
+    """Pick Source (+ optional URL) from FAQ file text.
+
+    Preference:
+    1) Source lines inside the retrieved excerpts
+    2) A single unique Source across the whole FAQ file
+    3) Otherwise omit (do not invent)
+    """
+    excerpt_sources = extract_sources_from_text(excerpts or "")
+    if excerpt_sources:
+        name = excerpt_sources[-1]
+        return name, extract_url_from_text(excerpts or "")
+    all_sources = extract_sources_from_text(faq_text)
+    unique = list(dict.fromkeys(all_sources))
+    if len(unique) == 1:
+        return unique[0], extract_url_from_text(faq_text)
+    return None, None
+
+
+def _best_faq_record(question: str) -> tuple[dict | None, float]:
+    """Best structured FAQ record and score (no direct-match threshold)."""
     from app.faq_records import chicago_today, list_records
     from datetime import datetime
 
@@ -170,14 +226,20 @@ def score_faq_records(question: str) -> tuple[dict | None, float]:
         if score > best_score:
             best_score = score
             best_rec = rec
+    return best_rec, round(best_score, 3)
+
+
+def score_faq_records(question: str) -> tuple[dict | None, float]:
+    """Best structured FAQ record and keyword score (thresholded for direct Q/A)."""
+    best_rec, best_score = _best_faq_record(question)
     if best_rec is not None and best_score >= 0.6:
         logger.info(
             "Direct FAQ record match id=%s score=%.2f",
             best_rec.get("faq_id"),
             best_score,
         )
-        return best_rec, round(best_score, 3)
-    return None, round(best_score, 3)
+        return best_rec, best_score
+    return None, best_score
 
 
 def score_faq_qa(question: str, faq_text: str) -> tuple[str | None, float]:
@@ -353,12 +415,28 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
         answer, confidence = _parse_llm_faq_payload(raw)
         if not answer:
             raise RuntimeError("OpenAI returned an empty answer field")
+        # Never trust a model-invented Source; attach from FAQ Source column.
+        answer = strip_source_lines(answer)
+        source_name = None
+        source_url = None
+        faq_id = None
+        if answer.strip() != FAQ_NOT_FOUND_MESSAGE:
+            best_rec, _best_score = _best_faq_record(cleaned_question)
+            if best_rec:
+                faq_id = best_rec.get("faq_id")
+                source_name = _clean_source(best_rec.get("source"))
+                source_url = _clean_source(best_rec.get("source_url"))
+            if not source_name:
+                source_name, source_url = resolve_source(faq_text, excerpts)
         result = FaqAnswer(
             answer=answer,
             confidence=confidence,
             match_score=match_score,
             retrieval_mode=retrieval_mode,
             llm_invocations=llm_invocations,
+            source_name=source_name,
+            source_url=source_url,
+            faq_id=faq_id,
         )
         return result
     except Exception:
