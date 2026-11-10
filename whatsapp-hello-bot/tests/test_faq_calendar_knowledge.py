@@ -78,3 +78,39 @@ def test_school_today_and_no_school(tmp_path, monkeypatch):
     )
     assert spring["handled"] is True
     assert "days until" in spring["answer"].lower()
+
+
+def test_december_january_time_off_uses_calendar(tmp_path, monkeypatch):
+    monkeypatch.setattr(calendar_store, "CALENDAR_FILE", tmp_path / "calendar.json")
+    monkeypatch.setattr(calendar_store, "FAQ_GCS_BUCKET", "")
+    calendar_store.clear_calendar_cache()
+    calendar_store.import_calendar_csv_text(CAL_CSV.read_text(encoding="utf-8-sig"))
+
+    q = "is there time off for school during december/january?"
+    assert calendar_service.looks_like_calendar_question(q) is True
+    result = calendar_service.answer_calendar_question(q, today=date(2026, 11, 10))
+    assert result["handled"] is True
+    assert "Winter Break" in result["answer"]
+    assert "2026-12-21" in result["answer"]
+    assert "2027-01-01" in result["answer"]
+    assert "School calendar" in result["answer"]
+
+
+def test_holiday_season_phrasing_maps_to_winter_break(tmp_path, monkeypatch):
+    monkeypatch.setattr(calendar_store, "CALENDAR_FILE", tmp_path / "calendar.json")
+    monkeypatch.setattr(calendar_store, "FAQ_GCS_BUCKET", "")
+    calendar_store.clear_calendar_cache()
+    calendar_store.import_calendar_csv_text(CAL_CSV.read_text(encoding="utf-8-sig"))
+
+    phrases = (
+        "time off around the holidays",
+        "do kids get a long break after Christmas",
+        "any days off before New Year",
+    )
+    for q in phrases:
+        assert calendar_service.looks_like_calendar_question(q) is True, q
+        result = calendar_service.answer_calendar_question(q, today=date(2026, 11, 10))
+        assert result["handled"] is True, q
+        assert "Winter Break" in result["answer"], q
+        assert "2026-12-21" in result["answer"], q
+        assert "2027-01-01" in result["answer"], q
