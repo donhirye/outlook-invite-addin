@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.calendar_service import answer_calendar_question, looks_like_calendar_question
 from app.config import GUIDED_ENABLED, OPENAI_MODEL
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext, ModelUsage
 from app.engines.registry import register_engine
@@ -121,10 +122,31 @@ class LegacyEngine:
                     intent="human",
                 )
 
+        # School calendar (deterministic) before FAQ/LLM.
+        if looks_like_calendar_question(text):
+            cal = answer_calendar_question(text)
+            if cal.get("handled") and cal.get("answer"):
+                return AnswerResult(
+                    messages=[cal["answer"]],
+                    route="calendar",
+                    engine_id=self.id,
+                    engine_version=self.version,
+                    intent="calendar",
+                    sources=["school_calendar"],
+                    answer_outcome="answered",
+                    source_name=cal.get("source_name"),
+                    source_url=cal.get("source_url"),
+                    retrieval_mode="calendar",
+                )
+
         # Mode A FAQ path (may use LLM fallback inside faq_service).
         faq = answer_faq_detailed(text)
         raw = faq.answer
-        answer = format_parent_answer(raw)
+        answer = format_parent_answer(
+            raw,
+            source_name=faq.source_name,
+            source_url=faq.source_url,
+        )
         lowered = (raw or "").strip().lower()
         if not raw or lowered.startswith("sorry,"):
             fallback = "faq_fallback"
@@ -141,16 +163,19 @@ class LegacyEngine:
             engine_id=self.id,
             engine_version=self.version,
             intent="faq",
-            sources=["faq_store"],
+            sources=["faq_records"],
             model_usage=ModelUsage(
                 model=OPENAI_MODEL if faq.llm_invocations else None,
                 invocations=faq.llm_invocations,
             ),
             fallback=fallback,
             answer_outcome=outcome,
+            faq_id=faq.faq_id,
             faq_match_score=faq.match_score,
             answer_confidence=faq.confidence,
             retrieval_mode=faq.retrieval_mode,
+            source_name=faq.source_name,
+            source_url=faq.source_url,
         )
 
 

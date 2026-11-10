@@ -17,8 +17,8 @@ def test_faq_includes_demo_answers_and_categories():
     text = get_faq_text()
     assert "Where is Lost & Found at Crone?" in text
     assert "[DEMO ANSWER]" in text
-    assert "## Clubs and Activities" in text
-    assert text.count("Q:") >= 30
+    assert "## Lost & Found" in text
+    assert text.count("Q:") >= 70
 
 
 def test_lost_and_found_pack_loads():

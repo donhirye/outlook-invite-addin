@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>School Calendar — Admin</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
+  <style>
+    :root {
+      --bg: #0f2a24; --panel: #17352d; --ink: #f3f7f5; --muted: #a8c0b7;
+      --accent: #25d366; --accent-ink: #0b1f19; --danger: #ffb4a8; --ok: #9be7c4;
+      --border: rgba(255,255,255,0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; min-height:100vh; font-family:"Segoe UI",system-ui,sans-serif; color:var(--ink);
+      background: radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%), var(--bg);
+      display:grid; place-items:start center; padding:1.5rem;
+    }
+    .card {
+      width:min(64rem,100%); margin-top:1rem;
+      background:color-mix(in srgb, var(--panel) 92%, black);
+      border:1px solid var(--border); border-radius:1rem; padding:1.75rem;
+    }
+    h1 { margin:0 0 .35rem; font-size:1.4rem; }
+    h2 { margin:1.25rem 0 .5rem; font-size:1.05rem; }
+    p { color:var(--muted); line-height:1.45; }
+    nav { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+    nav a {
+      color:var(--muted); text-decoration:none; border:1px solid var(--border);
+      border-radius:.65rem; padding:.45rem .75rem; font-size:.9rem;
+    }
+    nav a.active { background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:600; }
+    button {
+      appearance:none; border:0; border-radius:.65rem; padding:.65rem 1rem; font:inherit;
+      font-weight:600; cursor:pointer; background:var(--accent); color:var(--accent-ink);
+    }
+    .flash { margin-bottom:1rem; padding:.75rem .9rem; border-radius:.65rem; background:rgba(155,231,196,.12); color:var(--ok); border:1px solid rgba(155,231,196,.25); }
+    .flash.error { background:rgba(255,180,168,.12); color:var(--danger); border-color:rgba(255,180,168,.25); }
+    .meta { font-size:.85rem; color:var(--muted); }
+    table { width:100%; border-collapse:collapse; font-size:.82rem; }
+    th, td { text-align:left; padding:.4rem .35rem; border-bottom:1px solid var(--border); vertical-align:top; }
+    .brand { display:flex; gap:.75rem; align-items:center; margin-bottom:1rem; }
+    .brand img { width:2.75rem; height:2.75rem; border-radius:999px; background:#000; object-fit:contain; }
+    code { color:#d7ffe9; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <img src="{{ logo_url }}" alt="Crone logo" />
+      <div class="meta"><strong style="color:var(--ink);display:block;">Crone Middle School PTSA</strong>Event Assistant admin</div>
+    </div>
+    <nav>
+      <a href="/admin/link">Group link</a>
+      <a href="/admin/intro">Intro message</a>
+      <a href="/admin/faq">FAQs</a>
+      <a class="active" href="/admin/calendar">School Calendar</a>
+      <a href="/admin/guided">Guided Conversations</a>
+      <a href="/admin/analytics">Analytics</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>School Calendar</h1>
+    <p>
+      <strong style="color:var(--ink);">{{ meta.calendar_name }}</strong><br />
+      School year {{ meta.school_year }} · {{ meta.event_count }} events<br />
+      Source: {{ meta.source_name }}<br />
+      <a href="{{ meta.source_url }}" style="color:#9be7c4;">{{ meta.source_url }}</a>
+    </p>
+    {% if saved %}<div class="flash">Calendar updated.</div>{% endif %}
+    {% if error %}<div class="flash error">{{ error }}</div>{% endif %}
+
+    <h2>CSV import</h2>
+    <form method="post" action="/admin/calendar/import" enctype="multipart/form-data">
+      <input type="file" name="csv_file" accept=".csv,text/csv" required />
+      <button type="submit">Import / update CSV</button>
+    </form>
+    <p class="meta">Upserts by stable event id (name + dates). No-school ranges are preserved.</p>
+
+    <h2>Events</h2>
+    <table>
+      <tr><th>Start</th><th>End</th><th>Event</th><th>Type</th><th>Attendance</th><th>Notes</th></tr>
+      {% for e in events %}
+        <tr>
+          <td>{{ e.start_date }}</td>
+          <td>{{ e.end_date }}</td>
+          <td>{{ e.name }}</td>
+          <td>{{ e.event_type }}</td>
+          <td>{{ e.student_attendance }}</td>
+          <td>{{ e.notes or '—' }}</td>
+        </tr>
+      {% else %}
+        <tr><td colspan="6">No calendar events yet.</td></tr>
+      {% endfor %}
+    </table>
+  </main>
+</body>
+</html>

@@ -47,6 +47,8 @@ class AnswerResult:
     faq_match_score: float | None = None
     answer_confidence: float | None = None
     retrieval_mode: str | None = None
+    source_name: str | None = None
+    source_url: str | None = None
     flow_id: str | None = None
     step_id: str | None = None
     intent: str | None = None

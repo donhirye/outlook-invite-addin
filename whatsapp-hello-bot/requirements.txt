@@ -7,3 +7,5 @@ python-multipart==0.0.20
 itsdangerous==2.2.0
 openai==1.109.1
 google-cloud-storage==2.19.0
+
+tzdata>=2024.1
