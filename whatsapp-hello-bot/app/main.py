@@ -334,8 +334,10 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                             if not parsed:
                                 await send_text_message(from_phone, FAQ_USAGE_TEXT)
                             else:
-                                q_text, a_text = parsed
-                                confirmation = append_faq_entry(q_text, a_text)
+                                q_text, a_text, source_text = parsed
+                                confirmation = append_faq_entry(
+                                    q_text, a_text, source_text
+                                )
                                 await send_text_message(from_phone, confirmation)
                         e2e_ms = (time.perf_counter() - started) * 1000
                         record_question(from_phone, e2e_ms=e2e_ms)

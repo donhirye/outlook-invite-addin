@@ -26,9 +26,10 @@ FAQ_USAGE_TEXT = (
     "/faq\n"
     "Q: Can grandparents attend?\n"
     "A: Yes. Please sign in at the gym entrance.\n"
+    "Source: Crone PTSA Newsletter – Nov 2026\n"
     "```\n\n"
     "Or one line:\n"
-    "/faq Q: ... A: ..."
+    "/faq Q: ... A: ... Source: ..."
 )
 
 
@@ -82,8 +83,8 @@ def is_faq_command(text: str) -> bool:
     return cleaned.lower().startswith("/faq")
 
 
-def parse_faq_command(text: str) -> tuple[str, str] | None:
-    """Parse /faq command into (question, answer)."""
+def parse_faq_command(text: str) -> tuple[str, str, str | None] | None:
+    """Parse /faq command into (question, answer, optional source)."""
     cleaned = (text or "").strip()
     if not cleaned.lower().startswith("/faq"):
         return None
@@ -97,7 +98,7 @@ def parse_faq_command(text: str) -> tuple[str, str] | None:
         return None
 
     match = re.search(
-        r"q\s*:\s*(.+?)\s*a\s*:\s*(.+)\s*$",
+        r"q\s*:\s*(.+?)\s*a\s*:\s*(.+?)(?:\s*source\s*:\s*(.+))?\s*$",
         body,
         flags=re.IGNORECASE | re.DOTALL,
     )
@@ -106,19 +107,25 @@ def parse_faq_command(text: str) -> tuple[str, str] | None:
 
     question = " ".join(match.group(1).split()).strip()
     answer = " ".join(match.group(2).split()).strip()
+    source_raw = match.group(3)
+    source = " ".join((source_raw or "").split()).strip() or None
     if not question or not answer:
         return None
-    return question, answer
+    return question, answer, source
 
 
 def append_faq_entry(
     question: str,
     answer: str,
+    source: str | None = None,
     *,
     faq_path: Path | None = None,
 ) -> str:
-    """Append a Q&A to durable FAQ storage and rebuild the embedding index."""
+    """Append a Q&A (optional Source) to durable FAQ storage and rebuild index."""
     block = f"Q: {question}\nA: {answer}"
+    source_clean = " ".join((source or "").split()).strip()
+    if source_clean:
+        block = f"{block}\nSource: {source_clean}"
     try:
         existing = get_faq_text(faq_path=faq_path).rstrip()
         new_text = f"{existing}\n\n{block}"
@@ -132,11 +139,14 @@ def append_faq_entry(
         logger.exception("FAQ saved but embedding index rebuild failed")
 
     logger.info("Appended FAQ entry via durable store")
-    return (
+    saved = (
         "*Saved to FAQ*\n\n"
         f"*Q:* {question}\n"
         f"*A:* {answer}"
     )
+    if source_clean:
+        saved = f"{saved}\n*Source:* {source_clean}"
+    return saved
 
 
 def format_parent_answer(answer: str) -> str:

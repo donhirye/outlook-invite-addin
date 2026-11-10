@@ -25,6 +25,7 @@ A: Yes. Please sign in at the gym entrance.
     assert parse_faq_command(text) == (
         "Can grandparents attend?",
         "Yes. Please sign in at the gym entrance.",
+        None,
     )
 
 
@@ -33,6 +34,20 @@ def test_parse_faq_one_line():
     assert parse_faq_command(text) == (
         "Where is parking?",
         "Lot C near the gym.",
+        None,
+    )
+
+
+def test_parse_faq_with_source():
+    text = """/faq
+Q: When is the Springfield trip?
+A: May 29–30, 2027.
+Source: Crone PTSA Newsletter – Nov 2026
+"""
+    assert parse_faq_command(text) == (
+        "When is the Springfield trip?",
+        "May 29–30, 2027.",
+        "Crone PTSA Newsletter – Nov 2026",
     )
 
 

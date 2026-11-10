@@ -68,10 +68,9 @@ def test_direct_qa_match_returns_tomato():
         "Q: Best flower in world\n"
         "A: tomato\n"
     )
-    assert (
-        faq_service.match_faq_qa("what is the best flower in the world", faq)
-        == "tomato"
-    )
+    assert faq_service.match_faq_qa(
+        "what is the best flower in the world", faq
+    ) == ("tomato", None)
 
 
 def test_direct_qa_short_circuits_answer(monkeypatch):
@@ -86,3 +85,68 @@ def test_direct_qa_short_circuits_answer(monkeypatch):
 
     answer = faq_service.answer_faq_question("What is the best flower in the world?")
     assert answer == "tomato"
+
+
+def test_direct_qa_attaches_source_column(monkeypatch):
+    faq = (
+        "Q: When is the Springfield trip?\n"
+        "A: May 29–30, 2027.\n"
+        "Source: Crone PTSA Newsletter – Nov 2026\n"
+    )
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: faq)
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+
+    answer = faq_service.answer_faq_question("When is the Springfield trip?")
+    assert answer == (
+        "May 29–30, 2027.\n\nSource: Crone PTSA Newsletter – Nov 2026"
+    )
+
+
+def test_spreadsheet_source_column_match():
+    faq = (
+        "Question\tAnswer\tSource\n"
+        "When is the Springfield trip?\tMay 29–30, 2027\t"
+        "Crone PTSA Newsletter – Nov 2026\n"
+    )
+    assert faq_service.match_faq_qa(
+        "When is the Springfield trip?", faq
+    ) == ("May 29–30, 2027", "Crone PTSA Newsletter – Nov 2026")
+
+
+def test_llm_answer_strips_invented_source_and_uses_file_source(
+    monkeypatch, tmp_path
+):
+    faq = (
+        "Seventh-grade Springfield trip is May 29–30, 2027.\n"
+        "Source: Crone PTSA Newsletter – Nov 2026\n"
+    )
+
+    class FakeResponse:
+        output_text = (
+            "The trip is May 29–30, 2027.\n\nSource: Crone PTSA FAQ"
+        )
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            assert "Do NOT add a \"Source:\" line" in kwargs["instructions"]
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, api_key: str):
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(faq_service, "OPENAI_MODEL", "gpt-4o-mini")
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: faq)
+    monkeypatch.setattr(
+        faq_service,
+        "retrieve_chunks",
+        lambda question, faq_text=None, faq_path=None: [faq],
+    )
+    monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
+    monkeypatch.setattr(faq_service, "match_faq_qa", lambda question, faq_text: None)
+
+    answer = faq_service.answer_faq_question("When is the Springfield trip?")
+    assert "Crone PTSA FAQ" not in answer
+    assert answer.endswith("Source: Crone PTSA Newsletter – Nov 2026")
+    assert answer.startswith("The trip is May 29–30, 2027.")
