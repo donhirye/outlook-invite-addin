@@ -57,7 +57,7 @@ def _source_footer() -> str:
 
 
 def format_calendar_answer(body: str) -> str:
-    return f"*School calendar*\n{(body or '').strip()}\n\n_{_source_footer()}_"
+    return f"*School calendar*\n{(body or '').strip()}\n\n{_source_footer()}"
 
 
 def _no_school_ranges() -> list[tuple[date, date, dict[str, Any]]]:
