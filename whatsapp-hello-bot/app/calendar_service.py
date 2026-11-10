@@ -27,6 +27,20 @@ CALENDAR_PATTERNS = (
     r"\bschool holiday\b",
     r"\binstitute day\b",
     r"\bparent/?teacher conference\b",
+    # Broader parent phrasing → school calendar (not FAQ).
+    r"\b(time|days?)\s+off\b",
+    r"\b(days?\s+off|off\s+from\s+school|school\s+off)\b",
+    r"\b(holiday|break|vacation)s?\b.*\bschool\b|\bschool\b.*\b(holiday|break|vacation)s?\b",
+    r"\bwinter\b.*\b(break|holiday|off|school)\b|\b(break|holiday|off)\b.*\bwinter\b",
+    r"\b(december|january|february|march|april|may|june|july|august|september|october|november)\b.*\b(school|break|holiday|off)\b",
+    r"\b(school|break|holiday|off)\b.*\b(december|january|february|march|april|may|june|july|august|september|october|november)\b",
+    r"\bschool calendar\b|\bdistrict calendar\b",
+    # Holiday-season wording (Christmas / New Year / "the holidays").
+    r"\bchristmas\b",
+    r"\bnew\s*year'?s?\b",
+    r"\baround the holidays\b|\b(the\s+)?holidays\b.*\b(time off|days? off|break|off)\b",
+    r"\b(time off|days? off|break|off)\b.*\b(the\s+)?holidays\b",
+    r"\blong break\b",
 )
 
 
@@ -144,6 +158,49 @@ def _find_break(keyword: str) -> dict[str, Any] | None:
     return None
 
 
+def _wants_winter_holiday_season(cleaned: str) -> bool:
+    """Christmas / New Year / 'the holidays' → Winter Break season."""
+    if re.search(r"\bchristmas\b", cleaned):
+        return True
+    if re.search(r"\bnew\s*year'?s?\b", cleaned):
+        return True
+    if re.search(r"\baround the holidays\b", cleaned):
+        return True
+    if re.search(r"\b(the\s+)?holidays\b", cleaned) and re.search(
+        r"\b(time off|days? off|break|vacation|off|no school)\b", cleaned
+    ):
+        return True
+    if re.search(r"\blong break\b", cleaned) and re.search(
+        r"\b(christmas|new\s*year|holiday|winter|december|january)\b", cleaned
+    ):
+        return True
+    return False
+
+
+def _winter_break_answer(meta: dict[str, Any]) -> dict[str, Any]:
+    ev = _find_break("winter")
+    if not ev:
+        return {
+            "handled": True,
+            "answer": format_calendar_answer(
+                "No winter / holiday-season break dates are listed in the "
+                "imported district calendar."
+            ),
+            "source_name": meta.get("source_name"),
+            "source_url": meta.get("source_url"),
+        }
+    return {
+        "handled": True,
+        "answer": format_calendar_answer(
+            f"{ev.get('name')} is {_format_range(ev)} "
+            f"(student attendance: {ev.get('student_attendance') or 'No School'}). "
+            "That covers the Christmas / New Year holiday period on the district calendar."
+        ),
+        "source_name": meta.get("source_name"),
+        "source_url": meta.get("source_url"),
+    }
+
+
 def _next_holiday_after(day: date) -> dict[str, Any] | None:
     upcoming = []
     for start, end, ev in _no_school_ranges():
@@ -163,6 +220,63 @@ def _format_range(ev: dict[str, Any]) -> str:
     if start == end:
         return str(start)
     return f"{start} through {end}"
+
+
+_MONTH_NAME_TO_NUM = {
+    "january": 1,
+    "jan": 1,
+    "february": 2,
+    "feb": 2,
+    "march": 3,
+    "mar": 3,
+    "april": 4,
+    "apr": 4,
+    "may": 5,
+    "june": 6,
+    "jun": 6,
+    "july": 7,
+    "jul": 7,
+    "august": 8,
+    "aug": 8,
+    "september": 9,
+    "sept": 9,
+    "sep": 9,
+    "october": 10,
+    "oct": 10,
+    "november": 11,
+    "nov": 11,
+    "december": 12,
+    "dec": 12,
+}
+
+
+def _mentioned_months(text: str) -> set[int]:
+    cleaned = (text or "").lower()
+    found: set[int] = set()
+    for name, num in _MONTH_NAME_TO_NUM.items():
+        if re.search(rf"\b{name}\b", cleaned):
+            found.add(num)
+    return found
+
+
+def _range_overlaps_months(start: date, end: date, months: set[int]) -> bool:
+    day = start
+    while day <= end:
+        if day.month in months:
+            return True
+        day += timedelta(days=1)
+        if (day - start).days > 120:
+            # Safety for bad ranges.
+            break
+    return False
+
+
+def _no_school_events_for_months(months: set[int]) -> list[dict[str, Any]]:
+    out: list[dict[str, Any]] = []
+    for start, end, ev in _no_school_ranges():
+        if _range_overlaps_months(start, end, months):
+            out.append(ev)
+    return out
 
 
 def answer_calendar_question(text: str, *, today: date | None = None) -> dict[str, Any]:
@@ -286,6 +400,52 @@ def answer_calendar_question(text: str, *, today: date | None = None) -> dict[st
                 "source_name": meta.get("source_name"),
                 "source_url": meta.get("source_url"),
             }
+
+    # "winter" / "holiday break" without the word "break" next to winter, etc.
+    if re.search(r"\bwinter\b", cleaned) and re.search(
+        r"\b(break|holiday|off|vacation|time off|days off)\b", cleaned
+    ):
+        return _winter_break_answer(meta)
+
+    # Christmas / New Year / "time off around the holidays"
+    if _wants_winter_holiday_season(cleaned):
+        return _winter_break_answer(meta)
+
+    # Month / season time-off questions (e.g. December/January).
+    months = _mentioned_months(cleaned)
+    if months and re.search(
+        r"\b(time off|days? off|no school|holiday|break|vacation|off from school)\b"
+        r"|\bis there school\b",
+        cleaned,
+    ):
+        events = _no_school_events_for_months(months)
+        if events:
+            lines = [
+                f"• {ev.get('name')}: {_format_range(ev)} "
+                f"({ev.get('student_attendance') or 'No School'})"
+                for ev in events
+            ]
+            month_label = "/".join(
+                datetime(2000, m, 1).strftime("%B") for m in sorted(months)
+            )
+            return {
+                "handled": True,
+                "answer": format_calendar_answer(
+                    f"District calendar no-school dates overlapping {month_label}:\n"
+                    + "\n".join(lines)
+                ),
+                "source_name": meta.get("source_name"),
+                "source_url": meta.get("source_url"),
+            }
+        return {
+            "handled": True,
+            "answer": format_calendar_answer(
+                "I could not find matching no-school dates for that period "
+                "in the imported district calendar."
+            ),
+            "source_name": meta.get("source_name"),
+            "source_url": meta.get("source_url"),
+        }
 
     if re.search(r"\bnext\s+(school\s+)?(holiday|break)\b|\bupcoming\s+(school\s+)?(holiday|break)\b", cleaned):
         ev = _next_holiday_after(today)
