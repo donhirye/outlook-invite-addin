@@ -109,3 +109,55 @@ def test_direct_qa_short_circuits_answer(monkeypatch):
 
     answer = faq_service.answer_faq_question("What is the best flower in the world?")
     assert answer == "tomato"
+
+
+def test_llm_answer_strips_invented_source_and_uses_file_source(monkeypatch):
+    faq = (
+        "Q: When is the Springfield trip?\n"
+        "A: May 29–30, 2027.\n"
+        "(Source: Crone PTSA Newsletter – Nov 2026; "
+        "URL: https://example.com/newsletter)\n"
+    )
+
+    class FakeResponse:
+        output_text = (
+            '{"answer":"The trip is May 29–30, 2027.\\n\\n'
+            'Source: Crone PTSA FAQ","confidence":0.9}'
+        )
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            assert 'Do NOT add a "Source:" line' in kwargs["instructions"]
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, api_key: str):
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(faq_service, "OPENAI_MODEL", "gpt-4o-mini")
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: faq)
+    monkeypatch.setattr(
+        faq_service,
+        "retrieve_chunks",
+        lambda question, faq_text=None, faq_path=None: [faq],
+    )
+    monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
+    monkeypatch.setattr(faq_service, "score_faq_records", lambda question: (None, 0.2))
+    monkeypatch.setattr(faq_service, "_best_faq_record", lambda question: (None, 0.2))
+
+    detailed = faq_service.answer_faq_detailed("When is the Springfield trip?")
+    assert "Crone PTSA FAQ" not in detailed.answer
+    assert detailed.answer == "The trip is May 29–30, 2027."
+    assert detailed.source_name == "Crone PTSA Newsletter – Nov 2026"
+    assert detailed.source_url == "https://example.com/newsletter"
+
+
+def test_resolve_source_prefers_excerpt():
+    faq = (
+        "Q: A?\nA: 1\n(Source: Whole File Source)\n\n"
+        "Q: B?\nA: 2\n(Source: Excerpt Source; URL: https://ex.ample/b)\n"
+    )
+    name, url = faq_service.resolve_source(faq, excerpts="(Source: Excerpt Source; URL: https://ex.ample/b)")
+    assert name == "Excerpt Source"
+    assert url == "https://ex.ample/b"
