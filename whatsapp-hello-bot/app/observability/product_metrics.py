@@ -145,7 +145,7 @@ def compute_product_analytics(
             "Messages classified unanswered (FAQ not found / FAQ error). "
             "Question and answer text are stored on each turn for later evals."
         ),
-        "qa_log": _qa_log(since_days=since_days, limit=50),
+        "qa_log": _qa_log(since_days=since_days, limit=2000),
         "estimated_admin_minutes_saved": admin_minutes,
         "admin_time_assumption_minutes": minutes_per_question,
         "admin_time_note": "Estimate only: FAQ-route count × configurable minutes.",
@@ -154,12 +154,13 @@ def compute_product_analytics(
     }
 
 
-def _qa_log(*, since_days: int = 30, limit: int = 50) -> list[dict[str, Any]]:
-    """Recent question/answer pairs for admin review and eval harvesting."""
+def _qa_log(*, since_days: int = 30, limit: int = 2000) -> list[dict[str, Any]]:
+    """Question/answer pairs for admin review and eval harvesting (durable GCS)."""
     now = datetime.now(timezone.utc)
     cutoff = now - timedelta(days=max(1, since_days))
     rows: list[dict[str, Any]] = []
-    for t in load_traces(limit=max(limit * 4, 100)):
+    # limit<=0 means load all available traces from durable storage.
+    for t in load_traces(limit=None if limit <= 0 else max(limit * 2, 500)):
         ts = _parse_ts(t.get("ts"))
         if ts is not None and ts < cutoff:
             continue
@@ -177,11 +178,12 @@ def _qa_log(*, since_days: int = 30, limit: int = 50) -> list[dict[str, Any]]:
                 "faq_match_score": t.get("faq_match_score"),
                 "answer_confidence": t.get("answer_confidence"),
                 "retrieval_mode": t.get("retrieval_mode") or "",
+                "source_name": t.get("source_name") or "",
                 "question_text": question,
                 "answer_text": answer,
             }
         )
-        if len(rows) >= limit:
+        if limit > 0 and len(rows) >= limit:
             break
     return rows
 

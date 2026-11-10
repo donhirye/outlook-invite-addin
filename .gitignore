@@ -19,3 +19,13 @@ whatsapp-hello-bot/playground/
 whatsapp-hello-bot/data analysis/
 whatsapp-hello-bot/learnings.txt
 whatsapp-hello-bot/**/*.csv
+!whatsapp-hello-bot/data/imports/*.csv
+whatsapp-hello-bot/data/faq_records.json
+whatsapp-hello-bot/data/school_calendar.json
+whatsapp-hello-bot/data/analytics_events.jsonl
+whatsapp-hello-bot/data/answer_traces.jsonl
+whatsapp-hello-bot/data/engine_config.json
+whatsapp-hello-bot/data/guided_metrics.json
+whatsapp-hello-bot/data/guided_state.json
+whatsapp-hello-bot/data/webhook_seen.json
+whatsapp-hello-bot/docs/~$*

@@ -27,6 +27,7 @@ playground/
 data analysis/
 learnings.txt
 *.csv
+!data/imports/*.csv
 
 # Runtime / local-only data
 data/usage_metrics.json
@@ -36,6 +37,8 @@ data/webhook_seen.json
 data/analytics_events.jsonl
 data/answer_traces.jsonl
 data/engine_config.json
+data/faq_records.json
+data/school_calendar.json
 data/*.index.json
 data/faq_backup.txt
 

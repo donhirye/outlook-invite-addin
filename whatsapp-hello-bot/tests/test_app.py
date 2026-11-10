@@ -18,7 +18,8 @@ def test_health():
     assert response.json()["status"] == "ok"
 
 
-def test_webhook_verification():
+def test_webhook_verification(monkeypatch):
+    monkeypatch.setattr("app.main.WHATSAPP_VERIFY_TOKEN", "my-verify-token")
     response = client.get(
         "/webhook",
         params={
@@ -204,21 +205,18 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
 
 
 def test_admin_faq_ui_roundtrip(tmp_path, monkeypatch):
-    faq_file = tmp_path / "faq.txt"
-    faq_file.write_text("Old FAQ\n", encoding="utf-8")
+    records_file = tmp_path / "faq_records.json"
+    monkeypatch.setattr("app.faq_records.FAQ_RECORDS_FILE", records_file)
+    monkeypatch.setattr("app.faq_records.FAQ_GCS_BUCKET", "")
+    from app.faq_records import clear_faq_records_cache, list_records
 
-    def fake_get(faq_path=None):
-        return faq_file.read_text(encoding="utf-8").strip()
-
-    def fake_set(text, faq_path=None):
-        cleaned = (text or "").strip()
-        faq_file.write_text(cleaned + "\n", encoding="utf-8")
-        return cleaned
-
-    monkeypatch.setattr("app.main.get_faq_text", fake_get)
-    monkeypatch.setattr("app.main.set_faq_text", fake_set)
-    monkeypatch.setattr("app.main.rebuild_index", lambda *a, **k: {"chunks": []})
-    monkeypatch.setattr("app.main.faq_storage_label", lambda: str(faq_file))
+    clear_faq_records_cache()
+    monkeypatch.setattr(
+        "app.faq_store.set_faq_text",
+        lambda text, faq_path=None: text,
+    )
+    monkeypatch.setattr("app.faq_store.clear_faq_cache", lambda: None)
+    monkeypatch.setattr("app.main.ensure_faq_records_seeded", lambda: {"seeded": False, "total": 0})
 
     client.get("/admin/logout")
     denied = client.get("/admin/faq", follow_redirects=False)
@@ -227,18 +225,25 @@ def test_admin_faq_ui_roundtrip(tmp_path, monkeypatch):
     client.post("/admin/login", data={"password": "changeme"}, follow_redirects=False)
     page = client.get("/admin/faq")
     assert page.status_code == 200
-    assert "Old FAQ" in page.text
+    assert "CSV import" in page.text
     assert "Group link" in page.text
     assert "Intro" in page.text
     assert 'href="/admin/faq"' in page.text
+    assert 'href="/admin/calendar"' in page.text
 
+    csv_body = (
+        "FAQ_ID,Category,Question,Answer,Source,Source_URL,Published_Date,Event_Date,Status\n"
+        "FAQ999,Events,When is Kendall Celebration?,Friday 2pm,PTSA,,2026-01-01,,Active\n"
+    )
     saved = client.post(
-        "/admin/faq",
-        data={"faq_text": "Kendall Celebration\n\nQ: When?\nA: Friday 2pm"},
+        "/admin/faq/import",
+        files={"csv_file": ("faqs.csv", csv_body, "text/csv")},
         follow_redirects=False,
     )
     assert saved.status_code == 303
-    assert "Kendall Celebration" in faq_file.read_text(encoding="utf-8")
+    clear_faq_records_cache()
+    recs = list_records(include_inactive=True)
+    assert any(r.get("faq_id") == "FAQ999" for r in recs)
 
 
 def test_admin_link_page_generates_copy_message(tmp_path, monkeypatch):

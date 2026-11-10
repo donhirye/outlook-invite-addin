@@ -1,108 +1,340 @@
-Crone Middle School PTSA — Parent FAQ (DEMO)
-Demo materials for invited testers. Untagged answers may be parent-reported from the 6th Graders WhatsApp group; they are not official school verification. Answers marked [DEMO ANSWER] include invented demo details.
+Crone Middle School PTSA — Parent FAQ
+Authoritative FAQ records imported for the WhatsApp bot.
+
+## 7th Grade Trip
+
+Q: When is the seventh-grade Springfield/St. Louis trip?
+A: The trip is scheduled for May 29–30, 2027. Mrs. Cuda is the head chaperone.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2027-05-29 to 2027-05-30)
+
+Q: When is the informational meeting for the seventh-grade trip?
+A: The newsletter announces a meeting on Tuesday, November 10, 2026 at 7:30 PM at Fischer Middle School. For information afterward, contact crone7thgradetrip@gmail.com.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2026-11-10)
+
+Q: Where do I register for the seventh-grade Springfield/St. Louis trip?
+A: The newsletter identifies https://204trips.com/springfield-trip/ as the website where registration will be available when it opens. It does not specify an opening date.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+## Book Fair
+
+Q: When and where is the Anderson’s Fall Book Fair?
+A: The Fall Book Fair runs October 30–November 9, 2026, from 8 AM to 3 PM at the Crone LMC.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2026-10-30 to 2026-11-09)
+
+Q: Can I pay for the book fair using PushCoin?
+A: Yes. The newsletter mentions a PushCoin Wallet payment option. Details: https://bit.ly/CroneFallBkFair26.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+## Clubs & Activities
+
+Q: How do I register for Art Club?
+A: Parents discussed obtaining Art Club registration forms from the school office. Ask your child to check with the office for the current form and instructions.
+(Source: Crone PTSA – Frequently Asked Questions)
+
+Q: Can I register for Art Club online?
+A: Online registration is available through the school’s activities portal. Registration closes five school days before the first meeting. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
+
+Q: How much does Art Club cost?
+A: Art Club costs $25 per semester, including basic art supplies. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
+
+Q: How do I register for basketball?
+A: Basketball registration is handled through the school athletics office. Families must complete a registration form and submit a current sports physical before tryouts. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
+
+Q: Where do I order chorus, band, or orchestra polos?
+A: Parents discussed performance polo ordering through PushCoin. Check with the activity director for current ordering instructions.
+(Source: Crone PTSA – Frequently Asked Questions)
+
+Q: When does Art Club meet?
+A: Art Club meets on Tuesdays from 3:15 PM to 4:15 PM in the art classroom. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
+
+## Clubs & Activities – Music
+
+Q: Who are the violin teachers at Crone Middle School?
+A: The violin teachers at Crone Middle School are Katie Brown (Katie_Brown@ipsd.org) and Krzysztof Solis (Krzysztof_Solis@ipsd.org).
+(Source: Crone IPSD Website)
+
+## Fundraising
+
+Q: When is the Rosebud restaurant fundraiser?
+A: The Crone Rosebud restaurant fundraiser is scheduled all day on Friday, November 20, 2026. See the newsletter for the linked fundraiser details.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2026-11-20)
+
+## Giftmart and Donations
+
+Q: What is Giftmart 2026?
+A: Giftmart is an event where invited parents and guardians from under-resourced families can shop for brand-new toys at $2 each. Money raised from toy sales goes back to participating schools for classroom resources.
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: What can I donate to Giftmart?
+A: Donate a new, unwrapped toy suitable for children ages 6–12. Please do not donate stuffed animals or board games.
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: When can I drop off Giftmart toy donations?
+A: Giftmart toy collection boxes are available November 9 through December 4, 2026.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09 to 2026-12-04)
+
+Q: Where can I donate toys for Giftmart?
+A: Giftmart toy collection boxes are at Crone Middle School and other participating schools, including Fischer, Granger, Gregory, Hill, Scullen, Still, Metea Valley, and Waubonsie Valley, among others.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09 to 2026-12-04)
+
+Q: Can I donate Giftmart toys online?
+A: Yes. Target wish list: https://www.target.com/gift-registry/gift/holiday/2026giftmartsn ; Walmart wish list: https://www.walmart.com/lists/wishlist/5b3d0d89-e8cb-4f54-a31e-0a527aeb8cb5
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: Can I make a monetary donation to Giftmart?
+A: Yes. Monetary donations can be made at https://www.giftmartfamilycharities.org/donate .
+(Source: Couch's Corner – Nov 6, 2026)
 
 ## Lost & Found
 
 Q: Where is Lost & Found at Crone?
 A: Crone has two Lost & Found locations: one in the cafeteria/lunchroom and another outside the gym. Students should check both locations.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Can parents enter the school to collect lost items?
 A: Students are generally expected to retrieve their own belongings from Lost & Found. If you need to make a special arrangement, contact the school office.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: What if my child cannot find an item in Lost & Found?
-A: Ask your child to check both Lost & Found locations and then check with the school office. If the item hasn't been turned in yet, it may help to check again later.
+A: Ask your child to check both Lost & Found locations and then check with the school office. If the item has not been turned in yet, check again later.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: What if my child leaves something on the school bus?
-A: Contact First Student with your child's bus number and route details. Parents have reported that drivers sometimes retain found belongings on the bus until the following morning.
+A: Contact First Student with your child’s bus number and route details. Parents have reported that drivers sometimes retain found belongings on the bus until the following morning.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: How much does a replacement student ID cost?
 A: Parents reported that replacement student IDs are available through the school office for $5.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Can my child buy lunch without a student ID?
 A: Parents reported that students can still purchase school lunch without physically presenting their student ID. Your child can ask cafeteria staff for assistance.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Can the bot tell me whether a lost item has been found?
-A: No. The bot does not have access to the school's live Lost & Found inventory. Your child should check the Lost & Found locations or contact the school office.
+A: No. The bot does not have access to the school’s live Lost & Found inventory. Your child should check the Lost & Found locations or contact the school office.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: How do I report a missing Chromebook?
 A: Ask your child to notify their teacher and the school office. The school technology team will open a missing-device report and provide an update within two school days. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Can I get a replacement PE uniform?
-A: Replacement PE uniforms can be purchased through the school office for $15 per set. Ask your child to confirm the available sizes before purchasing. [DEMO ANSWER]
+A: Replacement PE uniforms can be purchased through the school office for $15 per set. Ask your child to confirm available sizes before purchasing. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: What happens to unclaimed Lost & Found items?
 A: Unclaimed items are collected at the end of each grading quarter. Families receive a reminder before remaining clothing is donated. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
-## School Calendar
+## Music and Performing Arts
 
-Q: Is there school tomorrow?
-A: Please check the current administrator-provided school calendar. If no current calendar is loaded in this bot, use the official Crone Middle School calendar or school announcements.
+Q: When are the Crone choir concerts in November 2026?
+A: The choir concerts are Monday, November 9, 2026. Sixth-grade Chorus, Guys Ensemble, and Honors Chorus perform at 6:00 PM; seventh- and eighth-grade Chorus perform at 7:30 PM.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09)
 
-Q: When is the next early release day?
-A: Please check the current school calendar in school announcements or the official school calendar. This bot answers from administrator-approved text only when that date is present here.
+Q: What time does the sixth-grade chorus perform on November 9?
+A: Sixth-grade Chorus, Guys Ensemble, and Honors Chorus perform at 6:00 PM on Monday, November 9, 2026.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09)
 
-Q: When is picture retake day?
-A: The picture retake date discussed by parents for fall 2026 was October 20, 2026. For upcoming retakes, check the latest school announcement.
+Q: What time do seventh- and eighth-grade choirs perform?
+A: Seventh- and eighth-grade Chorus perform at 7:30 PM on Monday, November 9, 2026.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09)
 
-Q: Where can I find the Spirit Week dress-up schedule?
-A: The school typically shares the dress-up schedule through school announcements. For this demo, the themes are Monday: Pajama Day, Tuesday: Sports Day, Wednesday: Twin Day, Thursday: Decades Day, and Friday: School Colors. [DEMO ANSWER]
+Q: When is the ILMEA Festival?
+A: The ILMEA Festival is Saturday, November 7, 2026.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-07)
 
-Q: When is the next PTSA meeting?
-A: For this demo, the next PTSA meeting is November 18, 2026, at 7:00 PM in the school library. [DEMO ANSWER]
-
-## Clubs and Activities
-
-Q: How do I register for Art Club?
-A: Parents discussed obtaining Art Club registration forms from the school office. Ask your child to check with the office for the current form and registration instructions.
-
-Q: Can I register for Art Club online?
-A: For this demo, online registration is available through the school's activities portal. Registration closes five school days before the first meeting. [DEMO ANSWER]
-
-Q: How much does Art Club cost?
-A: For this demo, Art Club costs $25 per semester, including basic art supplies. [DEMO ANSWER]
-
-Q: How do I register for basketball?
-A: For this demo, basketball registration is handled through the school athletics office. Families must complete a registration form and submit a current sports physical before tryouts. [DEMO ANSWER]
-
-Q: Where do I order chorus, band, or orchestra polos?
-A: Parents discussed performance polo ordering through PushCoin. Check with the activity director for the required polo and current ordering instructions.
-
-Q: When does Art Club meet?
-A: For this demo, Art Club meets on Tuesdays from 3:15 PM to 4:15 PM in the art classroom. [DEMO ANSWER]
-
-## PTSA Events and Volunteering
+## PTSA Events
 
 Q: How do I register for Color Run?
 A: Color Run registration information was shared in the parent group. For a current event, use the latest registration link provided by the PTSA organizer.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: How can I volunteer for PTSA events?
 A: PTSA organizers share volunteer signup opportunities in the parent group. Look for the current signup announcement or contact the event organizer.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: What volunteer opportunities are available?
-A: For this demo, the PTSA needs volunteers for event setup, registration tables, refreshments, and cleanup. Most shifts last 60–90 minutes. [DEMO ANSWER]
+A: The PTSA needs volunteers for event setup, registration tables, refreshments, and cleanup. Most shifts last 60–90 minutes. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Where should I drop off donations?
-A: For this demo, donations can be dropped off at the school main office between 8:00 AM and 3:00 PM on school days. Label donations with the event name. [DEMO ANSWER]
+A: Donations can be dropped off at the school main office between 8:00 AM and 3:00 PM on school days. Label donations with the event name. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: How do I submit a Reflections entry?
-A: For this demo, students should submit their artwork or writing through the PTSA Reflections coordinator. Each entry must include a completed student entry form and artist statement. [DEMO ANSWER]
+A: Students should submit their artwork or writing through the PTSA Reflections coordinator. Each entry must include a completed student entry form and artist statement. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
-Q: How do I order a yearbook?
-A: For this demo, yearbooks can be ordered through the school office or the school's approved online ordering portal. Orders close on March 15, 2027. [DEMO ANSWER]
+Q: When is the next PTSA meeting?
+A: The newsletter announces a general PTSA meeting on Thursday, November 12, 2026, from 9:30 to 10:30 AM at the Crone LMC. A virtual option is available. Check the PTSA calendar for later meetings.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2026-11-12)
+
+Q: Do I need to be a PTSA member to attend a meeting?
+A: No. The Crone PTSA general meetings are open to everyone.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+## PTSA Membership
+
+Q: How do I join Crone PTSA?
+A: Join the 2026–2027 Crone PTSA at https://croneptsa.givebacks.com/shop/items/16461.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+## PTSA Resources
+
+Q: Where can I find Crone PTSA announcements and event dates?
+A: Visit https://www.croneptsa.org for the PTSA website and event calendar. The newsletter says it is updated on Wednesdays when school is in session.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+Q: How do I contact Crone PTSA?
+A: Email Cronemsptsa@gmail.com, visit https://www.croneptsa.org, or look for Crone PTSA on Facebook.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+Q: How do I join the parent WhatsApp group?
+A: The PTSA newsletter links to a document with grade-level WhatsApp group links and QR codes. Open the source newsletter and select the WhatsApp document link.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+## Project Arrow
+
+Q: Who can enter the Project Arrow short story contest?
+A: Project Arrow students in grades 3–8 may enter the short story writing contest.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+Q: What is the Project Arrow short story contest deadline?
+A: The newsletter specifies Friday, November 20, 2026 at 11:59 PM. Entries must be emailed to ippa.pta@gmail.com; no extensions are allowed.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2026-11-20)
+
+Q: What is the writing prompt for middle school students?
+A: Grades 6–8 use the prompt “One Day, One Rule”: imagine one rule of the world changes for 24 hours, describe its effects, and whether you want the rule to stay.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+Q: What are the submission requirements for the Project Arrow writing contest?
+A: Stories must be 500–750 words, typed in 12-point Times New Roman and double-spaced, or handwritten in no more than three pages. Include student name, grade, and school. Email to ippa.pta@gmail.com; do not submit from a school Chromebook.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+Q: What can students win in the Project Arrow writing contest?
+A: One winner from each school receives a $50 Visa gift card. Winning stories are published by Project Arrow and illustrated by fellow Project Arrow students.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+## Reflections
+
+Q: How can I volunteer to judge Reflections entries?
+A: The newsletter requests judges age 18 or older for November 12, 2026, 9:30 AM–3:30 PM at Crouse Education Center. Sign up for a two-hour slot at https://signup.com/go/CZHvhes and bring a valid ID.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email; Event_Date: 2026-11-12)
+
+## School Calendar
+
+Q: When is Thanksgiving break at Crone in 2026?
+A: There is no school Monday, November 23 through Friday, November 27, 2026, for Thanksgiving break.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-23 to 2026-11-27)
+
+Q: Is there school during November 23–27, 2026?
+A: No. Crone has no school November 23–27, 2026, for Thanksgiving break.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-23 to 2026-11-27)
+
+Q: When is picture retake day?
+A: The picture retake date discussed by parents for fall 2026 was October 20, 2026. For upcoming retakes, check the latest school announcement.
+(Source: Crone PTSA – Frequently Asked Questions)
+
+Q: Where can I find the Spirit Week dress-up schedule?
+A: The school typically shares the dress-up schedule through school announcements. the themes are Monday: Pajama Day; Tuesday: Sports Day; Wednesday: Twin Day; Thursday: Decades Day; Friday: School Colors. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
+
+## School Community
+
+Q: Did the PTSA provide meals during parent-teacher conferences?
+A: Yes. Mrs. Couch thanked PTSA volunteers and donors for providing a meal to teachers on October 22, 2026, during the first evening of parent-teacher conferences.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-10-22)
+
+## School Events
+
+Q: When is Crone Champions in November 2026?
+A: Crone Champions is listed for Thursday, November 19, 2026, at 7:00 AM.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-19)
+
+Q: When is the virtual Elementary Prelude information meeting?
+A: The virtual Elementary Prelude information meeting is scheduled for Thursday, November 19, 2026, at 6:00 PM.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-19)
 
 ## School Procedures
 
+Q: Who is the principal of Crone Middle School?
+A: Melissa J. Couch is the principal of Clifford Crone Middle School. Her email is melissa_couch@ipsd.org.
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: How do I contact Crone Middle School?
+A: Crone Middle School is at 4020 111th St, Naperville, IL 60564. Main phone: 630-428-5600.
+(Source: Couch's Corner – Nov 6, 2026)
+
 Q: How do I schedule parent-teacher conferences?
 A: Parents discussed scheduling conferences through ParentVUE. Check the current school instructions for available appointments.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Should students attend parent-teacher conferences?
 A: For the October 2026 conferences, a group administrator indicated that student attendance was preferred.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: What if no conference slots are available?
-A: Contact your child's teacher to ask whether additional appointment times or another meeting arrangement are available.
+A: Contact your child’s teacher to ask whether additional appointment times or another meeting arrangement are available.
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: Where can I find a map of Crone?
-A: For this demo, a printed school map is available at the main office, and a digital map can be requested from the school secretary. [DEMO ANSWER]
+A: A printed school map is available at the main office, and a digital map can be requested from the school secretary. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
 
 Q: How do gym lockers work?
-A: For this demo, students receive an assigned gym locker at the beginning of the semester. They should use the school-approved lock and report any locker problems to their PE teacher. [DEMO ANSWER]
+A: Students receive an assigned gym locker at the beginning of the semester. They should use the school-approved lock and report locker problems to their PE teacher. [DEMO ANSWER]
+(Source: Crone PTSA – Frequently Asked Questions)
+
+## Sports
+
+Q: How did the Crone wrestling team do against Granger?
+A: The wrestling team defeated Granger on Wednesday of the November 6 newsletter week and improved to 2–0 for the season.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-04)
+
+Q: How did the Crone 7AA boys basketball team do against Gregory?
+A: The 7AA team lost to Gregory Middle School 41–31 on Thursday of the November 6 newsletter week.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-05)
+
+Q: How did the Crone 7A boys basketball team do against Gregory?
+A: The 7A team beat Gregory to improve to 3–0. Ethan McMurtry led scoring with 9 points.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-05)
+
+Q: When is the next wrestling match after November 6?
+A: The newsletter lists wrestling versus Washington on Monday, November 9, 2026.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09)
+
+Q: What wrestling matches are listed for November 2026?
+A: The newsletter lists November 9 vs. Washington; November 11 vs. Still/Gregory/(Hill) at Still; November 17 vs. Fischer; and November 19 vs. Lincoln/Scullen/Kennedy.
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-09 to 2026-11-19)
+
+Q: What basketball games are listed for November 2026?
+A: The newsletter lists November 10 vs. Jefferson (7H, 8A); November 12 vs. Granger (7A, 8H); November 16 vs. Still (7A, 8H); and November 18 vs. Scullen (7A, 8H).
+(Source: Couch's Corner – Nov 6, 2026; Event_Date: 2026-11-10 to 2026-11-18)
+
+## Yearbook
+
+Q: How do I order the 2026–2027 Crone yearbook?
+A: Visit https://www.yearbookordercenter.com and enter school code 8778. For questions, email jennifer_rayola@ipsd.org or allison_geers@ipsd.org.
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: What is the Crone yearbook ordering code?
+A: The school code is 8778 at https://www.yearbookordercenter.com .
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: Who can I contact about Crone yearbook orders?
+A: Email jennifer_rayola@ipsd.org or allison_geers@ipsd.org with yearbook questions.
+(Source: Couch's Corner – Nov 6, 2026)
+
+Q: How do I order a yearbook?
+A: Order the 2026–2027 Crone yearbook at https://yearbookordercenter.com using school code 8778. The newsletter does not state an order deadline.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)
+
+Q: What is Crone’s yearbook ordering school code?
+A: The school code for Crone yearbook ordering is 8778.
+(Source: Crone PTSA Newsletter – Nov 2026; URL: https://app.smore.com/n/bxnar-crone-ptsa-newsletter?ref=email)

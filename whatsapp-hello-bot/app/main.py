@@ -4,13 +4,19 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Form, Request, Response
+from fastapi import FastAPI, File, Form, Request, Response, UploadFile
 from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeSerializer
 from starlette.middleware.sessions import SessionMiddleware
 
+from app.calendar_store import (
+    ensure_calendar_seeded,
+    get_calendar_meta,
+    import_calendar_csv_text,
+    list_events,
+)
 from app.config import (
     ADMIN_PASSWORD,
     BASE_DIR,
@@ -24,6 +30,12 @@ from app.engine_config import get_selected_engine_id, set_selected_engine_id
 from app.engines.pipeline import process_message
 from app.engines.registry import list_engines
 from app.event_link_store import event_link_view, set_event_link_settings
+from app.faq_records import (
+    ensure_faq_records_seeded,
+    get_conflicts,
+    import_faq_csv_text,
+    list_records,
+)
 from app.faq_rag import rebuild_index
 from app.faq_store import clear_faq_cache, faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
@@ -85,6 +97,13 @@ async def log_credential_status() -> None:
         )
     if not status["faq_file_exists"] and not status.get("faq_gcs_bucket"):
         logger.warning("FAQ file is missing: data/science_olympiad_faq.txt")
+    try:
+        faq_seed = ensure_faq_records_seeded()
+        cal_seed = ensure_calendar_seeded()
+        logger.info("FAQ records seed: %s", faq_seed)
+        logger.info("Calendar seed: %s", cal_seed)
+    except Exception:
+        logger.exception("Failed seeding FAQ records / school calendar")
     logger.info("FAQ storage: %s", faq_storage_label())
     try:
         from app.faq_store import get_faq_text
@@ -294,49 +313,114 @@ async def admin_faq_page(request: Request, saved: int = 0) -> Response:
     if not _is_logged_in(request):
         return RedirectResponse(url="/admin", status_code=303)
     error = None
-    faq_text = ""
+    records: list[dict[str, Any]] = []
+    conflicts: list[dict[str, Any]] = []
     try:
-        # Always re-read durable storage in admin so uploads/edits aren't hidden
-        # by the process-local FAQ cache.
-        clear_faq_cache()
-        faq_text = get_faq_text()
+        ensure_faq_records_seeded()
+        records = list_records(include_inactive=True)
+        conflicts = get_conflicts()
     except Exception as exc:
-        logger.exception("Failed loading FAQ for admin UI")
+        logger.exception("Failed loading FAQ records for admin UI")
         error = str(exc)
     return templates.TemplateResponse(
         request,
         "admin_faq.html",
         {
             **_branding_context(),
-            "faq_text": faq_text,
+            "records": records,
+            "record_count": len([r for r in records if str(r.get("status", "")).lower() == "active"]),
+            "conflicts": conflicts,
             "saved": bool(saved),
             "error": error,
-            "storage": faq_storage_label(),
         },
     )
 
 
-@app.post("/admin/faq", response_class=HTMLResponse)
-async def admin_faq_save(request: Request, faq_text: str = Form(...)) -> Response:
+@app.post("/admin/faq/import", response_class=HTMLResponse)
+async def admin_faq_import(
+    request: Request,
+    csv_file: UploadFile = File(...),
+) -> Response:
     if not _is_logged_in(request):
         return RedirectResponse(url="/admin", status_code=303)
     try:
-        cleaned = set_faq_text(faq_text)
-        rebuild_index(cleaned)
+        raw = await csv_file.read()
+        text = raw.decode("utf-8-sig")
+        result = import_faq_csv_text(text)
+        logger.info("Admin FAQ CSV import: %s", result)
     except Exception as exc:
-        logger.exception("Failed saving FAQ from admin UI")
+        logger.exception("Failed importing FAQ CSV")
+        records = list_records(include_inactive=True)
         return templates.TemplateResponse(
             request,
             "admin_faq.html",
             {
-                "faq_text": faq_text,
+                **_branding_context(),
+                "records": records,
+                "record_count": len(records),
+                "conflicts": get_conflicts(),
                 "saved": False,
-                "error": f"Could not save FAQ: {exc}",
-                "storage": faq_storage_label(),
+                "error": f"Could not import FAQ CSV: {exc}",
             },
             status_code=400,
         )
     return RedirectResponse(url="/admin/faq?saved=1", status_code=303)
+
+
+@app.get("/admin/calendar", response_class=HTMLResponse)
+async def admin_calendar_page(request: Request, saved: int = 0) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    error = None
+    try:
+        ensure_calendar_seeded()
+        events = list_events()
+        meta = get_calendar_meta()
+    except Exception as exc:
+        logger.exception("Failed loading school calendar for admin UI")
+        error = str(exc)
+        events = []
+        meta = {}
+    return templates.TemplateResponse(
+        request,
+        "admin_calendar.html",
+        {
+            **_branding_context(),
+            "events": events,
+            "meta": meta,
+            "saved": bool(saved),
+            "error": error,
+        },
+    )
+
+
+@app.post("/admin/calendar/import", response_class=HTMLResponse)
+async def admin_calendar_import(
+    request: Request,
+    csv_file: UploadFile = File(...),
+) -> Response:
+    if not _is_logged_in(request):
+        return RedirectResponse(url="/admin", status_code=303)
+    try:
+        raw = await csv_file.read()
+        text = raw.decode("utf-8-sig")
+        result = import_calendar_csv_text(text)
+        logger.info("Admin calendar CSV import: %s", result)
+    except Exception as exc:
+        logger.exception("Failed importing calendar CSV")
+        return templates.TemplateResponse(
+            request,
+            "admin_calendar.html",
+            {
+                **_branding_context(),
+                "events": list_events(),
+                "meta": get_calendar_meta(),
+                "saved": False,
+                "error": f"Could not import calendar CSV: {exc}",
+            },
+            status_code=400,
+        )
+    return RedirectResponse(url="/admin/calendar?saved=1", status_code=303)
 
 
 @app.get("/admin/guided", response_class=HTMLResponse)

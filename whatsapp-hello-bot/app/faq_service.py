@@ -48,6 +48,9 @@ class FaqAnswer:
     match_score: float | None = None
     retrieval_mode: str = "unknown"
     llm_invocations: int = 0
+    faq_id: str | None = None
+    source_name: str | None = None
+    source_url: str | None = None
 
 _STOPWORDS = {
     "a",
@@ -119,11 +122,72 @@ def parse_faq_qa_pairs(faq_text: str) -> list[tuple[str, str]]:
     return pairs
 
 
+def _wants_upcoming(question: str) -> bool:
+    cleaned = (question or "").lower()
+    return bool(
+        re.search(
+            r"\b(next|upcoming|this week|tomorrow|most recent announcement)\b",
+            cleaned,
+        )
+    )
+
+
+def score_faq_records(question: str) -> tuple[dict | None, float]:
+    """Best structured FAQ record and keyword score."""
+    from app.faq_records import chicago_today, list_records
+    from datetime import datetime
+
+    records = list_records(include_inactive=False)
+    if not records:
+        return None, 0.0
+    q_tokens = _normalize_for_match(question)
+    if not q_tokens:
+        return None, 0.0
+    today = chicago_today()
+    upcoming = _wants_upcoming(question)
+    best_rec = None
+    best_score = 0.0
+    for rec in records:
+        faq_tokens = _normalize_for_match(rec.get("question") or "")
+        if not faq_tokens:
+            continue
+        overlap = q_tokens & faq_tokens
+        if not overlap:
+            continue
+        score = (len(overlap) / len(q_tokens) + len(overlap) / len(faq_tokens)) / 2.0
+        if len(overlap) == len(faq_tokens) and len(faq_tokens) >= 2:
+            score = max(score, 0.99)
+        event_raw = (rec.get("event_date") or "").strip()
+        if upcoming and event_raw:
+            try:
+                event_day = datetime.strptime(event_raw[:10], "%Y-%m-%d").date()
+                if event_day < today:
+                    score *= 0.35  # demote past events for "next/upcoming" asks
+                else:
+                    score = min(1.0, score + 0.08)
+            except ValueError:
+                pass
+        if score > best_score:
+            best_score = score
+            best_rec = rec
+    if best_rec is not None and best_score >= 0.6:
+        logger.info(
+            "Direct FAQ record match id=%s score=%.2f",
+            best_rec.get("faq_id"),
+            best_score,
+        )
+        return best_rec, round(best_score, 3)
+    return None, round(best_score, 3)
+
+
 def score_faq_qa(question: str, faq_text: str) -> tuple[str | None, float]:
     """Best FAQ A: and keyword overlap score (0–1). Answer is None if below threshold."""
+    rec, score = score_faq_records(question)
+    if rec:
+        return rec.get("answer"), score
     pairs = parse_faq_qa_pairs(faq_text)
     if not pairs:
-        return None, 0.0
+        return None, score
 
     q_tokens = _normalize_for_match(question)
     if not q_tokens:
@@ -139,18 +203,18 @@ def score_faq_qa(question: str, faq_text: str) -> tuple[str | None, float]:
         if not overlap:
             continue
         # Coverage both ways: question tokens covered by FAQ Q, and vice versa.
-        score = (len(overlap) / len(q_tokens) + len(overlap) / len(faq_tokens)) / 2.0
+        pair_score = (len(overlap) / len(q_tokens) + len(overlap) / len(faq_tokens)) / 2.0
         # Also accept if FAQ Q tokens are almost fully present in the question.
         if len(overlap) == len(faq_tokens) and len(faq_tokens) >= 2:
-            score = max(score, 0.99)
-        if score > best_score:
-            best_score = score
+            pair_score = max(pair_score, 0.99)
+        if pair_score > best_score:
+            best_score = pair_score
             best_answer = faq_a
 
     if best_answer is not None and best_score >= 0.6:
         logger.info("Direct FAQ Q/A match score=%.2f", best_score)
         return best_answer, round(best_score, 3)
-    return None, round(best_score, 3)
+    return None, round(max(score, best_score), 3)
 
 
 def match_faq_qa(question: str, faq_text: str) -> str | None:
@@ -203,19 +267,40 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
             return result
 
         faq_started = time.perf_counter()
+        try:
+            from app.faq_records import ensure_faq_records_seeded
+
+            ensure_faq_records_seeded()
+        except Exception:
+            logger.exception("FAQ records seed check failed")
         faq_text = load_faq_text(faq_path=faq_path)
         faq_load_ms = (time.perf_counter() - faq_started) * 1000
 
-        direct, match_score = score_faq_qa(cleaned_question, faq_text)
-        if direct:
-            retrieval_mode = "direct_qa"
-            result = FaqAnswer(
-                answer=direct,
-                confidence=match_score,
-                match_score=match_score,
-                retrieval_mode=retrieval_mode,
-            )
-            return result
+        if faq_path is None:
+            rec, match_score = score_faq_records(cleaned_question)
+            if rec:
+                retrieval_mode = "direct_qa"
+                result = FaqAnswer(
+                    answer=str(rec.get("answer") or ""),
+                    confidence=match_score,
+                    match_score=match_score,
+                    retrieval_mode=retrieval_mode,
+                    faq_id=rec.get("faq_id"),
+                    source_name=rec.get("source") or None,
+                    source_url=rec.get("source_url") or None,
+                )
+                return result
+        else:
+            direct, match_score = score_faq_qa(cleaned_question, faq_text)
+            if direct:
+                retrieval_mode = "direct_qa"
+                result = FaqAnswer(
+                    answer=direct,
+                    confidence=match_score,
+                    match_score=match_score,
+                    retrieval_mode=retrieval_mode,
+                )
+                return result
 
         if not OPENAI_API_KEY:
             raise RuntimeError(

@@ -70,12 +70,22 @@ def test_format_parent_answer_adds_source_placeholder():
     out = format_parent_answer("Parents should park in Lot C.")
     assert "*FAQ answer*" in out
     assert "Lot C" in out
-    assert SOURCE_PLACEHOLDER in out
+    assert "Source: Crone PTSA FAQ" in out
+
+
+def test_format_parent_answer_uses_named_source_and_url():
+    out = format_parent_answer(
+        "Parents should park in Lot C.",
+        source_name="Crone PTSA Newsletter – Nov 2026",
+        source_url="https://example.com/newsletter",
+    )
+    assert "Source: Crone PTSA Newsletter – Nov 2026" in out
+    assert "https://example.com/newsletter" in out
 
 
 def test_format_parent_answer_skips_source_on_fallback():
     out = format_parent_answer("I couldn't find that information in the event FAQ.")
-    assert SOURCE_PLACEHOLDER not in out
+    assert "Source:" not in out
 
 
 def test_append_faq_entry(tmp_path, monkeypatch):

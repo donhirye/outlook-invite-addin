@@ -134,6 +134,8 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
         "faq_match_score": result.faq_match_score,
         "answer_confidence": result.answer_confidence,
         "retrieval_mode": result.retrieval_mode,
+        "source_name": result.source_name,
+        "source_url": result.source_url,
         "intent": result.intent,
         "extracted_keys": sorted((result.extracted or {}).keys()),
         "flow_id": result.flow_id,
@@ -190,13 +192,29 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
     return record
 
 
-def load_traces(*, limit: int = 100) -> list[dict[str, Any]]:
-    path = TRACES_FILE
-    if not path.exists():
-        return []
-    lines = path.read_text(encoding="utf-8").splitlines()
+def _read_trace_lines() -> list[str]:
+    """Prefer GCS mirror (durable on Cloud Run); fall back to local file."""
+    if FAQ_GCS_BUCKET:
+        try:
+            from google.cloud import storage
+
+            blob = storage.Client().bucket(FAQ_GCS_BUCKET).blob(TRACES_GCS_OBJECT)
+            if blob.exists():
+                return blob.download_as_text(encoding="utf-8").splitlines()
+        except Exception:
+            logger.exception("Failed reading answer traces from GCS")
+    if TRACES_FILE.exists():
+        return TRACES_FILE.read_text(encoding="utf-8").splitlines()
+    return []
+
+
+def load_traces(*, limit: int | None = 5000) -> list[dict[str, Any]]:
+    """Load traces newest-first. limit=None loads the full durable history."""
+    lines = _read_trace_lines()
+    if limit is not None and limit > 0:
+        lines = lines[-limit:]
     out: list[dict[str, Any]] = []
-    for line in lines[-limit:]:
+    for line in lines:
         try:
             out.append(json.loads(line))
         except json.JSONDecodeError:
@@ -206,7 +224,7 @@ def load_traces(*, limit: int = 100) -> list[dict[str, Any]]:
 
 
 def get_trace(trace_id: str) -> dict[str, Any] | None:
-    for row in load_traces(limit=2000):
+    for row in load_traces(limit=None):
         if row.get("trace_id") == trace_id:
             return row
     return None
