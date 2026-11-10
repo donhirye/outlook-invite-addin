@@ -61,9 +61,9 @@ except ValueError:
 # If FAQ text is at or below this size, skip embeddings and send the whole FAQ
 # to the LLM (faster for small school-event FAQs). Set 0 to always use RAG.
 try:
-    FAQ_SKIP_RAG_MAX_CHARS = max(0, int(_env("FAQ_SKIP_RAG_MAX_CHARS", "12000")))
+    FAQ_SKIP_RAG_MAX_CHARS = max(0, int(_env("FAQ_SKIP_RAG_MAX_CHARS", "30000")))
 except ValueError:
-    FAQ_SKIP_RAG_MAX_CHARS = 12000
+    FAQ_SKIP_RAG_MAX_CHARS = 30000
 
 PARENT_FALLBACK_MESSAGE = (
     "Sorry, I'm having trouble answering right now. Please try again shortly."
