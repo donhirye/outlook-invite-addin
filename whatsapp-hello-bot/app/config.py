@@ -72,6 +72,13 @@ FAQ_NOT_FOUND_MESSAGE = (
     "I couldn't find that information in the event FAQ. "
     "Please contact the PTSA Administrators."
 )
+# Parent-facing policy when someone asks for student PII (name/ID/phone/email).
+STUDENT_PRIVACY_MESSAGE = (
+    "Sorry — per PTSA privacy policy, a privacy filter has been applied. "
+    "This assistant cannot provide student personal information "
+    "(including student names, student IDs, phone numbers, or email addresses). "
+    "Please contact the school office for help with student records."
+)
 
 # Guided conversations (Lost & Found, conferences, spiritwear, ...)
 GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
