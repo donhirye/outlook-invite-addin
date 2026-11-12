@@ -11,6 +11,7 @@ from app.config import (
     FAQ_NOT_FOUND_MESSAGE,
     OPENAI_API_KEY,
     OPENAI_MODEL,
+    OPENAI_REASONING_EFFORT,
     PARENT_FALLBACK_MESSAGE,
 )
 from app.faq_rag import retrieve_chunks
@@ -397,12 +398,21 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
             "input": user_input,
             "temperature": FAQ_LLM_TEMPERATURE,
         }
+        if OPENAI_REASONING_EFFORT:
+            create_kwargs["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
         try:
             response = client.responses.create(**create_kwargs)
         except Exception as exc:
-            # Some newer models (e.g. gpt-5-mini) reject temperature.
-            if "temperature" in str(exc).lower():
+            msg = str(exc).lower()
+            # gpt-5* often rejects temperature; non-reasoning models may reject reasoning.
+            retried = False
+            if "temperature" in msg and "temperature" in create_kwargs:
                 create_kwargs.pop("temperature", None)
+                retried = True
+            if "reasoning" in msg and "reasoning" in create_kwargs:
+                create_kwargs.pop("reasoning", None)
+                retried = True
+            if retried:
                 response = client.responses.create(**create_kwargs)
             else:
                 raise

@@ -27,6 +27,19 @@ GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
 
 OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
 OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-4o-mini")
+# For gpt-5* reasoning models via Responses API. Empty = omit (non-reasoning models).
+# minimal keeps FAQ quality high while cutting default medium-effort latency.
+OPENAI_REASONING_EFFORT = _env("OPENAI_REASONING_EFFORT", "minimal").lower()
+if OPENAI_REASONING_EFFORT not in {
+    "",
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+}:
+    OPENAI_REASONING_EFFORT = "minimal"
 
 # Comma-separated WhatsApp numbers allowed to run /faq (digits with country code, no +)
 # Example: 18122165774,15551234567
@@ -99,6 +112,7 @@ def credential_status() -> dict[str, object]:
         "verify_token_set": bool(WHATSAPP_VERIFY_TOKEN),
         "openai_api_key_set": bool(OPENAI_API_KEY),
         "openai_model": OPENAI_MODEL,
+        "openai_reasoning_effort": OPENAI_REASONING_EFFORT or None,
         "faq_file_exists": FAQ_FILE.exists(),
         "faq_admin_count": len(FAQ_ADMIN_PHONES),
         "faq_gcs_bucket": FAQ_GCS_BUCKET or None,
