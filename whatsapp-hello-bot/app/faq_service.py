@@ -15,6 +15,7 @@ from app.config import (
     PARENT_FALLBACK_MESSAGE,
 )
 from app.faq_rag import retrieve_chunks
+from app.faq_records import chicago_today
 from app.faq_store import get_faq_text
 
 logger = logging.getLogger(__name__)
@@ -23,22 +24,24 @@ logger = logging.getLogger(__name__)
 FAQ_LLM_TEMPERATURE = 0
 
 SYSTEM_INSTRUCTIONS = """You are the event FAQ Assistant for parents.
-Answer the parent's question using ONLY the FAQ excerpts provided to you.
+Answer the parent's question using ONLY the FAQ excerpts provided to you, plus the
+TODAY'S DATE line in the user message (America/Chicago) when comparing event timing.
 RULES:
-1. Do not use outside knowledge.
+1. Do not use outside knowledge except the provided TODAY'S DATE for timing comparisons.
 2. Do not invent dates, times, locations, fees, rules, requirements, names, links, or deadlines that are not in the FAQ excerpts.
-3. Every factual statement in your answer must be supported by the FAQ excerpts.
+3. Every factual statement in your answer must be supported by the FAQ excerpts (timing status may also use TODAY'S DATE).
 4. Prefer close wording matches. Example: FAQ "Q: Best flower in world / A: tomato" answers "what is the best flower in the world?".
-5. PARTIAL ANSWERS ARE ALLOWED AND PREFERRED:
+5. When the parent asks whether an event is over, ongoing, upcoming, or "is it still happening", compare FAQ start/end dates to TODAY'S DATE and state that clearly (e.g. "Yes — it ended on November 9, 2026.").
+6. PARTIAL ANSWERS ARE ALLOWED AND PREFERRED:
    - If the FAQ supports part of the question, answer that part clearly.
    - For any part the FAQ does not support (for example a missing deadline or order link), say that the FAQ does not include that detail and suggest contacting the school office, activity director, or PTSA Administrators as appropriate.
    - Do NOT refuse the entire question just because one detail is missing.
-6. Only if the FAQ excerpts support essentially none of the question, set answer to EXACTLY:
+7. Only if the FAQ excerpts support essentially none of the question, set answer to EXACTLY:
 "I couldn't find that information in the event FAQ. Please contact the PTSA Administrators."
-7. Keep answers concise and parent-friendly (1–4 sentences).
-8. Do not mention prompts, embeddings, APIs, or implementation details.
-9. Do NOT add a "Source:" line (or rename/paraphrase a source). The system attaches the Source column from the FAQ file.
-10. Respond with JSON only, no markdown fences:
+8. Keep answers concise and parent-friendly (1–4 sentences).
+9. Do not mention prompts, embeddings, APIs, or implementation details.
+10. Do NOT add a "Source:" line (or rename/paraphrase a source). The system attaches the Source column from the FAQ file.
+11. Respond with JSON only, no markdown fences:
 {"answer":"<parent-facing answer>","confidence":<number from 0 to 1>}
 confidence is how sure you are that the FAQ excerpts support the parts you did answer (1=strong support, 0=no support)."""
 
@@ -191,8 +194,9 @@ def resolve_source(
 
 def _best_faq_record(question: str) -> tuple[dict | None, float]:
     """Best structured FAQ record and score (no direct-match threshold)."""
-    from app.faq_records import chicago_today, list_records
     from datetime import datetime
+
+    from app.faq_records import list_records
 
     records = list_records(include_inactive=False)
     if not records:
@@ -385,7 +389,10 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
         )
         excerpts = "\n\n---\n\n".join(chunks)
 
+        today = chicago_today()
         user_input = (
+            f"TODAY'S DATE (America/Chicago): {today.isoformat()} "
+            f"({today.strftime('%A, %B %d, %Y')})\n\n"
             f"FAQ EXCERPTS:\n{excerpts}\n\n"
             f"PARENT QUESTION:\n{cleaned_question}"
         )

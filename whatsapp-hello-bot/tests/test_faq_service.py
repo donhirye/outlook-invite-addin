@@ -34,7 +34,8 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
             assert kwargs["model"] == "gpt-5.6-luna"
             assert kwargs.get("temperature", 0) == 0
             assert kwargs.get("reasoning") == {"effort": "minimal"}
-            assert "ONLY the FAQ excerpts" in kwargs["instructions"]
+            assert "TODAY'S DATE" in kwargs["instructions"]
+            assert "TODAY'S DATE (America/Chicago): 2026-11-12" in kwargs["input"]
             assert "Lot C" in kwargs["input"]
             assert "Where should I park?" in kwargs["input"]
             return FakeResponse()
@@ -62,6 +63,11 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
     monkeypatch.setattr(faq_service, "score_faq_records", lambda question: (None, 0.2))
     monkeypatch.setattr(
         faq_service, "score_faq_qa", lambda question, faq_text: (None, 0.2)
+    )
+    monkeypatch.setattr(
+        faq_service,
+        "chicago_today",
+        lambda: __import__("datetime").date(2026, 11, 12),
     )
 
     detailed = faq_service.answer_faq_detailed("Where should I park?")
@@ -129,6 +135,7 @@ def test_llm_answer_strips_invented_source_and_uses_file_source(monkeypatch):
     class FakeResponses:
         def create(self, **kwargs):
             assert 'Do NOT add a "Source:" line' in kwargs["instructions"]
+            assert "TODAY'S DATE (America/Chicago): 2026-11-12" in kwargs["input"]
             return FakeResponse()
 
     class FakeClient:
@@ -146,6 +153,11 @@ def test_llm_answer_strips_invented_source_and_uses_file_source(monkeypatch):
     monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
     monkeypatch.setattr(faq_service, "score_faq_records", lambda question: (None, 0.2))
     monkeypatch.setattr(faq_service, "_best_faq_record", lambda question: (None, 0.2))
+    monkeypatch.setattr(
+        faq_service,
+        "chicago_today",
+        lambda: __import__("datetime").date(2026, 11, 12),
+    )
 
     detailed = faq_service.answer_faq_detailed("When is the Springfield trip?")
     assert "Crone PTSA FAQ" not in detailed.answer
