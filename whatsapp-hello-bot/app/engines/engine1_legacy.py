@@ -22,6 +22,7 @@ from app.greeting_store import get_greeting
 from app.guided_engine import advance as advance_guided
 from app.guided_router import begin_guided, route_message
 from app.guided_state import get_session
+from app.privacy_filter import privacy_reply_if_needed
 
 
 class LegacyEngine:
@@ -77,6 +78,19 @@ class LegacyEngine:
                 route="faq_admin",
                 engine_id=self.id,
                 engine_version=self.version,
+            )
+
+        # PTSA privacy: block asks for student name / ID / phone / email.
+        privacy = privacy_reply_if_needed(text)
+        if privacy and not get_session(phone):
+            return AnswerResult(
+                messages=[privacy],
+                route="privacy_filter",
+                engine_id=self.id,
+                engine_version=self.version,
+                intent="privacy",
+                answer_outcome="answered",
+                sources=["ptsa_privacy_policy"],
             )
 
         if GUIDED_ENABLED and get_session(phone):
