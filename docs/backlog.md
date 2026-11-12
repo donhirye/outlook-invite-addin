@@ -28,6 +28,7 @@ Add new ideas here (short-term or long-term). Do not start a second parallel lis
 ### Engineering (deferred from recent work)
 - [ ] Revisit **RAG** for FAQ once the combined FAQ grows past the full-text path (`FAQ_SKIP_RAG_MAX_CHARS` raised to 30k for now — “worry about RAG later”)
 - [ ] **Calendar LLM fallback** (same shape as FAQ: deterministic match → calendar-only LLM) — explicitly deferred; deterministic holiday phrasing shipped first
+- [ ] **Client timezone config** — “today” for FAQ timing + calendar is hardcoded `America/Chicago` (correct for Crone Middle School / D204). Add env/admin config (e.g. `SCHOOL_TIMEZONE`) so other PTSAs can set their local zone without a code change
 - [ ] Admin UI for **policies** (privacy copy, not-found text) instead of only `app/config.py` constants
 - [ ] Stronger student-name PII detection beyond regex (privacy filter shipped for ID/phone/email / “student named…” patterns)
 
@@ -65,6 +66,7 @@ Add new ideas here (short-term or long-term). Do not start a second parallel lis
 - [x] Broader deterministic calendar (Dec/Jan, Christmas, New Year, holidays)
 - [x] Strip model-invented `Source:` / remove italic `_Source_` markup
 - [x] Student privacy filter (ID / phone / email / named-student asks) — PR #17, `c6df8ba`
+- [x] FAQ LLM gets `TODAY'S DATE (America/Chicago)` for over/ongoing/upcoming comparisons — PR #21 (timezone still Chicago-only; see config backlog item)
 
 ---
 
@@ -72,3 +74,4 @@ Add new ideas here (short-term or long-term). Do not start a second parallel lis
 
 - Former `docs/beta-launch-list.md` content lives here so there is one list.
 - When someone says “later / Phase 2 / don’t build yet,” **add a checkbox here** instead of relying on chat memory.
+- **Timezone (current):** FAQ “today” and school calendar use `America/Chicago` because Crone Middle School is in that zone. Not per-parent phone timezone.
