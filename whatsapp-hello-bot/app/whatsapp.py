@@ -57,8 +57,29 @@ async def _post_whatsapp(payload: dict[str, Any], *, to_phone: str) -> dict:
                 "error": data,
             }
 
-        logger.info("WhatsApp send ok to %s type=%s", to_phone, payload.get("type"))
+        kind = payload.get("type") or payload.get("status") or "unknown"
+        logger.info("WhatsApp send ok to %s type=%s", to_phone, kind)
         return data
+
+
+async def mark_as_read_with_typing(message_id: str) -> dict:
+    """Mark inbound message read and show WhatsApp typing indicator (~25s max).
+
+    Call before a reply that may take a few seconds (FAQ LLM, etc.).
+    Meta dismisses the indicator when we send a message or after ~25s.
+    """
+    mid = (message_id or "").strip()
+    if not mid:
+        return {"skipped": True, "reason": "missing_message_id"}
+
+    payload = {
+        "messaging_product": "whatsapp",
+        "status": "read",
+        "message_id": mid,
+        "typing_indicator": {"type": "text"},
+    }
+    # to_phone is only for logging; Graph API uses phone_number_id + message_id.
+    return await _post_whatsapp(payload, to_phone=f"msg:{mid[:24]}")
 
 
 async def send_text_message(to_phone: str, body: str) -> dict:

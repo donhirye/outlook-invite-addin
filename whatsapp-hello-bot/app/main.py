@@ -55,7 +55,7 @@ from app.observability.product_metrics import (
     compute_product_analytics,
 )
 from app.observability.tracing import get_trace, load_traces
-from app.whatsapp import send_choices, send_text_message
+from app.whatsapp import mark_as_read_with_typing, send_choices, send_text_message
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -657,6 +657,15 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
                     question = _extract_inbound_text(message)
                     if not question:
                         continue
+                    # Show typing while we answer (LLM FAQ can take several seconds).
+                    if message_id:
+                        try:
+                            await mark_as_read_with_typing(message_id)
+                        except Exception:
+                            logger.exception(
+                                "Typing indicator failed for message_id=%s",
+                                message_id,
+                            )
                     started = time.perf_counter()
                     result = process_message(
                         phone=from_phone,

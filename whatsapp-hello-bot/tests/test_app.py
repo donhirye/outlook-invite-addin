@@ -82,8 +82,15 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
         sent["body"] = body
         return {"ok": True}
 
+    typing = {}
+
+    async def fake_typing(message_id: str):
+        typing["message_id"] = message_id
+        return {"success": True}
+
     monkeypatch.setattr("app.main.send_text_message", fake_send)
     monkeypatch.setattr("app.main.send_choices", fake_send)
+    monkeypatch.setattr("app.main.mark_as_read_with_typing", fake_typing)
     from app.faq_service import FaqAnswer
 
     def _fake_faq(question, faq_path=None):
@@ -129,6 +136,7 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
     }
     response = client.post("/webhook", json=payload)
     assert response.status_code == 200
+    assert typing["message_id"] == "wamid.test"
     assert sent["to"] == "15559876543"
     assert "Parents should park in Lot C." in sent["body"]
     assert sent["body"].startswith("*FAQ answer*")
@@ -156,8 +164,12 @@ def test_inbound_faq_admin_command(monkeypatch, tmp_path):
         faq_file.write_text(cleaned + "\n", encoding="utf-8")
         return cleaned
 
+    async def fake_typing(message_id: str):
+        return {"success": True}
+
     monkeypatch.setattr("app.main.send_text_message", fake_send)
     monkeypatch.setattr("app.main.send_choices", fake_send)
+    monkeypatch.setattr("app.main.mark_as_read_with_typing", fake_typing)
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.faq_admin.get_faq_text", fake_get)
     monkeypatch.setattr("app.faq_admin.set_faq_text", fake_set)
