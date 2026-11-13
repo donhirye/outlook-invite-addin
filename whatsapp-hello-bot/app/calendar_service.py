@@ -140,6 +140,11 @@ def find_events_by_name(text: str) -> list[dict[str, Any]]:
     return matches
 
 
+def is_faq_action_question(text: str) -> bool:
+    """True for register / sign up / cost / "how do I…" style questions (FAQ's job)."""
+    return bool(_FAQ_ACTION_RE.search((text or "").lower()))
+
+
 def looks_like_calendar_question(text: str) -> bool:
     cleaned = (text or "").lower()
     if _FAQ_ACTION_RE.search(cleaned):
