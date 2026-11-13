@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from app.calendar_picker import (
+    is_show_calendar_question,
+    resolve_calendar_pick,
+    start_calendar_picker,
+)
 from app.calendar_service import answer_calendar_question, looks_like_calendar_question
 from app.config import GUIDED_ENABLED, OPENAI_MODEL
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext, ModelUsage
@@ -106,6 +111,34 @@ class LegacyEngine:
                 state_transition="continue",
                 ended=bool(result.get("ended")),
             )
+
+        # "Show me the calendar": ask which calendar, then list its upcoming events.
+        picked = resolve_calendar_pick(phone, text)
+        if picked:
+            return AnswerResult(
+                messages=picked["messages"],
+                route="calendar",
+                engine_id=self.id,
+                engine_version=self.version,
+                intent="calendar",
+                sources=["school_calendar"],
+                answer_outcome="answered",
+                retrieval_mode="calendar",
+            )
+        if is_show_calendar_question(text):
+            asked = start_calendar_picker(phone)
+            if asked:
+                return AnswerResult(
+                    messages=asked["messages"],
+                    choices=asked["choices"],
+                    route="calendar",
+                    engine_id=self.id,
+                    engine_version=self.version,
+                    intent="calendar",
+                    sources=["school_calendar"],
+                    answer_outcome="answered",
+                    retrieval_mode="calendar",
+                )
 
         if GUIDED_ENABLED:
             decision = route_message(phone, text)
