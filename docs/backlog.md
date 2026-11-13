@@ -26,6 +26,7 @@ Add new ideas here (short-term or long-term). Do not start a second parallel lis
 - [ ] Revisit Phase 2 Product KPIs that were hidden (guided completion, resolution, feedback, etc.) when traffic supports them
 
 ### Engineering (deferred from recent work)
+- [ ] **Crone calendar + per-event calendar sources** — see `docs/plan-crone-calendar-sources.md` (planning only; not started)
 - [ ] Revisit **RAG** for FAQ once the combined FAQ grows past the full-text path (`FAQ_SKIP_RAG_MAX_CHARS` raised to 30k for now — “worry about RAG later”)
 - [ ] **Calendar LLM fallback** (same shape as FAQ: deterministic match → calendar-only LLM) — explicitly deferred; deterministic holiday phrasing shipped first
 - [ ] **Client timezone config** — “today” for FAQ timing + calendar is hardcoded `America/Chicago` (correct for Crone Middle School / D204). Add env/admin config (e.g. `SCHOOL_TIMEZONE`) so other PTSAs can set their local zone without a code change
