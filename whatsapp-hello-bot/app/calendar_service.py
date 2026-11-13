@@ -26,7 +26,7 @@ CALENDAR_PATTERNS = (
     r"\bno school\b",
     r"\bschool holiday\b",
     r"\binstitute day\b",
-    r"\bparent/?teacher conference\b",
+    r"\bparent[\s/-]*teacher\s+conference",
     # Broader parent phrasing → school calendar (not FAQ).
     r"\b(time|days?)\s+off\b",
     r"\b(days?\s+off|off\s+from\s+school|school\s+off)\b",
@@ -44,20 +44,171 @@ CALENDAR_PATTERNS = (
 )
 
 
+# Action-style questions (register, cost, volunteer, how do I…) are answered by the
+# FAQ, not the calendar. This guard keeps the calendar from stealing them.
+_FAQ_ACTION_RE = re.compile(
+    r"\b(regist\w*|sign(?:ing)?[\s-]?ups?|rsvp|costs?|fees?|prices?|how much|"
+    r"volunteer\w*|donat\w*|tickets?|buy|purchase|"
+    r"how (?:do|can|should|would) (?:i|we)|how to|"
+    r"what (?:to bring|should (?:i|we) bring)|permission slips?)\b"
+)
+# Name-lookup path only: "where is …" is a location question for the FAQ.
+_WHERE_RE = re.compile(r"\bwhere\b")
+# A date/time cue is required before a bare event name is treated as a calendar question.
+_TIME_CUE_RE = re.compile(
+    r"\b(when|what\s+(?:day|date|time)|which\s+(?:day|date)|dates?|times?|"
+    r"next|upcoming|schedule[d]?|starts?|begins?|held)\b"
+)
+# Break/holiday questions belong to the dedicated break branches, not name lookup.
+_BREAK_WORD_RE = re.compile(r"\b(break|holiday|vacation)s?\b")
+
+_STOPWORDS = {
+    "the", "a", "an", "is", "are", "was", "were", "when", "what", "whats", "s",
+    "of", "for", "on", "in", "at", "to", "and", "or", "do", "does", "did", "we",
+    "you", "i", "my", "me", "our", "us", "there", "it", "this", "that", "next",
+    "upcoming", "date", "dates", "time", "times", "with", "about", "will", "be",
+    "have", "has", "any", "can", "tell", "please", "coming", "happening", "by",
+    "which", "how", "long", "much", "many", "get", "from", "up", "out",
+}
+# Words too generic to identify an event on their own.
+_WEAK = {
+    "general", "meeting", "night", "day", "grade", "school", "event", "new",
+    "district", "parent", "teacher", "first", "last",
+}
+_ALIASES = {
+    "mtg": "meeting",
+    "mtgs": "meeting",
+    "pta": "ptsa",
+    "festival": "fest",
+    "conf": "conference",
+    "confs": "conference",
+}
+_ORDINAL_RE = re.compile(r"^\d+(st|nd|rd|th)$")
+_WEEKDAYS = {
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+}
+_IGNORE_IN_QUESTION = {
+    "crone", "middle", "today", "tomorrow", "tonight", "week", "year", "morning",
+    "afternoon", "evening", "mon", "tue", "wed", "thu", "fri",
+}
+
+
+def _stem(token: str) -> str:
+    token = _ALIASES.get(token, token)
+    if len(token) > 3 and token.endswith("s") and not token.endswith("ss"):
+        token = token[:-1]
+    return _ALIASES.get(token, token)
+
+
+def _tokens(text: str) -> list[str]:
+    out: list[str] = []
+    for raw in re.findall(r"[a-z0-9]+", (text or "").lower()):
+        if raw in _STOPWORDS:
+            continue
+        out.append(_stem(raw))
+    return out
+
+
+def find_events_by_name(text: str) -> list[dict[str, Any]]:
+    """Events whose name is clearly referred to in the question (not break/holiday)."""
+    cleaned = (text or "").lower()
+    if _BREAK_WORD_RE.search(cleaned):
+        return []
+    q_set = set(_tokens(cleaned))
+    q_ord = {t for t in q_set if _ORDINAL_RE.match(t)}
+    ignore = set(_MONTH_NAME_TO_NUM) | _WEEKDAYS | _IGNORE_IN_QUESTION
+    q_content = {
+        t for t in q_set if t not in _WEAK and t not in q_ord and t not in ignore
+    }
+    if not q_content:
+        return []
+    matches: list[dict[str, Any]] = []
+    for ev in list_events():
+        e_set = set(_tokens(ev.get("name") or ""))
+        e_ord = {t for t in e_set if _ORDINAL_RE.match(t)}
+        strong = {t for t in e_set if t not in _WEAK and t not in e_ord}
+        if not strong or not (strong & q_set):
+            continue
+        # "7th grade social" must not match the 6th grade one.
+        if q_ord and e_ord and not (q_ord & e_ord):
+            continue
+        # Partial name match is only OK if every distinctive word asked is in the name
+        # ("fall concert" must not match "Fall Fest").
+        if not strong <= q_set and not q_content <= e_set:
+            continue
+        matches.append(ev)
+    return matches
+
+
 def looks_like_calendar_question(text: str) -> bool:
     cleaned = (text or "").lower()
-    return any(re.search(pat, cleaned) for pat in CALENDAR_PATTERNS)
+    if _FAQ_ACTION_RE.search(cleaned):
+        return False
+    if any(re.search(pat, cleaned) for pat in CALENDAR_PATTERNS):
+        return True
+    if _WHERE_RE.search(cleaned) or not _TIME_CUE_RE.search(cleaned):
+        return False
+    return bool(find_events_by_name(cleaned))
 
 
-def _source_footer() -> str:
-    meta = get_calendar_meta()
-    name = meta.get("source_name") or DEFAULT_SOURCE_NAME
-    url = meta.get("source_url") or DEFAULT_SOURCE_URL
-    return f"Source: {name}\n{url}"
+def _event_source(ev: dict[str, Any]) -> tuple[str, str]:
+    name = (ev.get("source_name") or "").strip() or DEFAULT_SOURCE_NAME
+    url = (ev.get("source_url") or "").strip() or DEFAULT_SOURCE_URL
+    return name, url
 
 
-def format_calendar_answer(body: str) -> str:
-    return f"*School calendar*\n{(body or '').strip()}\n\n{_source_footer()}"
+def _collect_sources(events: list[dict[str, Any]] | None) -> list[tuple[str, str]]:
+    seen: list[tuple[str, str]] = []
+    for ev in events or []:
+        src = _event_source(ev)
+        if src not in seen:
+            seen.append(src)
+    return seen
+
+
+def _source_footer(sources: list[tuple[str, str]] | None = None) -> str:
+    if not sources:
+        meta = get_calendar_meta()
+        sources = [
+            (
+                meta.get("source_name") or DEFAULT_SOURCE_NAME,
+                meta.get("source_url") or DEFAULT_SOURCE_URL,
+            )
+        ]
+    if len(sources) == 1:
+        name, url = sources[0]
+        return f"Source: {name}\n{url}"
+    return "Sources:\n" + "\n".join(f"{name}\n{url}" for name, url in sources)
+
+
+def format_calendar_answer(
+    body: str, events: list[dict[str, Any]] | None = None
+) -> str:
+    """Wrap an answer with its source footer.
+
+    With ``events`` the footer cites those events' own sources; without them it
+    cites the calendar-wide source.
+    """
+    footer = _source_footer(_collect_sources(events))
+    return f"*School calendar*\n{(body or '').strip()}\n\n{footer}"
+
+
+def _result(body: str, events: list[dict[str, Any]] | None = None) -> dict[str, Any]:
+    sources = _collect_sources(events)
+    if not sources:
+        meta = get_calendar_meta()
+        sources = [
+            (
+                meta.get("source_name") or DEFAULT_SOURCE_NAME,
+                meta.get("source_url") or DEFAULT_SOURCE_URL,
+            )
+        ]
+    return {
+        "handled": True,
+        "answer": format_calendar_answer(body, events),
+        "source_name": sources[0][0],
+        "source_url": sources[0][1],
+    }
 
 
 def _no_school_ranges() -> list[tuple[date, date, dict[str, Any]]]:
@@ -177,28 +328,19 @@ def _wants_winter_holiday_season(cleaned: str) -> bool:
     return False
 
 
-def _winter_break_answer(meta: dict[str, Any]) -> dict[str, Any]:
+def _winter_break_answer() -> dict[str, Any]:
     ev = _find_break("winter")
     if not ev:
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(
-                "No winter / holiday-season break dates are listed in the "
-                "imported district calendar."
-            ),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
-    return {
-        "handled": True,
-        "answer": format_calendar_answer(
-            f"{ev.get('name')} is {_format_range(ev)} "
-            f"(student attendance: {ev.get('student_attendance') or 'No School'}). "
-            "That covers the Christmas / New Year holiday period on the district calendar."
-        ),
-        "source_name": meta.get("source_name"),
-        "source_url": meta.get("source_url"),
-    }
+        return _result(
+            "No winter / holiday-season break dates are listed in the "
+            "imported district calendar."
+        )
+    return _result(
+        f"{ev.get('name')} is {_format_range(ev)} "
+        f"(student attendance: {ev.get('student_attendance') or 'No School'}). "
+        "That covers the Christmas / New Year holiday period on the district calendar.",
+        [ev],
+    )
 
 
 def _next_holiday_after(day: date) -> dict[str, Any] | None:
@@ -279,25 +421,135 @@ def _no_school_events_for_months(months: set[int]) -> list[dict[str, Any]]:
     return out
 
 
+def _norm_name(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "", (name or "").lower())
+
+
+def _group_events(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Group events that describe the same thing (same dates + name).
+
+    District 204 and Crone can both list e.g. Parent/Teacher Conferences on the same
+    day. They are shown as one line, using the row that carries times/notes.
+    """
+    groups: dict[tuple[date, date, str], dict[str, Any]] = {}
+    for ev in events:
+        start = parse_iso_date(ev.get("start_date") or "")
+        if not start:
+            continue
+        end = parse_iso_date(ev.get("end_date") or "") or start
+        key = (start, end, _norm_name(ev.get("name") or ""))
+        group = groups.setdefault(
+            key, {"start": start, "end": end, "name": ev.get("name") or "", "events": []}
+        )
+        group["events"].append(ev)
+    out: list[dict[str, Any]] = []
+    for group in groups.values():
+        evs = group["events"]
+        primary = next((e for e in evs if (e.get("notes") or "").strip()), evs[0])
+        evs.sort(key=lambda e: e is not primary)
+        group["notes"] = (primary.get("notes") or "").strip()
+        group["name"] = primary.get("name") or group["name"]
+        group["no_school"] = any(
+            "no school" in (e.get("student_attendance") or "").lower() for e in evs
+        )
+        out.append(group)
+    out.sort(key=lambda g: (g["start"], g["name"]))
+    return out
+
+
+def _format_day(day: date) -> str:
+    return f"{day.strftime('%A, %b')} {day.day}, {day.year}"
+
+
+def _group_when(group: dict[str, Any]) -> str:
+    if group["start"] == group["end"]:
+        return _format_day(group["start"])
+    return f"{_format_day(group['start'])} through {_format_day(group['end'])}"
+
+
+def _group_sentence(group: dict[str, Any], today: date) -> str:
+    past = group["end"] < today
+    notes = f" ({group['notes']})" if group["notes"] else ""
+    text = f"{group['name']}: {_group_when(group)}{notes}."
+    if group["no_school"]:
+        text += " Students had no school." if past else " Students have no school."
+    if past:
+        text += " That date has already passed."
+    return text
+
+
+def _group_line(group: dict[str, Any]) -> str:
+    notes = f" ({group['notes']})" if group["notes"] else ""
+    suffix = " — no school for students" if group["no_school"] else ""
+    return f"• {group['name']}: {_group_when(group)}{notes}{suffix}"
+
+
+_MAX_LISTED = 5
+
+
+def _lookup_result(
+    events: list[dict[str, Any]], cleaned: str, today: date
+) -> dict[str, Any]:
+    """Answer "when is <event>" from matched events (with each event's own source)."""
+    groups = _group_events(events)
+    months = _mentioned_months(cleaned)
+    if months:
+        in_month = [g for g in groups if g["start"].month in months]
+        groups = in_month or groups
+    upcoming = [g for g in groups if g["end"] >= today]
+    past = [g for g in groups if g["end"] < today]
+    wants_next = bool(re.search(r"\b(next|upcoming|soon|coming)\b", cleaned))
+    wants_past = bool(re.search(r"\b(was|were|did|happened|ago)\b", cleaned))
+
+    shown: list[dict[str, Any]]
+    if wants_past and past:
+        shown = [past[-1]]
+        body = _group_sentence(shown[0], today)
+    elif upcoming:
+        if wants_next or len(upcoming) == 1:
+            shown = [upcoming[0]]
+            body = _group_sentence(shown[0], today)
+        else:
+            shown = upcoming[:_MAX_LISTED]
+            lines = [_group_line(g) for g in shown]
+            extra = len(upcoming) - len(shown)
+            if extra > 0:
+                lines.append(f"…and {extra} more later in the year.")
+            body = "Upcoming dates:\n" + "\n".join(lines)
+    elif past:
+        shown = [past[-1]]
+        body = _group_sentence(shown[0], today)
+        if len(past) > 1:
+            body = "There are no more upcoming dates listed. Most recent: " + body
+    else:
+        return _result("I could not find that event on the school calendars.")
+    sources_from = [ev for g in shown for ev in g["events"]]
+    return _result(body, sources_from)
+
+
+def _events_named(norm: str) -> list[dict[str, Any]]:
+    return [ev for ev in list_events() if _norm_name(ev.get("name") or "") == norm]
+
+
 def answer_calendar_question(text: str, *, today: date | None = None) -> dict[str, Any]:
     """Return {answer, handled}. handled False means fall through to FAQ."""
     today = today or chicago_today()
     cleaned = (text or "").lower()
-    meta = get_calendar_meta()
 
-    # First / last day — calendar CSV may not include them explicitly.
+    # First / last day — from school-event rows when present, else fallback wording.
     if re.search(r"\bwhen does school start\b|\bfirst day of school\b", cleaned):
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(
-                "The imported District 204 calendar lists no-school dates and breaks, "
-                "but it does not include a confirmed first day of school. "
-                "Please check the official district calendar PDF for the start date."
-            ),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
+        first = _events_named("firstdayofschool")
+        if first:
+            return _lookup_result(first, cleaned, today)
+        return _result(
+            "The imported District 204 calendar lists no-school dates and breaks, "
+            "but it does not include a confirmed first day of school. "
+            "Please check the official district calendar PDF for the start date."
+        )
     if re.search(r"\blast day of school\b", cleaned):
+        last = _events_named("lastdayofschool")
+        if last:
+            return _lookup_result(last, cleaned, today)
         tentative = None
         for ev in list_events():
             if "teacher work day" in (ev.get("name") or "").lower() and "tentative" in (
@@ -306,55 +558,45 @@ def answer_calendar_question(text: str, *, today: date | None = None) -> dict[st
                 tentative = ev
                 break
         if tentative:
-            return {
-                "handled": True,
-                "answer": format_calendar_answer(
-                    "The district calendar notes a tentative last day of school around "
-                    "May 28, 2027 (see tentative Teacher Work Day notes). "
-                    "Treat this as tentative until confirmed on the official calendar."
-                ),
-                "source_name": meta.get("source_name"),
-                "source_url": meta.get("source_url"),
-            }
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(
-                "No confirmed last day of school is listed as a standalone event in the "
-                "imported calendar. Please check the official district calendar PDF."
-            ),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
+            return _result(
+                "The district calendar notes a tentative last day of school around "
+                "May 28, 2027 (see tentative Teacher Work Day notes). "
+                "Treat this as tentative until confirmed on the official calendar.",
+                [tentative],
+            )
+        return _result(
+            "No confirmed last day of school is listed as a standalone event in the "
+            "imported calendar. Please check the official district calendar PDF."
+        )
 
     m_until = re.search(r"how many days until\s+(.+?)(?:\?|$)", cleaned)
     if m_until:
         target_name = m_until.group(1).strip()
-        ev = _find_break(target_name.split()[0]) if target_name else None
+        ev = None
         if "spring" in target_name:
             ev = _find_break("spring")
         elif "winter" in target_name:
             ev = _find_break("winter")
         elif "thanksgiving" in target_name:
             ev = _find_break("thanksgiving")
+        elif target_name:
+            groups = [
+                g
+                for g in _group_events(find_events_by_name(target_name))
+                if g["end"] >= today
+            ]
+            if groups:
+                ev = groups[0]["events"][0]
+            else:
+                first_word = re.sub(r"^(the|a|an)\s+", "", target_name).split(" ")[0]
+                ev = _find_break(first_word) if first_word else None
         if not ev:
-            return {
-                "handled": True,
-                "answer": format_calendar_answer(
-                    "I could not find that break/holiday on the imported district calendar."
-                ),
-                "source_name": meta.get("source_name"),
-                "source_url": meta.get("source_url"),
-            }
+            return _result(
+                "I could not find that break/holiday on the imported district calendar."
+            )
         start = parse_iso_date(ev.get("start_date") or "")
         if not start:
-            return {
-                "handled": True,
-                "answer": format_calendar_answer(
-                    "That event is listed but its start date could not be parsed."
-                ),
-                "source_name": meta.get("source_name"),
-                "source_url": meta.get("source_url"),
-            }
+            return _result("That event is listed but its start date could not be parsed.")
         delta = (start - today).days
         if delta < 0:
             msg = (
@@ -368,48 +610,34 @@ def answer_calendar_question(text: str, *, today: date | None = None) -> dict[st
                 f"There are {delta} days until {ev.get('name')} begins on "
                 f"{start.isoformat()} (today is {today.isoformat()})."
             )
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(msg),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
+        return _result(msg, [ev])
 
     for label, key in (
         ("thanksgiving", "thanksgiving"),
         ("winter break", "winter"),
         ("spring break", "spring"),
     ):
-        if label in cleaned or (key == "thanksgiving" and "thanksgiving" in cleaned):
-            ev = _find_break(key if key != "thanksgiving" else "thanksgiving")
+        if label in cleaned:
+            ev = _find_break(key)
             if not ev:
-                return {
-                    "handled": True,
-                    "answer": format_calendar_answer(
-                        f"No {label} dates are listed in the imported district calendar."
-                    ),
-                    "source_name": meta.get("source_name"),
-                    "source_url": meta.get("source_url"),
-                }
-            return {
-                "handled": True,
-                "answer": format_calendar_answer(
-                    f"{ev.get('name')} is {_format_range(ev)} "
-                    f"(student attendance: {ev.get('student_attendance') or 'No School'})."
-                ),
-                "source_name": meta.get("source_name"),
-                "source_url": meta.get("source_url"),
-            }
+                return _result(
+                    f"No {label} dates are listed in the imported district calendar."
+                )
+            return _result(
+                f"{ev.get('name')} is {_format_range(ev)} "
+                f"(student attendance: {ev.get('student_attendance') or 'No School'}).",
+                [ev],
+            )
 
     # "winter" / "holiday break" without the word "break" next to winter, etc.
     if re.search(r"\bwinter\b", cleaned) and re.search(
         r"\b(break|holiday|off|vacation|time off|days off)\b", cleaned
     ):
-        return _winter_break_answer(meta)
+        return _winter_break_answer()
 
     # Christmas / New Year / "time off around the holidays"
     if _wants_winter_holiday_season(cleaned):
-        return _winter_break_answer(meta)
+        return _winter_break_answer()
 
     # Month / season time-off questions (e.g. December/January).
     months = _mentioned_months(cleaned)
@@ -428,45 +656,29 @@ def answer_calendar_question(text: str, *, today: date | None = None) -> dict[st
             month_label = "/".join(
                 datetime(2000, m, 1).strftime("%B") for m in sorted(months)
             )
-            return {
-                "handled": True,
-                "answer": format_calendar_answer(
-                    f"District calendar no-school dates overlapping {month_label}:\n"
-                    + "\n".join(lines)
-                ),
-                "source_name": meta.get("source_name"),
-                "source_url": meta.get("source_url"),
-            }
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(
-                "I could not find matching no-school dates for that period "
-                "in the imported district calendar."
-            ),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
+            return _result(
+                f"District calendar no-school dates overlapping {month_label}:\n"
+                + "\n".join(lines),
+                events,
+            )
+        return _result(
+            "I could not find matching no-school dates for that period "
+            "in the imported district calendar."
+        )
 
-    if re.search(r"\bnext\s+(school\s+)?(holiday|break)\b|\bupcoming\s+(school\s+)?(holiday|break)\b", cleaned):
+    if re.search(
+        r"\bnext\s+(school\s+)?(holiday|break)\b|\bupcoming\s+(school\s+)?(holiday|break)\b",
+        cleaned,
+    ):
         ev = _next_holiday_after(today)
         if not ev:
-            return {
-                "handled": True,
-                "answer": format_calendar_answer(
-                    "No upcoming holiday/break is listed after today in the imported calendar."
-                ),
-                "source_name": meta.get("source_name"),
-                "source_url": meta.get("source_url"),
-            }
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(
-                f"The next listed holiday/break is {ev.get('name')} "
-                f"({_format_range(ev)})."
-            ),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
+            return _result(
+                "No upcoming holiday/break is listed after today in the imported calendar."
+            )
+        return _result(
+            f"The next listed holiday/break is {ev.get('name')} ({_format_range(ev)}).",
+            [ev],
+        )
 
     target = None
     if re.search(r"\btoday\b", cleaned) and re.search(r"\bschool\b", cleaned):
@@ -484,11 +696,11 @@ def answer_calendar_question(text: str, *, today: date | None = None) -> dict[st
             body = f"Yes — {target.isoformat()} looks like a school day ({reason})."
         else:
             body = f"No — there is not school on {target.isoformat()} ({reason})."
-        return {
-            "handled": True,
-            "answer": format_calendar_answer(body),
-            "source_name": meta.get("source_name"),
-            "source_url": meta.get("source_url"),
-        }
+        return _result(body)
+
+    # "When is <event>?" — match an event by name (Fall Fest, PTSA meeting, …).
+    matched = find_events_by_name(cleaned)
+    if matched:
+        return _lookup_result(matched, cleaned, today)
 
     return {"handled": False, "answer": None}

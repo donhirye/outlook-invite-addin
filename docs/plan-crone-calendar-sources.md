@@ -1,6 +1,6 @@
 # Plan: Crone Middle School calendar + per-event sources
 
-Working plan for the next calendar work. **Nothing here is implemented yet.**  
+Working plan for the next calendar work. **A1–A5 are implemented on branch `feature/crone-calendar-events` (PR pending); A6 (merge, deploy, production import) is next.**  
 This is a living doc: more items will be added as we talk through them. Move finished items to `docs/backlog.md` “Done” with the PR number.
 
 **Status legend:** `[ ]` not started · `[~]` in progress · `[x]` shipped
@@ -47,7 +47,7 @@ Crone is the only additional source for now. Google Doc link will be used as the
 
 Do these in order. Likely one PR, then a post-deploy check. Status: all `[ ]` not started.
 
-### A1. Collision-safe Crone import data — `[ ]`
+### A1. Collision-safe Crone import data — `[x]` (branch; file `whatsapp-hello-bot/data/imports/crone_2026_2027_calendar.csv`)
 - Convert the 27 Crone rows (reference table below) into the existing calendar CSV shape.
 - Source Name: `2026-2027 Crone Middle School Calendar of Important Dates`; Source URL: the Google Doc link.
 - Leave **Student Attendance blank** for Crone rows so they never change “is there school” answers.
@@ -55,24 +55,24 @@ Do these in order. Likely one PR, then a post-deploy check. Status: all `[ ]` no
 - Give Crone rows that share a name + dates with District 204 (Parent/Teacher Conferences 11/2, 3/15) a distinct name so they do not overwrite the district rows.
 - Import via the existing upsert path. Do not touch the calendar-wide source when importing Crone rows.
 
-### A2. Per-event source footer — `[ ]`
+### A2. Per-event source footer — `[x]` (branch)
 - When the calendar answers about a **specific event**, build the footer from that event’s own `source_name` / `source_url`.
 - General / non-event answers (is there school today, months off, etc.) keep the calendar-wide footer.
 - Result: Crone events cite the Doc; District 204 events keep citing the district PDF.
 
-### A3. Calendar finds events by name — `[ ]` (biggest piece)
+### A3. Calendar finds events by name — `[x]` (branch; includes the FAQ routing guard)
 - Add a generic “match event name in the question → return date, time (from Notes), source” lookup.
 - Widen the calendar gate for “when is …” / “next …” event phrasing (Fall Fest, Curriculum Night, PTSA meeting, Picture Day, socials, dances, Fine Arts Fest, Career Night, Den Days, Color Run, etc.).
 - Fix the `parent teacher` (no slash) gate gap and give “institute day” a real answer branch.
 - Recurring events (General PTSA Meeting): “next …” returns the next upcoming date.
 - Events already past: answer with the date and say it has passed (uses America/Chicago “today”).
 
-### A4. Fix hardcoded first/last day answers — `[ ]`
+### A4. Fix hardcoded first/last day answers — `[x]` (branch)
 - “First day of school” currently says the calendar has no confirmed first day; Crone lists 8/17/26.
 - “Last day of school” currently only looks for a tentative Teacher Work Day; Crone lists 5/28/27 (tentative).
 - Answer from the Crone events (with source), keeping the tentative wording.
 
-### A5. Tests — `[ ]`
+### A5. Tests — `[x]` (branch; `tests/test_calendar_crone.py`)
 - Name lookup and next-event behavior (including recurring PTSA meetings and past events).
 - Per-event source footer (Crone vs District 204).
 - Crone rows never change `is_school_day` results; conferences import does not overwrite District 204 rows.
@@ -95,7 +95,20 @@ _To be added — more coming._
 
 ---
 
-## Open questions
+## Decisions made (replaces the open questions below)
+
+1. **Source URL:** the Crone Google Doc link (`.../10WRr9ZPPmZiDH_a_2kz40TycyVIJ9eCGlIBAFL7hLIM/edit?tab=t.0`). Still to confirm the Doc is shared “anyone with the link”.
+2. **Order is calendar first, then FAQ** (as in `engine1_legacy.py`; production `engine2_hybrid` wraps it). “FAQ wins” no longer applies. The only FAQ-first rule is a **routing guard**: questions with action words (register, sign up, rsvp, cost/fee/price, volunteer, donate, tickets, buy, “how do I / how to”, “what to bring”, permission slip) skip the calendar and go to the FAQ; “where …” also skips the name lookup.
+3. **Conferences:** District 204 and Crone rows for the same date + name are shown as one line (Crone times, “students have no school”), citing both sources. Crone rows use explicit `event_id`s so they never overwrite district rows.
+4. **Multiple matches:** “next …” returns the single next date; otherwise list up to 5 upcoming dates; if nothing is upcoming, show the most recent one as already passed.
+5. **First/last day:** Crone is the source (8/17/26; 5/28/27 tentative). Old “check the district PDF” wording stays only as fallback when no Crone row exists.
+6. **Times** stay in `Notes` (no new field).
+7. **Other FAQ overlaps:** not reconciled in this PR. The stale FAQ entry “next PTSA meeting” (Nov 12) is now shadowed by the calendar for date questions.
+
+### Added to deferred
+- **Combined calendar + FAQ answer** for keyword questions (e.g. “when is registration for Color Run”): send the calendar date first, then the FAQ answer as a second message, only if the FAQ actually answered. Revisit after real parent questions.
+
+## Open questions (original, now answered above)
 
 1. **Google Doc link:** which exact URL goes in `Source URL`, and is the Doc shared so any parent can open it (“anyone with the link”)? It will be tapped from WhatsApp.
 2. **FAQ vs calendar for “next PTSA meeting”:** the FAQ entry already answers it (and is stale: Nov 12). Calendar runs first, so once A3 ships the calendar wins. Should we retire/update that FAQ entry, or keep the FAQ as the winner for that question?

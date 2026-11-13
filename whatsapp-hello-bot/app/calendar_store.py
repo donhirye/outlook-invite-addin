@@ -154,8 +154,15 @@ def import_calendar_csv_text(text: str) -> dict[str, Any]:
     with _lock:
         data = _load_raw()
         events = dict(data.get("events") or {})
+        had_events = bool(events)
+        base_calendar = data.get("calendar_name")
         for ev in rows:
             events[ev["event_id"]] = ev
+            # Calendar-wide meta describes the primary (district) calendar. Only
+            # adopt it on the first import, or when re-importing that same calendar;
+            # a secondary calendar (e.g. Crone) keeps its own per-event source.
+            if had_events and ev.get("calendar_name") != base_calendar:
+                continue
             if ev.get("calendar_name"):
                 data["calendar_name"] = ev["calendar_name"]
             if ev.get("source_name"):
