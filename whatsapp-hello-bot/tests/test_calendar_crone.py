@@ -262,3 +262,32 @@ def test_engine_answers_event_when_from_calendar_and_actions_from_faq(both, monk
 
     faq = engine.answer(_engine_ctx("how do I register for the color run"))
     assert faq.route == "faq"
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "When is picture retake day?",
+        "when is the fall concert",
+        "when is the ptsa meeting notes posted",
+        "when is the color run for 7th graders",
+        "when is the school picture day ordering deadline",
+    ],
+)
+def test_extra_distinguishing_words_leave_the_question_to_the_faq(both, question):
+    assert svc.looks_like_calendar_question(question) is False
+
+
+@pytest.mark.parametrize(
+    "question",
+    [
+        "when is picture day",
+        "when is the next general PTSA meeting",
+        "when is the ptsa meeting at crone",
+        "what time is the 8th grade dance",
+        "when is den days for 6th grade",
+        "when is the party in the park",
+    ],
+)
+def test_plain_event_names_still_reach_the_calendar(both, question):
+    assert svc.looks_like_calendar_question(question) is True

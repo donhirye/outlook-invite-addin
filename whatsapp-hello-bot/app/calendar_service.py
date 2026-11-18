@@ -132,9 +132,10 @@ def find_events_by_name(text: str) -> list[dict[str, Any]]:
         # "7th grade social" must not match the 6th grade one.
         if q_ord and e_ord and not (q_ord & e_ord):
             continue
-        # Partial name match is only OK if every distinctive word asked is in the name
-        # ("fall concert" must not match "Fall Fest").
-        if not strong <= q_set and not q_content <= e_set:
+        # Every distinctive word asked must be in the event name. Extra words mean the
+        # parent is asking about something else ("fall concert" is not "Fall Fest";
+        # "picture retake day" is not "School Picture Day") -> leave it to the FAQ.
+        if not q_content <= e_set:
             continue
         matches.append(ev)
     return matches
