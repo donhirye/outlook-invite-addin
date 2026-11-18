@@ -59,6 +59,9 @@ class ChatRequest(BaseModel):
 
 class ResetRequest(BaseModel):
     persona: str = "parent_a"
+    # Optional: start from a mid-flow guided state (used by the evaluation runner).
+    guided_topic: str | None = None
+    step: str | None = None
 
 
 def redact(text: str | None) -> str | None:
@@ -134,6 +137,7 @@ def run_chat_turn(persona: str, text: str, message_type: str = "text") -> dict[s
         "flow_id": result.flow_id,
         "step_id": result.step_id,
         "state_transition": result.state_transition,
+        "extracted": result.extracted or {},
         "faq_id": result.faq_id,
         "faq_match_score": result.faq_match_score,
         "answer_confidence": result.answer_confidence,
@@ -204,6 +208,15 @@ def register_test_chat(
         if phone is None:
             return JSONResponse({"ok": False, "error": "unknown persona"}, status_code=400)
         reset_conversation(phone)
+        if body.guided_topic and body.step:
+            set_session(
+                phone,
+                {
+                    "topic_id": body.guided_topic,
+                    "step_id": body.step,
+                    "human_recommended": False,
+                },
+            )
         return JSONResponse({"ok": True, "persona": body.persona})
 
     @app.get("/admin/test-chat/api/personas")

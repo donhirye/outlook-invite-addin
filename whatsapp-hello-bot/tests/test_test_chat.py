@@ -213,3 +213,82 @@ def test_secrets_are_redacted_from_debug_output(monkeypatch):
     assert "abcdef123456" not in cleaned
     assert "my-admin-password-xyz" not in cleaned
     assert test_chat.redact(None) is None
+
+
+# --- Evaluation runner against a staging endpoint -----------------------------------
+
+
+def test_reset_can_seed_a_guided_step(client):
+    reset = client.post(
+        "/admin/test-chat/api/reset",
+        json={"persona": "parent_a", "guided_topic": "conferences", "step": "need_help"},
+        headers=AUTH,
+    )
+    assert reset.status_code == 200
+    reply = _say(client, "No appointments")
+    assert reply["route"] == "guided_continue" and reply["flow_id"] == "conferences"
+    assert "additional appointment times" in " ".join(reply["messages"])
+
+
+def test_remote_eval_runner_scores_cases_through_test_chat(client, monkeypatch, tmp_path):
+    from evals import run as eval_run
+
+    remote = TestClient(client.app, headers=AUTH, follow_redirects=False)
+    monkeypatch.setattr(eval_run, "_remote_client", lambda base_url: remote)
+    cases = [
+        {
+            "id": "c1", "category": "faq", "input": "When is picture retake day?",
+            "expected_route": "faq", "required_answer_facts": ["FAQ ANSWER"],
+        },
+        {
+            "id": "c2", "category": "guided", "input": "No appointments",
+            "prior_context": {"guided_topic": "conferences", "step": "need_help"},
+            "expected_route": "guided_continue", "expected_flow": "conferences",
+            "required_answer_facts": ["additional appointment times"],
+        },
+        {
+            "id": "c3", "category": "faq", "input": "Where is the cafeteria?",
+            "expected_route": "faq", "required_answer_facts": ["a fact that is not there"],
+        },
+    ]
+    row = eval_run.run_remote("https://staging.example", cases, max_llm_calls=100)
+    assert row["cases_run"] == 3
+    assert row["passed"] == 2 and row["failed"] == 1
+    assert row["llm_calls"] == 2 and row["input_tokens"] == 642
+    failed = [r for r in row["results"] if not r["passed"]]
+    assert failed[0]["id"] == "c3" and "missing fact" in failed[0]["failures"][0]
+
+    stopped = eval_run.run_remote("https://staging.example", cases, max_llm_calls=1)
+    assert stopped["cases_run"] == 1  # spend guard stops the run early
+
+
+def test_remote_eval_runner_refuses_a_service_without_test_chat(monkeypatch):
+    import httpx
+
+    from evals import run as eval_run
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/admin/login":
+            return httpx.Response(303, headers={"location": "/admin/link"})
+        return httpx.Response(404)  # what production answers for Test Chat
+
+    real_client = httpx.Client
+    monkeypatch.setattr(
+        httpx,
+        "Client",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), **kw),
+    )
+    monkeypatch.setenv("STAGING_ADMIN_PASSWORD", "x")
+    with pytest.raises(SystemExit) as exc:
+        eval_run._remote_client("https://prod.example")
+    assert "no Test Chat endpoint" in str(exc.value)
+
+
+def test_remote_eval_requires_password_and_live_flag(monkeypatch):
+    from evals import run as eval_run
+
+    monkeypatch.delenv("STAGING_ADMIN_PASSWORD", raising=False)
+    with pytest.raises(SystemExit):
+        eval_run._remote_client("https://staging.example")
+
+
