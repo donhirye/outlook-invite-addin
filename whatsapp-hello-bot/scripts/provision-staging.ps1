@@ -1,4 +1,4 @@
-# One-time provisioning of the STAGING Google Cloud project.
+﻿# One-time provisioning of the STAGING Google Cloud project.
 #
 #   .\scripts\provision-staging.ps1 -DryRun     # print every command, change nothing
 #   .\scripts\provision-staging.ps1             # do it (asks to confirm first)
@@ -36,6 +36,7 @@ function Run {
 function Exists {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GcloudArgs)
   if ($DryRun) { return $false }
+  $ErrorActionPreference = "Continue"
   & gcloud @GcloudArgs 2>$null | Out-Null
   return ($LASTEXITCODE -eq 0)
 }
@@ -147,8 +148,8 @@ else {
 }
 
 Step "Budget alerts (email only - NOT a spending limit)"
-if ($DryRun -or -not (Get-GCloudOutput billing budgets list "--billing-account=$BillingAccount" "--filter=displayName:'$P monthly alert'" "--format=value(name)")) {
-  Run billing budgets create "--billing-account=$BillingAccount" "--display-name=$P monthly alert" `
+if ($DryRun -or -not (Get-GCloudOutput billing budgets list "--billing-account=$BillingAccount" "--billing-project=$P" "--filter=displayName:'$P monthly alert'" "--format=value(name)")) {
+  Run billing budgets create "--billing-account=$BillingAccount" "--billing-project=$P" "--display-name=$P monthly alert" `
     "--budget-amount=${MonthlyBudgetUsd}USD" "--filter-projects=projects/$projectNumber" `
     "--threshold-rule=percent=0.5" "--threshold-rule=percent=0.8" "--threshold-rule=percent=1.0"
 }

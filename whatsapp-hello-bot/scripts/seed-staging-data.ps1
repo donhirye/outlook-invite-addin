@@ -1,4 +1,4 @@
-# Copy REFERENCE data (FAQ, calendar, guided flows) from production into the staging bucket.
+﻿# Copy REFERENCE data (FAQ, calendar, guided flows) from production into the staging bucket.
 #
 #   .\scripts\seed-staging-data.ps1 -DryRun
 #   .\scripts\seed-staging-data.ps1
@@ -14,6 +14,7 @@ param([switch]$DryRun)
 
 . "$PSScriptRoot\staging-common.ps1"
 Assert-StagingTarget
+$ErrorActionPreference = "Continue"   # gcloud writes progress to stderr; we check exit codes explicitly
 
 $prod = "gs://$script:ProdBucket"
 $stg = "gs://$script:StagingBucket"
@@ -36,7 +37,7 @@ try {
     if ($DryRun) { continue }
     & gcloud storage cp "$prod/$o" (Join-Path $tmp $o) 2>$null
     if ($LASTEXITCODE -ne 0) { Write-Host "  (not in production bucket; skipped)" -ForegroundColor Yellow; continue }
-    Invoke-GCloud storage cp (Join-Path $tmp $o) "$stg/$o" @(Get-StagingArgs)
+    Invoke-GCloud storage cp (Join-Path $tmp $o) "$stg/$o" @StagingArgs
   }
   foreach ($p in $prefixes) {
     Write-Host "copy $prod/$p* -> $stg/$p"
@@ -45,7 +46,7 @@ try {
     New-Item -ItemType Directory -Path $dir -Force | Out-Null
     & gcloud storage cp "$prod/$p*" $dir 2>$null
     if ($LASTEXITCODE -ne 0) { Write-Host "  (nothing to copy)" -ForegroundColor Yellow; continue }
-    Invoke-GCloud storage cp (Join-Path $dir "*") "$stg/$p" @(Get-StagingArgs)
+    Invoke-GCloud storage cp (Join-Path $dir "*") "$stg/$p" @StagingArgs
   }
 }
 finally {
@@ -53,4 +54,4 @@ finally {
 }
 Write-Host ""
 Write-Host "Done. Staging bucket contents:" -ForegroundColor Green
-if (-not $DryRun) { Invoke-GCloud storage ls $stg --recursive @(Get-StagingArgs) }
+if (-not $DryRun) { Invoke-GCloud storage ls $stg --recursive @StagingArgs }

@@ -1,4 +1,4 @@
-# Deploy the CURRENT COMMIT of this repo to the STAGING Cloud Run service.
+﻿# Deploy the CURRENT COMMIT of this repo to the STAGING Cloud Run service.
 #
 #   .\scripts\deploy-staging.ps1
 #
@@ -62,7 +62,7 @@ try {
 
     # WhatsApp tokens are intentionally never set on staging.
     Invoke-GCloud run deploy $script:StagingService `
-      @(Get-StagingArgs) `
+      @StagingArgs `
       "--region=$script:Region" `
       "--source=$tmp" `
       "--service-account=$script:RuntimeSa" `
@@ -78,8 +78,8 @@ try {
     Remove-Item -Recurse -Force $tmp, $zip -ErrorAction SilentlyContinue
   }
 
-  $url = Get-GCloudOutput run services describe $script:StagingService @(Get-StagingArgs) "--region=$script:Region" "--format=value(status.url)"
-  $revision = Get-GCloudOutput run services describe $script:StagingService @(Get-StagingArgs) "--region=$script:Region" "--format=value(status.latestReadyRevisionName)"
+  $url = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.url)"
+  $revision = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.latestReadyRevisionName)"
   if (-not $url) { throw "Deploy finished but the service URL could not be read." }
 
   Write-Host ""

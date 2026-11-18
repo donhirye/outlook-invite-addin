@@ -1,4 +1,4 @@
-# Shared constants and safety guards for the STAGING scripts.
+﻿# Shared constants and safety guards for the STAGING scripts.
 # Dot-source this file:  . "$PSScriptRoot\staging-common.ps1"
 #
 # Design rules (see docs/staging.md):
@@ -60,6 +60,7 @@ function Invoke-GCloud {
       ($GcloudArgs -join " ") -match "--project[ =]$([regex]::Escape($script:ProdProject))(\s|$)") {
     throw "Refusing: staging scripts must not target project '$($script:ProdProject)'."
   }
+  $ErrorActionPreference = "Continue"
   & gcloud @GcloudArgs
   if ($LASTEXITCODE -ne 0) {
     throw "gcloud failed ($LASTEXITCODE): gcloud $($GcloudArgs -join ' ')"
@@ -68,6 +69,7 @@ function Invoke-GCloud {
 
 function Get-GCloudOutput {
   param([Parameter(ValueFromRemainingArguments = $true)][string[]]$GcloudArgs)
+  $ErrorActionPreference = "Continue"
   $out = & gcloud @GcloudArgs 2>$null
   if ($LASTEXITCODE -ne 0) { return "" }
   return (($out | Out-String).Trim())
@@ -80,3 +82,6 @@ function Get-StagingArgs {
     "--impersonate-service-account=$($script:DeployerSa)"
   )
 }
+
+# Splat this (@StagingArgs) after dot-sourcing: it must stay a real array, not a joined string.
+$StagingArgs = Get-StagingArgs
