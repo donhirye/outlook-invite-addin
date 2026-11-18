@@ -22,7 +22,9 @@ Reusing an old Cursor branch causes divergence: ahead of `main` by new commits b
 ## After the work
 
 - Push the **new** feature branch and open a PR → `main`.
-- Deploy only from `main` via the Cloud Run GitHub Actions workflow (or explicit user approval).
+- **Production** deploys only from `main` via the Cloud Run GitHub Actions workflow, and only when the user explicitly asks for a production deploy.
+- Any other "deploy" request means **staging** — see `staging-environment.mdc`.
+- Experimental branches are never merged to `main` automatically; merging needs the user's approval.
 
 ## Bad vs good
 

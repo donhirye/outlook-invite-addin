@@ -29,3 +29,6 @@ whatsapp-hello-bot/data/guided_metrics.json
 whatsapp-hello-bot/data/guided_state.json
 whatsapp-hello-bot/data/webhook_seen.json
 whatsapp-hello-bot/docs/~$*
+
+# Live evals run against staging (local results)
+whatsapp-hello-bot/evals/reports/staging_*.json

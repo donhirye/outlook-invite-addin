@@ -1,4 +1,6 @@
-# How to deploy the WhatsApp bot (one-click)
+﻿# How to deploy the WhatsApp bot (one-click)
+
+> Experimenting? Deploy to **staging**, not production: see [staging.md](staging.md). This guide is for production.
 
 This guide is for deploying **approved `main` code** to Google Cloud Run using GitHub Actions.
 
