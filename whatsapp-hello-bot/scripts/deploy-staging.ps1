@@ -124,21 +124,25 @@ try {
   $r = Get-Url "/admin/test-chat/api/personas"
   Check "Test Chat JSON endpoint rejects anonymous (401)" ([int]$r.StatusCode -eq 401) $r.StatusCode
 
-  $r = Get-Url "/admin/login"
+  # Login form is GET /admin (POST /admin/login has no GET page).
+  $r = Get-Url "/admin"
   $body = $r.Content.ReadAsStringAsync().GetAwaiter().GetResult()
-  Check "Login page shows the STAGING banner" ($body -match "STAGING") "banner text not found"
+  Check "Admin page shows the STAGING banner" ($body -match "STAGING") "banner text not found"
 
   $r = Get-Url "/metrics"
   Check "/metrics requires login" ([int]$r.StatusCode -in 302, 303, 307, 401) $r.StatusCode
 
   # Optional: a real Test Chat turn, if you have the staging password in this shell.
   if ($env:STAGING_ADMIN_PASSWORD) {
-    $form = New-Object System.Net.Http.FormUrlEncodedContent (, [System.Collections.Generic.Dictionary[string, string]]@{ password = $env:STAGING_ADMIN_PASSWORD })
+    $pairs = New-Object 'System.Collections.Generic.Dictionary[string,string]'
+    $pairs.Add("password", $env:STAGING_ADMIN_PASSWORD)
+    $form = New-Object System.Net.Http.FormUrlEncodedContent($pairs)
     $login = $http.PostAsync("$url/admin/login", $form).GetAwaiter().GetResult()
     Check "Admin login works with the staging password" ([int]$login.StatusCode -in 302, 303) $login.StatusCode
     $payload = New-Object System.Net.Http.StringContent('{"persona":"parent_a","text":"hello"}', [Text.Encoding]::UTF8, "application/json")
     $chat = $http.PostAsync("$url/admin/test-chat/api/message", $payload).GetAwaiter().GetResult()
-    Check "Test Chat answers a message (200)" ($chat.StatusCode -eq 200) $chat.StatusCode
+    $chatBody = $chat.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    Check "Test Chat answers a message (200)" ($chat.StatusCode -eq 200 -and $chatBody -match '"messages"') "status=$($chat.StatusCode) body=$($chatBody.Substring(0, [Math]::Min(120, $chatBody.Length)))"
   }
   else {
     Write-Host "  (skipped authenticated checks: set `$env:STAGING_ADMIN_PASSWORD to include them)" -ForegroundColor DarkGray
