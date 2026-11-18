@@ -137,11 +137,29 @@ if (-not $DryRun) {
   else { Write-Host "  admin password / secret key already set (not changed)" }
 }
 if ($SetOpenAiKey) {
-  $sec = Read-Host "Paste the STAGING OpenAI API key (input hidden)" -AsSecureString
-  $plain = [Runtime.InteropServices.Marshal]::PtrToStringAuto([Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec))
-  if (-not $plain.StartsWith("sk-")) { throw "That does not look like an OpenAI key." }
+  # Prefer an env var so PowerShell's SecureString decode quirks don't reject a valid key.
+  # Usage:  $env:STAGING_OPENAI_API_KEY = "sk-..."; .\scripts\provision-staging.ps1 -SetOpenAiKey
+  $plain = $env:STAGING_OPENAI_API_KEY
+  if (-not $plain) {
+    $sec = Read-Host "Paste the STAGING OpenAI API key (input hidden)" -AsSecureString
+    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($sec)
+    try {
+      # PtrToStringBSTR (not Auto) — Auto can return empty/garbage on PowerShell 7.
+      $plain = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($bstr)
+    }
+    finally {
+      [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr) | Out-Null
+    }
+  }
+  $plain = if ($null -eq $plain) { "" } else { $plain.Trim() }
+  if ($plain -notmatch '^sk-[A-Za-z0-9_\-]+$') {
+    $prefix = if ($plain.Length -ge 3) { $plain.Substring(0, 3) } else { "(empty)" }
+    throw "That does not look like an OpenAI key (got length $($plain.Length), starts with '$prefix'). Expected sk-... Re-run, or set `$env:STAGING_OPENAI_API_KEY first."
+  }
   Set-SecretValue $script:SecretOpenAiKey $plain
   $plain = $null
+  Remove-Item Env:STAGING_OPENAI_API_KEY -ErrorAction SilentlyContinue
+  Write-Host "  OpenAI key stored in Secret Manager ($($script:SecretOpenAiKey))." -ForegroundColor Green
 }
 else {
   Write-Host "  OpenAI key not set. Re-run with -SetOpenAiKey once you have created the staging key." -ForegroundColor Yellow
