@@ -37,6 +37,7 @@ def process_message(
     text: str,
     message_id: str = "",
     message_type: str = "text",
+    channel: str = "whatsapp",
 ) -> AnswerResult:
     ensure_registered()
     engine_id = resolve_engine_id(phone)
@@ -62,7 +63,7 @@ def process_message(
         guided_session=get_session(phone),
         pinned_engine_id=get_pinned_engine(phone),
     )
-    trace = new_trace(phone, message_id, engine.id, question_text=text)
+    trace = new_trace(phone, message_id, engine.id, question_text=text, channel=channel)
     trace.span("engine_selected", engine_id=engine.id, version=engine.version)
     started = time.perf_counter()
     try:
@@ -87,6 +88,8 @@ def process_message(
         trace.span("error", error=str(exc))
     latency_ms = (time.perf_counter() - started) * 1000
     finalize_trace(trace, result, latency_ms=latency_ms)
+    result.trace_id = trace.trace_id
+    result.latency_ms = round(latency_ms, 1)
     return result
 
 

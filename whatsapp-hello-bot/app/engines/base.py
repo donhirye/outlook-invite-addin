@@ -62,6 +62,9 @@ class AnswerResult:
     sources: list[str] = field(default_factory=list)
     ended: bool = False
     skip_outbound: bool = False
+    # Filled in by the shared pipeline (not by engines).
+    trace_id: str | None = None
+    latency_ms: float | None = None
 
 
 class AnsweringEngine(Protocol):

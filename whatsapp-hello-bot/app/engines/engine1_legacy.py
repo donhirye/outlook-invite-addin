@@ -214,6 +214,8 @@ class LegacyEngine:
             model_usage=ModelUsage(
                 model=OPENAI_MODEL if faq.llm_invocations else None,
                 invocations=faq.llm_invocations,
+                input_tokens=getattr(faq, "input_tokens", None),
+                output_tokens=getattr(faq, "output_tokens", None),
             ),
             fallback=fallback,
             answer_outcome=outcome,

@@ -38,6 +38,7 @@ class TraceContext:
     message_fp: str
     engine_id: str
     question_text: str = ""
+    channel: str = "whatsapp"
     spans: list[TraceSpan] = field(default_factory=list)
     started: float = field(default_factory=time.perf_counter)
 
@@ -53,6 +54,7 @@ def new_trace(
     engine_id: str,
     *,
     question_text: str = "",
+    channel: str = "whatsapp",
 ) -> TraceContext:
     return TraceContext(
         trace_id=str(uuid.uuid4()),
@@ -60,6 +62,7 @@ def new_trace(
         message_fp=message_fingerprint(message_id),
         engine_id=engine_id,
         question_text=(question_text or "").strip(),
+        channel=channel,
     )
 
 
@@ -127,6 +130,7 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
         "ts": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "user_hash": trace.user_hash,
         "message_fp": trace.message_fp,
+        "channel": trace.channel,
         "engine_id": result.engine_id,
         "engine_version": result.engine_version,
         "route": result.route,
@@ -163,6 +167,7 @@ def finalize_trace(trace: TraceContext, result: AnswerResult, *, latency_ms: flo
             "type": "message_processed",
             "trace_id": trace.trace_id,
             "user_hash": trace.user_hash,
+            "channel": trace.channel,
             "engine_id": result.engine_id,
             "route": result.route,
             "flow_id": result.flow_id,
