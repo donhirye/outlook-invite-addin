@@ -297,6 +297,7 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
     monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "")
     monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "")
     monkeypatch.setattr(dashboard, "is_ancestor", lambda tip, env: tip == env)
+    monkeypatch.setattr(dashboard, "resolve_ref_sha", lambda *refs: None)
 
     dashboard.clear_cache()
     data = dashboard.get_dashboard(force=True)
@@ -306,10 +307,10 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
     assert data["formula"]["funnel"]["in_base"] == 0
     assert data["matrix"][0]["on_dev"] == "yes"
     assert data["matrix"][0]["on_prod"] == "no"
-    assert data["matrix"][0]["on_staging"] == "unknown"  # no staging SHA
+    assert data["matrix"][0]["on_staging"] == "unknown"  # no staging SHA / proxy
     assert "Releases dashboard" in data["formula"]["dev_expression"]
     assert data["formula"]["staging_expression"] == "Not Verified"
-    assert "BASE" in data["mermaid"]
+    assert data["formula"]["staging_source"] == "unknown"
 
 
 def test_funnel_counts_staging_extras_beyond_base(monkeypatch):
@@ -390,10 +391,12 @@ def test_funnel_counts_staging_extras_beyond_base(monkeypatch):
 
     monkeypatch.setattr(dashboard, "is_ancestor", fake_ancestor)
     monkeypatch.setattr(dashboard, "commits_between", lambda a, b, **k: ["ccccccc Feature A"])
+    monkeypatch.setattr(dashboard, "resolve_ref_sha", lambda *refs: None)
 
     dashboard.clear_cache()
     data = dashboard.get_dashboard(force=True)
     assert data["base"]["source"] == "production"
+    assert data["formula"]["staging_source"] == "staging_deploy"
     assert data["matrix"][0]["on_staging"] == "yes"
     assert data["matrix"][0]["on_prod"] == "no"
     assert data["matrix"][0]["lane"] == "staging_candidate"

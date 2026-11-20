@@ -112,9 +112,9 @@
         </span>
         <span><span class="pill pill-staging">STAGING</span>
           {% if dash.formula.staging_sha_short %}
-            <span class="mono">@ {{ dash.formula.staging_sha_short }}</span>
+            <span class="mono">{{ dash.formula.staging_source }} @ {{ dash.formula.staging_sha_short }}</span>
           {% else %}
-            <span class="pill pill-unk">Not Verified</span>
+            <span class="pill pill-unk">Unknown</span>
           {% endif %}
         </span>
         <span><span class="pill pill-dev">DEV</span>
@@ -122,9 +122,11 @@
         </span>
       </div>
       <p class="meta">{{ dash.formula.base_note }}</p>
+      <p class="meta">{{ dash.formula.staging_note }}</p>
 
-      <div class="formula">BASE ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
-STAGING = {{ dash.formula.staging_expression }}
+      <div class="formula">BASE    ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
+STAGING ({{ dash.formula.staging_source }}) @ {{ dash.formula.staging_sha_short or "Unknown" }}
+         = {{ dash.formula.staging_expression }}
 DEV     = {{ dash.formula.dev_expression }}</div>
 
       <div class="funnel">

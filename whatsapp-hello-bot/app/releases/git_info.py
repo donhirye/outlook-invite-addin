@@ -249,6 +249,18 @@ def collect_git_snapshot() -> GitSnapshot:
     )
 
 
+def resolve_ref_sha(*refs: str) -> str | None:
+    """Return the first resolvable commit SHA among refs (branch names or SHAs)."""
+    for ref in refs:
+        ref = (ref or "").strip()
+        if not ref:
+            continue
+        sha = _run(["git", "rev-parse", "--verify", ref])
+        if sha:
+            return sha
+    return None
+
+
 def commits_between(older_sha: str, newer_sha: str, *, limit: int = 40) -> list[str]:
     """Subjects on newer not in older. Empty list if unknown."""
     if not older_sha or not newer_sha:

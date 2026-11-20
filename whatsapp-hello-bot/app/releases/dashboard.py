@@ -16,6 +16,13 @@ from app.releases.git_info import (
     collect_git_snapshot,
     commits_between,
     is_ancestor,
+    resolve_ref_sha,
+)
+
+# Branch tip used as staging proxy when no deploy record / live GIT_SHA exists.
+_STAGING_BRANCH_REFS = (
+    "origin/feature/staging-environment",
+    "feature/staging-environment",
 )
 from app.releases.live import probe_health
 from app.releases.records import load_production_record, load_staging_record
@@ -251,7 +258,7 @@ def _build() -> dict[str, Any]:
     staging_live = probe_health(STAGING_BASE_URL)
     prod_live = probe_health(PRODUCTION_BASE_URL)
 
-    staging_sha = _real_sha(
+    staging_deploy_sha = _real_sha(
         staging_rec.get("git_sha") if staging_rec.get("available") else None,
         staging_live.get("git_sha"),
     )
@@ -276,6 +283,24 @@ def _build() -> dict[str, Any]:
         base_sha = None
         base_source = "unknown"
         base_note = "BASE is Unknown — no production SHA and no main ref."
+
+    # STAGING = deploy/live SHA when known; else tip of feature/staging-environment.
+    if staging_deploy_sha:
+        staging_sha = staging_deploy_sha
+        staging_source = "staging_deploy"
+        staging_note = "STAGING is the recorded/live Cloud Run deploy commit."
+    else:
+        staging_sha = resolve_ref_sha(*_STAGING_BRANCH_REFS)
+        if staging_sha:
+            staging_source = "staging_branch_proxy"
+            staging_note = (
+                "STAGING is the tip of feature/staging-environment (proxy). "
+                "Redeploy staging to write a deploy record / GIT_SHA for verified status."
+            )
+        else:
+            staging_sha = None
+            staging_source = "unknown"
+            staging_note = "STAGING is Unknown — no deploy SHA and no staging branch tip."
 
     branch_rows: list[dict[str, Any]] = []
     for b in git.branches:
@@ -315,6 +340,14 @@ def _build() -> dict[str, Any]:
     formula["base_note"] = base_note
     formula["staging_sha"] = staging_sha
     formula["staging_sha_short"] = _sha_short(staging_sha)
+    formula["staging_source"] = staging_source
+    formula["staging_note"] = staging_note
+    # Prefer a concrete STAGING = BASE + … line once we have any staging SHA.
+    if staging_sha and formula.get("staging_expression") == "Not Verified":
+        extras = formula.get("staging_extras") or []
+        formula["staging_expression"] = (
+            "BASE + " + " + ".join(extras) if extras else "BASE"
+        )
 
     delta: list[str] = []
     delta_status = "Not Verified"
