@@ -90,6 +90,7 @@ print(json.dumps({
   "login": login.status_code,
   "page": page.status_code,
   "has_dev_section": "DEV" in page.text and "Local workspace" in page.text,
+  "has_funnel": "Promotion funnel" in page.text and "BASE" in page.text,
   "no_deploy_button": "Deploy to" not in page.text,
   "has_refresh": "/admin/releases/refresh" in page.text,
 }))
@@ -99,6 +100,7 @@ print(json.dumps({
     assert dev["anon"] in {302, 303}
     assert dev["page"] == 200
     assert dev["has_dev_section"] is True
+    assert dev["has_funnel"] is True
     assert dev["no_deploy_button"] is True
     assert dev["has_refresh"] is True
 
@@ -217,22 +219,25 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
     from app.releases import dashboard
     from app.releases.git_info import BranchInfo, GitSnapshot
 
+    main_sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    tip_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
     monkeypatch.setattr(
         dashboard,
         "collect_git_snapshot",
         lambda: GitSnapshot(
             available=True,
             branch="feature/releases-dashboard",
-            commit="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            commit=tip_sha,
             short_commit="aaaaaaa",
             commit_subject="wip",
             commit_date="2026-01-01",
             dirty_files=[],
-            main_sha="bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+            main_sha=main_sha,
             branches=[
                 BranchInfo(
                     name="feature/releases-dashboard",
-                    tip_sha="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                    tip_sha=tip_sha,
                     tip_date="2026-01-01",
                     tip_subject="wip",
                     ahead=2,
@@ -287,18 +292,111 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
     monkeypatch.setattr(dashboard, "latest_summary_unscoped", lambda: None)
     monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "")
     monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "")
+    monkeypatch.setattr(dashboard, "is_ancestor", lambda tip, env: tip == env)
 
     dashboard.clear_cache()
     data = dashboard.get_dashboard(force=True)
-    assert data["dev"]["branch"] == "feature/releases-dashboard"
-    assert data["staging"]["recorded"]["status"] == "Unknown"
-    assert data["production"]["live"]["status"] == "Not Verified"
-    assert data["matrix"]
-    assert data["matrix"][0]["staging"] == "unknown"
-    assert "aaaaaaaa" not in json.dumps(data["config"])
-    # Mermaid should mention the branch name, not invent deploy SHAs when unknown
-    assert "feature/releases-dashboard" in data["mermaid"] or "feature_releases_dashboard" in data["mermaid"]
-    assert "PROD " not in data["mermaid"]
+    assert data["base"]["source"] == "main_proxy"
+    assert data["base"]["sha"] == main_sha
+    assert data["formula"]["funnel"]["on_dev"] == 1
+    assert data["formula"]["funnel"]["in_base"] == 0
+    assert data["matrix"][0]["on_dev"] == "yes"
+    assert data["matrix"][0]["on_prod"] == "no"
+    assert data["matrix"][0]["on_staging"] == "unknown"  # no staging SHA
+    assert "Releases dashboard" in data["formula"]["dev_expression"]
+    assert data["formula"]["staging_expression"] == "Not Verified"
+    assert "BASE" in data["mermaid"]
+
+
+def test_funnel_counts_staging_extras_beyond_base(monkeypatch):
+    from app.releases import dashboard
+    from app.releases.git_info import BranchInfo, GitSnapshot
+
+    base = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    stg = "cccccccccccccccccccccccccccccccccccccccc"
+    feat_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+
+    monkeypatch.setattr(
+        dashboard,
+        "collect_git_snapshot",
+        lambda: GitSnapshot(
+            available=True,
+            branch="feature/a",
+            commit=feat_a,
+            short_commit="aaaaaaa",
+            commit_subject="a",
+            commit_date="2026-01-01",
+            dirty_files=[],
+            main_sha=base,
+            branches=[
+                BranchInfo(name="feature/a", tip_sha=feat_a, merged_into_main=False),
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "load_experiments",
+        lambda: [
+            {
+                "id": "a",
+                "name": "Feature A",
+                "objective": "A",
+                "branch": "feature/a",
+                "status": "ready",
+            }
+        ],
+    )
+    monkeypatch.setattr(dashboard, "experiments_by_branch", lambda: {})
+    monkeypatch.setattr(
+        dashboard,
+        "load_staging_record",
+        lambda: {
+            "available": True,
+            "git_sha": stg,
+            "source": "recorded",
+            "status": "Recorded",
+        },
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "load_production_record",
+        lambda: {
+            "available": True,
+            "git_sha": base,
+            "source": "recorded",
+            "status": "Recorded",
+        },
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "probe_health",
+        lambda url: {"available": False, "source": "live", "status": "Not Verified"},
+    )
+    monkeypatch.setattr(dashboard, "find_reports_for_sha", lambda *a, **k: [])
+    monkeypatch.setattr(dashboard, "latest_summary_unscoped", lambda: None)
+    monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "")
+    monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "")
+
+    def fake_ancestor(tip, env):
+        if tip == feat_a and env == stg:
+            return True
+        if tip == feat_a and env == base:
+            return False
+        return False
+
+    monkeypatch.setattr(dashboard, "is_ancestor", fake_ancestor)
+    monkeypatch.setattr(dashboard, "commits_between", lambda a, b, **k: ["ccccccc Feature A"])
+
+    dashboard.clear_cache()
+    data = dashboard.get_dashboard(force=True)
+    assert data["base"]["source"] == "production"
+    assert data["matrix"][0]["on_staging"] == "yes"
+    assert data["matrix"][0]["on_prod"] == "no"
+    assert data["matrix"][0]["lane"] == "staging_candidate"
+    assert data["formula"]["funnel"]["on_staging"] == 1
+    assert data["formula"]["funnel"]["in_base"] == 0
+    assert "Feature A" in data["formula"]["staging_expression"]
+    assert data["formula"]["staging_expression"].startswith("BASE +")
 
 
 def test_eval_report_match_by_git_sha(tmp_path, monkeypatch):

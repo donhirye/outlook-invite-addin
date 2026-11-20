@@ -10,7 +10,13 @@ from typing import Any
 
 from app.config import PRODUCTION_BASE_URL, STAGING_BASE_URL
 from app.releases.evals import find_reports_for_sha, latest_summary_unscoped
-from app.releases.git_info import BranchInfo, GitSnapshot, collect_git_snapshot, commits_between, is_ancestor
+from app.releases.git_info import (
+    BranchInfo,
+    GitSnapshot,
+    collect_git_snapshot,
+    commits_between,
+    is_ancestor,
+)
 from app.releases.live import probe_health
 from app.releases.records import load_production_record, load_staging_record
 from app.releases.registry import experiments_by_branch, load_experiments
@@ -40,56 +46,199 @@ def _sha_short(sha: str | None) -> str | None:
     return sha[:7]
 
 
-def _env_presence(tip_sha: str | None, deployed_sha: str | None) -> str:
-    """Return matrix cell: implemented | deployed | experimental | not_present | unknown."""
+def _real_sha(*candidates: Any) -> str | None:
+    for value in candidates:
+        if not isinstance(value, str):
+            continue
+        v = value.strip()
+        if len(v) >= 7 and v not in {"Unknown", "Not Verified"}:
+            return v
+    return None
+
+
+def _contains(tip_sha: str | None, env_sha: str | None) -> str:
+    """yes | no | unknown — is tip contained in env commit?"""
     if not tip_sha:
         return "unknown"
-    if not deployed_sha or deployed_sha in {"Unknown", "Not Verified"}:
+    if not env_sha:
         return "unknown"
-    # Tip contained in deployed commit => feature is on that environment
-    contained = is_ancestor(tip_sha, deployed_sha)
+    contained = is_ancestor(tip_sha, env_sha)
     if contained is True:
-        return "deployed"
+        return "yes"
     if contained is False:
+        return "no"
+    return "unknown"
+
+
+def _lane(*, on_dev: bool, on_staging: str, on_prod: str) -> str:
+    """Promotion lane label for one feature."""
+    if on_prod == "yes":
+        return "in_base"
+    if on_staging == "yes" and on_prod == "no":
+        return "staging_candidate"
+    if on_staging == "yes" and on_prod == "unknown":
+        return "on_staging"
+    if on_dev and on_staging == "no" and on_prod == "no":
+        return "dev_only"
+    if on_dev and (on_staging == "unknown" or on_prod == "unknown"):
+        return "dev_pending"
+    if not on_dev and on_prod == "no" and on_staging == "no":
         return "not_present"
     return "unknown"
 
 
-def _dev_presence(branch: BranchInfo | None, current_branch: str | None) -> str:
-    if not branch:
-        return "not_present"
-    if branch.merged_into_main is True:
-        return "implemented"
-    if current_branch and branch.name == current_branch:
-        return "experimental"
-    if (branch.ahead or 0) > 0 or branch.tip_sha:
-        return "experimental"
-    return "unknown"
-
-
-def _mermaid(git: GitSnapshot, staging_sha: str | None, prod_sha: str | None) -> str:
-    lines = ["flowchart LR", "  main[main]"]
-    st_short = _sha_short(staging_sha)
-    pr_short = _sha_short(prod_sha)
-    if pr_short:
-        lines.append(f"  prodMarker[\"PROD {pr_short}\"]")
-        lines.append("  main --- prodMarker")
-    if st_short:
-        lines.append(f"  stgMarker[\"STAGING {st_short}\"]")
-        lines.append("  main --- stgMarker")
-    for b in git.branches[:12]:
-        safe = "".join(ch if ch.isalnum() else "_" for ch in b.name)[:40]
-        label = b.name.replace('"', "'")
-        tip = _sha_short(b.tip_sha) or "?"
-        lines.append(f'  {safe}["{label}\\n{tip}"]')
-        lines.append(f"  main --- {safe}")
-    if len(git.branches) > 12:
-        lines.append(f'  more["+{len(git.branches) - 12} more branches"]')
-        lines.append("  main --- more")
-    if not git.branches and not st_short and not pr_short:
-        lines.append('  empty["No feature branches / deploy markers"]')
-        lines.append("  main --- empty")
+def _mermaid(
+    git: GitSnapshot,
+    *,
+    base_sha: str | None,
+    staging_sha: str | None,
+    formula: dict[str, Any],
+) -> str:
+    lines = ["flowchart LR"]
+    base_label = _sha_short(base_sha) or "?"
+    lines.append(f'  BASE["BASE\\n{base_label}"]')
+    st_extras = formula.get("staging_extras") or []
+    dev_extras = formula.get("dev_extras") or []
+    if staging_sha:
+        st_bits = ", ".join(st_extras[:5]) if st_extras else "(no extras)"
+        if len(st_extras) > 5:
+            st_bits += f", +{len(st_extras) - 5}"
+        lines.append(f'  STG["STAGING = BASE +\\n{st_bits}"]')
+        lines.append("  BASE --> STG")
+    else:
+        lines.append('  STG["STAGING\\nNot Verified"]')
+        lines.append("  BASE -.-> STG")
+    if dev_extras:
+        dev_bits = ", ".join(dev_extras[:5])
+        if len(dev_extras) > 5:
+            dev_bits += f", +{len(dev_extras) - 5}"
+        lines.append(f'  DEV["DEV = BASE +\\n{dev_bits}"]')
+    else:
+        lines.append('  DEV["DEV = BASE\\n(no extras tracked)"]')
+    lines.append("  BASE --> DEV")
     return "\n".join(lines)
+
+
+def _build_matrix(
+    *,
+    git: GitSnapshot,
+    experiments: list[dict[str, Any]],
+    registry: dict[str, dict[str, Any]],
+    base_sha: str | None,
+    staging_sha: str | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    branch_by_name = {b.name: b for b in git.branches}
+    seen = {e["branch"] for e in experiments}
+    rows: list[dict[str, Any]] = []
+
+    def add_row(
+        name: str,
+        objective: str,
+        branch_name: str,
+        status: str,
+        *,
+        registered: bool,
+    ) -> None:
+        b = branch_by_name.get(branch_name)
+        tip = b.tip_sha if b else None
+        on_dev = b is not None
+        on_staging = _contains(tip, staging_sha)
+        on_prod = _contains(tip, base_sha)
+        lane = _lane(on_dev=on_dev, on_staging=on_staging, on_prod=on_prod)
+        rows.append(
+            {
+                "name": name,
+                "objective": objective,
+                "branch": branch_name,
+                "registry_status": status,
+                "registered": registered,
+                "tip_sha_short": _sha_short(tip),
+                "on_dev": "yes" if on_dev else "no",
+                "on_staging": on_staging,
+                "on_prod": on_prod,
+                "lane": lane,
+            }
+        )
+
+    for exp in experiments:
+        add_row(
+            exp["name"],
+            exp["objective"],
+            exp["branch"],
+            exp["status"],
+            registered=True,
+        )
+
+    # Unregistered: only tips still outside BASE (active deltas). Hide merged leftovers.
+    for b in git.branches:
+        if b.name in seen:
+            continue
+        if not b.tip_sha:
+            continue
+        in_base = _contains(b.tip_sha, base_sha)
+        if in_base == "yes":
+            continue
+        exp = registry.get(b.name)
+        add_row(
+            (exp or {}).get("name") or "Unregistered experiment",
+            (exp or {}).get("objective") or "Unknown — add to data/experiments.json",
+            b.name,
+            (exp or {}).get("status") or "experimental",
+            registered=False,
+        )
+
+    # Funnel counts (features we are tracking in this matrix)
+    n = len(rows)
+    on_dev_n = sum(1 for r in rows if r["on_dev"] == "yes")
+    on_stg_n = sum(1 for r in rows if r["on_staging"] == "yes")
+    on_prod_n = sum(1 for r in rows if r["on_prod"] == "yes")
+    stg_unknown = sum(1 for r in rows if r["on_staging"] == "unknown")
+    prod_unknown = sum(1 for r in rows if r["on_prod"] == "unknown")
+
+    staging_extras = [
+        r["name"] if r["registered"] else r["branch"]
+        for r in rows
+        if r["on_staging"] == "yes" and r["on_prod"] == "no"
+    ]
+    # Also staging yes + prod unknown counts as staging-side extra pending base verify
+    staging_extras += [
+        r["name"] if r["registered"] else r["branch"]
+        for r in rows
+        if r["on_staging"] == "yes" and r["on_prod"] == "unknown"
+        and (r["name"] if r["registered"] else r["branch"]) not in staging_extras
+    ]
+    dev_extras = [
+        r["name"] if r["registered"] else r["branch"]
+        for r in rows
+        if r["on_dev"] == "yes" and r["on_prod"] != "yes"
+    ]
+
+    formula = {
+        "base_label": "BASE (production)",
+        "staging_expression": (
+            "BASE + " + " + ".join(staging_extras)
+            if staging_extras
+            else ("BASE" if staging_sha else "Not Verified")
+        ),
+        "dev_expression": (
+            "BASE + " + " + ".join(dev_extras) if dev_extras else "BASE"
+        ),
+        "staging_extras": staging_extras,
+        "dev_extras": dev_extras,
+        "funnel": {
+            "tracked": n,
+            "on_dev": on_dev_n,
+            "on_staging": on_stg_n,
+            "in_base": on_prod_n,
+            "staging_unknown": stg_unknown,
+            "base_unknown": prod_unknown,
+            "dev_only": sum(1 for r in rows if r["lane"] == "dev_only"),
+            "staging_candidates": sum(
+                1 for r in rows if r["lane"] in {"staging_candidate", "on_staging"}
+            ),
+        },
+    }
+    return rows, formula
 
 
 def _build() -> dict[str, Any]:
@@ -102,18 +251,31 @@ def _build() -> dict[str, Any]:
     staging_live = probe_health(STAGING_BASE_URL)
     prod_live = probe_health(PRODUCTION_BASE_URL)
 
-    staging_sha = staging_rec.get("git_sha") if staging_rec.get("available") else None
-    prod_sha = prod_rec.get("git_sha") if prod_rec.get("available") else None
-    # Prefer live SHA when it looks like a real hash
-    live_stg = staging_live.get("git_sha")
-    if isinstance(live_stg, str) and live_stg not in {"Unknown", "Not Verified"} and len(live_stg) >= 7:
-        # keep recorded as recorded; live shown separately — delta uses recorded first, else live
-        if not staging_sha:
-            staging_sha = live_stg
-    live_prod = prod_live.get("git_sha")
-    if isinstance(live_prod, str) and live_prod not in {"Unknown", "Not Verified"} and len(live_prod) >= 7:
-        if not prod_sha:
-            prod_sha = live_prod
+    staging_sha = _real_sha(
+        staging_rec.get("git_sha") if staging_rec.get("available") else None,
+        staging_live.get("git_sha"),
+    )
+    prod_sha = _real_sha(
+        prod_rec.get("git_sha") if prod_rec.get("available") else None,
+        prod_live.get("git_sha"),
+    )
+
+    # BASE = production when known; otherwise origin/main as an honest proxy.
+    if prod_sha:
+        base_sha = prod_sha
+        base_source = "production"
+        base_note = "BASE is the production deploy commit."
+    elif git.main_sha:
+        base_sha = git.main_sha
+        base_source = "main_proxy"
+        base_note = (
+            "BASE is origin/main (proxy). Production deploy SHA is Not Verified — "
+            "pull a production release record or set PRODUCTION_BASE_URL after GIT_SHA is live."
+        )
+    else:
+        base_sha = None
+        base_source = "unknown"
+        base_note = "BASE is Unknown — no production SHA and no main ref."
 
     branch_rows: list[dict[str, Any]] = []
     for b in git.branches:
@@ -140,52 +302,38 @@ def _build() -> dict[str, Any]:
             }
         )
 
-    # Matrix rows: registry first, then unregistered open branches
-    seen_branches = {e["branch"] for e in experiments}
-    matrix: list[dict[str, Any]] = []
-    branch_by_name = {b.name: b for b in git.branches}
-
-    def add_matrix_row(name: str, objective: str, branch_name: str, status: str) -> None:
-        b = branch_by_name.get(branch_name)
-        tip = b.tip_sha if b else None
-        matrix.append(
-            {
-                "name": name,
-                "objective": objective,
-                "branch": branch_name,
-                "registry_status": status,
-                "dev": _dev_presence(b, git.branch),
-                "staging": _env_presence(tip, staging_sha),
-                "production": _env_presence(tip, prod_sha),
-            }
-        )
-
-    for exp in experiments:
-        add_matrix_row(exp["name"], exp["objective"], exp["branch"], exp["status"])
-    for b in git.branches:
-        if b.name in seen_branches:
-            continue
-        add_matrix_row(
-            "Unregistered experiment",
-            "Unknown — add to data/experiments.json",
-            b.name,
-            "experimental",
-        )
+    matrix, formula = _build_matrix(
+        git=git,
+        experiments=experiments,
+        registry=registry,
+        base_sha=base_sha,
+        staging_sha=staging_sha,
+    )
+    formula["base_sha"] = base_sha
+    formula["base_sha_short"] = _sha_short(base_sha)
+    formula["base_source"] = base_source
+    formula["base_note"] = base_note
+    formula["staging_sha"] = staging_sha
+    formula["staging_sha_short"] = _sha_short(staging_sha)
 
     delta: list[str] = []
-    if staging_sha and prod_sha:
-        delta = commits_between(prod_sha, staging_sha)
-    elif staging_sha or prod_sha:
-        delta = []  # incomplete — UI shows Not Verified for missing side
+    delta_status = "Not Verified"
+    if staging_sha and base_sha:
+        delta = commits_between(base_sha, staging_sha)
+        delta_status = "Recorded"
 
     staging_tests = find_reports_for_sha(staging_sha)
-    if not staging_tests:
-        staging_tests_note = latest_summary_unscoped()
-    else:
-        staging_tests_note = None
+    staging_tests_note = None if staging_tests else latest_summary_unscoped()
 
     return {
         "refreshed_at": _utc_now_iso(),
+        "base": {
+            "sha": base_sha,
+            "sha_short": _sha_short(base_sha),
+            "source": base_source,
+            "note": base_note,
+        },
+        "formula": formula,
         "dev": {
             "available": git.available,
             "error": git.error,
@@ -204,18 +352,16 @@ def _build() -> dict[str, Any]:
             "tests": staging_tests,
             "tests_unscoped": staging_tests_note,
             "delta_vs_prod": delta,
-            "delta_status": (
-                "Recorded"
-                if staging_sha and prod_sha
-                else "Not Verified"
-            ),
+            "delta_status": delta_status,
         },
         "production": {
             "recorded": prod_rec,
             "live": prod_live,
         },
         "matrix": matrix,
-        "mermaid": _mermaid(git, staging_sha, prod_sha),
+        "mermaid": _mermaid(
+            git, base_sha=base_sha, staging_sha=staging_sha, formula=formula
+        ),
         "config": {
             "staging_base_url": STAGING_BASE_URL or None,
             "production_base_url": PRODUCTION_BASE_URL or None,

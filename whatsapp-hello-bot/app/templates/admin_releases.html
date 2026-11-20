@@ -79,11 +79,24 @@
       display: inline-block; min-width: 5.5rem; text-align: center; padding: .25rem .4rem;
       border-radius: .4rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
     }
-    .cell-deployed { background: color-mix(in srgb, var(--prod) 30%, transparent); color: var(--prod); }
-    .cell-implemented { background: color-mix(in srgb, var(--dev) 25%, transparent); color: var(--dev); }
-    .cell-experimental { background: color-mix(in srgb, var(--staging) 28%, transparent); color: var(--staging); }
-    .cell-not_present { background: rgba(255,255,255,.06); color: var(--muted); }
+    .cell-yes { background: color-mix(in srgb, var(--prod) 30%, transparent); color: var(--prod); }
+    .cell-no { background: rgba(255,255,255,.06); color: var(--muted); }
     .cell-unknown { background: rgba(255,180,168,.12); color: #ffb4a8; }
+    .funnel {
+      display: flex; flex-wrap: wrap; gap: .75rem; margin: 0 0 1rem;
+    }
+    .funnel .stat {
+      flex: 1 1 8rem; background: rgba(0,0,0,.22); border: 1px solid var(--border);
+      border-radius: .75rem; padding: .75rem .9rem;
+    }
+    .funnel .stat .n { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
+    .funnel .stat .lbl { font-size: .78rem; color: var(--muted); margin-top: .25rem; }
+    .formula {
+      font-family: ui-monospace, Consolas, monospace; font-size: .85rem;
+      background: rgba(0,0,0,.25); border-radius: .65rem; padding: .85rem 1rem;
+      margin: 0 0 1rem; line-height: 1.55; white-space: pre-wrap;
+    }
+    .lane { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
     button, .btn {
       border: 1px solid var(--border); background: rgba(0,0,0,.25); color: var(--ink);
       border-radius: .65rem; padding: .55rem .9rem; font: inherit; cursor: pointer;
@@ -303,16 +316,46 @@
     </div>
 
     <div class="card">
-      <h2>Feature promotion matrix</h2>
-      <p>Cells are derived from git ancestry and deploy records — never hardcoded.</p>
+      <h2>Promotion funnel (relative to BASE)</h2>
+      <p>
+        <strong>BASE</strong> = production when known, otherwise <span class="mono">origin/main</span> as a proxy.
+        Staging and DEV are described as <em>BASE + extras</em>. Cells use git ancestry — never hardcoded.
+      </p>
+      <p class="meta">{{ dash.formula.base_note }}</p>
+      <div class="formula">BASE ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
+STAGING = {{ dash.formula.staging_expression }}
+DEV     = {{ dash.formula.dev_expression }}</div>
+      <div class="funnel">
+        <div class="stat">
+          <div class="n" style="color:var(--dev)">{{ dash.formula.funnel.on_dev }}</div>
+          <div class="lbl">on DEV <span class="pill pill-dev">of {{ dash.formula.funnel.tracked }} tracked</span></div>
+        </div>
+        <div class="stat">
+          <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.on_staging }}</div>
+          <div class="lbl">on STAGING{% if dash.formula.funnel.staging_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.staging_unknown }} unknown</span>{% endif %}</div>
+        </div>
+        <div class="stat">
+          <div class="n" style="color:var(--prod)">{{ dash.formula.funnel.in_base }}</div>
+          <div class="lbl">in BASE / PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}</div>
+        </div>
+        <div class="stat">
+          <div class="n">{{ dash.formula.funnel.dev_only }}</div>
+          <div class="lbl">DEV only (not staging/prod)</div>
+        </div>
+        <div class="stat">
+          <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.staging_candidates }}</div>
+          <div class="lbl">staging candidates (not in BASE)</div>
+        </div>
+      </div>
       {% if dash.matrix %}
       <table>
         <thead>
           <tr>
             <th>Feature</th>
-            <th><span class="pill pill-dev">DEV</span></th>
-            <th><span class="pill pill-staging">STAGING</span></th>
-            <th><span class="pill pill-prod">PROD</span></th>
+            <th><span class="pill pill-dev">On DEV?</span></th>
+            <th><span class="pill pill-staging">On STAGING?</span></th>
+            <th><span class="pill pill-prod">In BASE?</span></th>
+            <th>Lane</th>
           </tr>
         </thead>
         <tbody>
@@ -322,22 +365,28 @@
               <strong>{{ row.name }}</strong><br />
               <span class="meta">{{ row.objective }}</span><br />
               <span class="mono">{{ row.branch }}</span>
+              {% if row.tip_sha_short %} · <span class="mono">{{ row.tip_sha_short }}</span>{% endif %}
             </td>
-            <td><span class="cell cell-{{ row.dev }}">{{ row.dev.replace('_', ' ') }}</span></td>
-            <td><span class="cell cell-{{ row.staging }}">{{ row.staging.replace('_', ' ') }}</span></td>
-            <td><span class="cell cell-{{ row.production }}">{{ row.production.replace('_', ' ') }}</span></td>
+            <td><span class="cell cell-{{ row.on_dev }}">{{ row.on_dev }}</span></td>
+            <td><span class="cell cell-{{ row.on_staging }}">{{ row.on_staging }}</span></td>
+            <td><span class="cell cell-{{ row.on_prod }}">{{ row.on_prod }}</span></td>
+            <td><span class="lane">{{ row.lane.replace('_', ' ') }}</span></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
+      <p class="meta" style="margin-top:1rem;">
+        Merged leftover branches already inside BASE are hidden. Add names to
+        <span class="mono">data/experiments.json</span> to track them explicitly.
+      </p>
       {% else %}
-        <p>No experiments or feature branches to show.</p>
+        <p>No tracked experiments outside BASE. Add rows to <span class="mono">data/experiments.json</span>.</p>
       {% endif %}
     </div>
 
     <div class="card">
-      <h2>Visual git history</h2>
-      <p>Simplified view of main and experimental tips. Staging/prod markers appear when SHAs are known.</p>
+      <h2>Visual: BASE → staging / DEV</h2>
+      <p>BASE plus extras on each environment. Staging marker appears when its deploy SHA is known.</p>
       <pre class="mermaid">{{ dash.mermaid }}</pre>
     </div>
   </div>
