@@ -5,8 +5,10 @@
   <a class="{% if active_nav == 'calendar' %}active{% endif %}" href="/admin/calendar">School Calendar</a>
   <a class="{% if active_nav == 'guided' %}active{% endif %}" href="/admin/guided">Guided Conversations</a>
   <a class="{% if active_nav == 'analytics' %}active{% endif %}" href="/admin/analytics">Analytics</a>
-  {% if is_development %}
+  {% if is_development or is_staging %}
   <a class="{% if active_nav == 'releases' %}active{% endif %}" href="/admin/releases">Releases</a>
+  {% endif %}
+  {% if is_development or is_staging %}
   <a class="{% if active_nav == 'test-chat' %}active{% endif %}" href="/admin/test-chat">Test Chat</a>
   {% endif %}
   <a href="/admin/logout">Log out</a>

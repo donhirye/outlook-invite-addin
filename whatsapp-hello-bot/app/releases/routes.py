@@ -1,4 +1,4 @@
-"""DEV-only Releases dashboard routes."""
+"""Releases dashboard routes (local DEV + staging admin). Never registered in production."""
 
 from __future__ import annotations
 

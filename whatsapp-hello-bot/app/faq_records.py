@@ -13,13 +13,16 @@ from threading import Lock
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.config import DATA_DIR, FAQ_GCS_BUCKET, SHARED_DATA_DIR
+from app.config import DATA_DIR, FAQ_GCS_BUCKET, FAQ_GCS_PREFIX, SHARED_DATA_DIR
 
 logger = logging.getLogger(__name__)
 
 CHICAGO = ZoneInfo("America/Chicago")
 FAQ_RECORDS_FILE = DATA_DIR / "faq_records.json"
-FAQ_RECORDS_GCS_OBJECT = "faq_records.json"
+_FAQ_RECORDS_BASENAME = "faq_records.json"
+FAQ_RECORDS_GCS_OBJECT = (
+    f"{FAQ_GCS_PREFIX}/{_FAQ_RECORDS_BASENAME}" if FAQ_GCS_PREFIX else _FAQ_RECORDS_BASENAME
+)
 # Shared seed CSV (not env-specific mutable state).
 FAQ_IMPORT_SEED = SHARED_DATA_DIR / "imports" / "Crone_Combined_FAQs_Admin_Import.csv"
 _lock = Lock()

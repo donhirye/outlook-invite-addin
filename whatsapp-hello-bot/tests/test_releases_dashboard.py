@@ -75,7 +75,7 @@ print(json.dumps({"status": r.status_code, "body": r.json()}))
     assert out["body"]["git_sha"] == "abc1234deadbeef"
 
 
-def test_releases_available_only_in_development():
+def test_releases_available_in_development_and_staging_not_production():
     dev = _run(
         """
 import json
@@ -91,8 +91,8 @@ print(json.dumps({
   "page": page.status_code,
   "has_funnel": "Promotion funnel" in page.text and "PROD" in page.text,
   "has_staging_pill": "STAGING" in page.text,
-  "no_top_dev_card": "Local workspace" not in page.text,
-  "no_deploy_detail": "Smoke:" not in page.text and "Container image" not in page.text,
+  "has_hierarchy": "Branch hierarchy" in page.text,
+  "has_deploy_panels": "Deployment versions" in page.text,
   "no_deploy_button": "Deploy to" not in page.text,
   "has_refresh": "/admin/releases/refresh" in page.text,
 }))
@@ -103,8 +103,8 @@ print(json.dumps({
     assert dev["page"] == 200
     assert dev["has_funnel"] is True
     assert dev["has_staging_pill"] is True
-    assert dev["no_top_dev_card"] is True
-    assert dev["no_deploy_detail"] is True
+    assert dev["has_hierarchy"] is True
+    assert dev["has_deploy_panels"] is True
     assert dev["no_deploy_button"] is True
     assert dev["has_refresh"] is True
 
@@ -114,15 +114,23 @@ import json
 from fastapi.testclient import TestClient
 from app.main import app
 c = TestClient(app, follow_redirects=False)
-r = c.get("/admin/releases")
-print(json.dumps({"status": r.status_code}))
+anon = c.get("/admin/releases")
+login = c.post("/admin/login", data={"password": "unit-test-staging-password"})
+page = c.get("/admin/releases")
+print(json.dumps({
+  "anon": anon.status_code,
+  "page": page.status_code,
+  "has_funnel": "Promotion funnel" in page.text,
+}))
 """,
         APP_ENV="staging",
         ADMIN_PASSWORD="unit-test-staging-password",
         SECRET_KEY="unit-test-staging-secret-key-0123456789",
         DOTENV_PATH="",
     )
-    assert staging["status"] == 404
+    assert staging["anon"] in {302, 303}
+    assert staging["page"] == 200
+    assert staging["has_funnel"] is True
 
     prod = _run(
         """

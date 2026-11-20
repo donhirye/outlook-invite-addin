@@ -37,6 +37,7 @@
       border-radius: 1rem;
       padding: 1.5rem;
       box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+      margin-bottom: 1.25rem;
     }
     h1 { margin: 0 0 .35rem; font-size: 1.4rem; font-weight: 650; }
     h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
@@ -87,6 +88,13 @@
     button:hover { border-color: var(--accent); }
     a { color: #9be7c4; }
     .env-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: 0 0 1rem; font-size: .85rem; color: var(--muted); }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+    .panel {
+      background: rgba(0,0,0,.18); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem;
+    }
+    .panel h3 { margin: 0 0 .5rem; font-size: .95rem; }
+    ul.compact { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .85rem; }
+    .ro { font-size: .75rem; color: var(--muted); margin-top: .75rem; }
   </style>
 </head>
 <body>
@@ -101,6 +109,7 @@
           <button type="submit">Refresh</button>
         </form>
       </div>
+      <p class="ro">Read-only. Staging hosts this dashboard; production deploys stay manual via GitHub Actions.</p>
 
       <div class="env-row">
         <span><span class="pill pill-prod">PROD</span>
@@ -117,8 +126,9 @@
             <span class="pill pill-unk">Unknown</span>
           {% endif %}
         </span>
-        <span><span class="pill pill-dev">DEV</span>
+        <span><span class="pill pill-dev">BRANCHES</span>
           <span class="mono">{{ dash.dev.branch }} @ {{ dash.dev.short_commit }}</span>
+          {% if dash.dev.error %}<span class="pill pill-unk">{{ dash.dev.error }}</span>{% endif %}
         </span>
       </div>
       <p class="meta">{{ dash.formula.base_note }}</p>
@@ -127,43 +137,139 @@
       <div class="formula">PROD    ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
 STAGING ({{ dash.formula.staging_source }}) @ {{ dash.formula.staging_sha_short or "Unknown" }}
          = {{ dash.formula.staging_expression }}
-DEV     = {{ dash.formula.dev_expression }}</div>
+BRANCHES = {{ dash.formula.dev_expression }}</div>
 
       <div class="funnel">
         <div class="stat">
           <div class="n" style="color:var(--dev)">{{ dash.formula.funnel.on_dev }}</div>
-          <div class="lbl">on DEV <span class="pill pill-dev">of {{ dash.formula.funnel.tracked }} tracked</span><br />branch exists for this feature</div>
+          <div class="lbl">on branch tips <span class="pill pill-dev">of {{ dash.formula.funnel.tracked }} tracked</span></div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.on_staging }}</div>
-          <div class="lbl">on STAGING{% if dash.formula.funnel.staging_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.staging_unknown }} unknown</span>{% endif %}<br />tip is inside the staging commit</div>
+          <div class="lbl">on STAGING{% if dash.formula.funnel.staging_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.staging_unknown }} unknown</span>{% endif %}</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--prod)">{{ dash.formula.funnel.in_base }}</div>
-          <div class="lbl">in PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}<br />tip is inside production/main</div>
+          <div class="lbl">in PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}</div>
         </div>
         <div class="stat">
           <div class="n">{{ dash.formula.funnel.dev_only }}</div>
-          <div class="lbl">DEV only<br />on DEV, and confirmed <em>not</em> on staging or PROD</div>
+          <div class="lbl">branch-only (not staging/PROD)</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.staging_candidates }}</div>
-          <div class="lbl">staging candidates<br />on staging, not yet in PROD</div>
+          <div class="lbl">staging candidates</div>
         </div>
-        {% if dash.formula.funnel.dev_pending %}
-        <div class="stat">
-          <div class="n" style="color:#ffb4a8">{{ dash.formula.funnel.dev_pending }}</div>
-          <div class="lbl">pending<br />on DEV, but staging/PROD not verified yet</div>
-        </div>
-        {% endif %}
       </div>
+    </div>
 
+    <div class="card">
+      <h2>A — Branch hierarchy</h2>
+      <p>Feature / experiment / cursor / hotfix tips vs main (GitHub on staging, local git on DEV).</p>
+      {% if dash.dev.branches %}
+      <table>
+        <thead>
+          <tr>
+            <th>Branch</th>
+            <th>Tip</th>
+            <th>Ahead / behind</th>
+            <th>Merged?</th>
+            <th>Experiment</th>
+            <th>PR</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for b in dash.dev.branches %}
+          <tr>
+            <td><span class="mono">{{ b.name }}</span></td>
+            <td>
+              <span class="mono">{{ b.tip_sha_short or "Unknown" }}</span><br />
+              <span class="meta">{{ b.tip_subject }}</span>
+            </td>
+            <td class="mono">
+              {% if b.ahead is not none %}{{ b.ahead }} / {{ b.behind }}{% else %}Unknown{% endif %}
+            </td>
+            <td>
+              {% if b.merged_into_main is sameas true %}yes
+              {% elif b.merged_into_main is sameas false %}no
+              {% else %}Unknown{% endif %}
+            </td>
+            <td>
+              {{ b.experiment_name }}
+              <span class="lane">{{ b.experiment_status }}</span>
+            </td>
+            <td>
+              {% if b.pr_url %}<a href="{{ b.pr_url }}" target="_blank" rel="noopener">#{{ b.pr_number or "?" }}</a>
+              {% else %}{{ b.pr_state or "Unknown" }}{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p>No feature-like branches found (or GitHub metadata Unavailable).</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>B / C — Deployment versions</h2>
+      <div class="grid2">
+        <div class="panel">
+          <h3><span class="pill pill-staging">STAGING</span></h3>
+          {% set st = dash.staging.recorded %}
+          {% set stl = dash.staging.live %}
+          <p class="meta">
+            Recorded: {% if st.available %}<span class="mono">{{ st.git_sha[:7] if st.git_sha else "Unknown" }}</span>
+            · {{ st.branch or "Unknown" }} · {{ st.deployed_at or "Unknown" }}
+            {% if st.smoke_ok is sameas true %}· smoke ok{% elif st.smoke_ok is sameas false %}· smoke fail{% endif %}
+            {% else %}<span class="pill pill-unk">Unknown</span>{% endif %}
+          </p>
+          <p class="meta">
+            Live /health: {% if stl.ok %}<span class="mono">{{ stl.git_sha or "Unknown" }}</span>
+            {% else %}<span class="pill pill-unk">{{ stl.status or "Unknown" }}</span>{% endif %}
+          </p>
+          {% if st.image %}<p class="meta">Image: <span class="mono">{{ st.image }}</span></p>{% endif %}
+          {% if st.revision %}<p class="meta">Revision: <span class="mono">{{ st.revision }}</span></p>{% endif %}
+          {% if st.faq_gcs_prefix %}<p class="meta">FAQ prefix: <span class="mono">{{ st.faq_gcs_prefix }}</span></p>{% endif %}
+          <p class="meta">Delta vs PROD ({{ dash.staging.delta_status }}):</p>
+          {% if dash.staging.delta_vs_prod %}
+          <ul class="compact">
+            {% for line in dash.staging.delta_vs_prod[:15] %}
+            <li class="mono">{{ line }}</li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="meta">None / Unknown</p>
+          {% endif %}
+        </div>
+        <div class="panel">
+          <h3><span class="pill pill-prod">PROD</span></h3>
+          {% set pr = dash.production.recorded %}
+          {% set prl = dash.production.live %}
+          <p class="meta">
+            Recorded: {% if pr.available %}<span class="mono">{{ pr.git_sha[:7] if pr.git_sha else "Unknown" }}</span>
+            · {{ pr.deployed_at or "Unknown" }}
+            {% else %}<span class="pill pill-unk">Unknown</span>{% endif %}
+          </p>
+          <p class="meta">
+            Live /health: {% if prl.ok %}<span class="mono">{{ prl.git_sha or "Unknown" }}</span>
+            {% else %}<span class="pill pill-unk">{{ prl.status or "Unknown" }}</span>{% endif %}
+          </p>
+          {% if pr.image %}<p class="meta">Image: <span class="mono">{{ pr.image }}</span></p>{% endif %}
+          {% if pr.revision %}<p class="meta">Revision: <span class="mono">{{ pr.revision }}</span></p>{% endif %}
+          <p class="meta">Promote via manual GitHub Actions only (image-digest promote deferred).</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>D — Feature matrix</h2>
       {% if dash.matrix %}
       <table>
         <thead>
           <tr>
             <th>Feature</th>
-            <th><span class="pill pill-dev">On DEV?</span></th>
+            <th><span class="pill pill-dev">On tip?</span></th>
             <th><span class="pill pill-staging">On STAGING?</span></th>
             <th><span class="pill pill-prod">In PROD?</span></th>
             <th>Lane</th>
@@ -187,11 +293,28 @@ DEV     = {{ dash.formula.dev_expression }}</div>
         </tbody>
       </table>
       <p class="meta" style="margin-top:1rem;">
-        Merged leftovers already inside PROD are hidden. Track names in
-        <span class="mono">data/experiments.json</span>. Prefer a staging deploy record for verified staging status.
+        Track names in <span class="mono">data/experiments.json</span>.
       </p>
       {% else %}
-        <p>No tracked experiments outside PROD. Add rows to <span class="mono">data/experiments.json</span>.</p>
+        <p>No tracked experiments outside PROD.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>E — Staging evals</h2>
+      {% if dash.staging.tests %}
+      <ul class="compact">
+        {% for t in dash.staging.tests %}
+        <li>
+          <span class="mono">{{ t.path or t.name or "report" }}</span>
+          {% if t.summary %} — {{ t.summary }}{% endif %}
+        </li>
+        {% endfor %}
+      </ul>
+      {% elif dash.staging.tests_unscoped %}
+      <p class="meta">No SHA-scoped reports. Latest unscoped: {{ dash.staging.tests_unscoped }}</p>
+      {% else %}
+      <p class="meta">No eval reports found for the staging SHA.</p>
       {% endif %}
     </div>
   </div>

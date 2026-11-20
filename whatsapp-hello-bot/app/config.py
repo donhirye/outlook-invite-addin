@@ -111,12 +111,35 @@ METRICS_FILE = DATA_DIR / "usage_metrics.json"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 # Durable FAQ on Cloud Run (optional). Forbidden in local development.
+# FAQ_GCS_PREFIX isolates experiment deploys (e.g. experiments/feature-foo/) so
+# baseline bucket object names are never overwritten.
 FAQ_GCS_BUCKET = _env("FAQ_GCS_BUCKET", "")
-FAQ_GCS_OBJECT = _env("FAQ_GCS_OBJECT", "science_olympiad_faq.txt")
-FAQ_GCS_INDEX_OBJECT = _env(
-    "FAQ_GCS_INDEX_OBJECT",
-    "science_olympiad_faq.txt.index.json",
+_FAQ_GCS_PREFIX = _env("FAQ_GCS_PREFIX", "").strip().strip("/")
+
+
+def _faq_gcs_path(name: str) -> str:
+    """Join FAQ_GCS_PREFIX to a basename; leave absolute-ish object paths alone."""
+    name = (name or "").lstrip("/")
+    if not _FAQ_GCS_PREFIX:
+        return name
+    if name.startswith(f"{_FAQ_GCS_PREFIX}/"):
+        return name
+    # Already a nested object path set explicitly — do not double-prefix.
+    if "/" in name:
+        return name
+    return f"{_FAQ_GCS_PREFIX}/{name}"
+
+
+FAQ_GCS_PREFIX = _FAQ_GCS_PREFIX
+FAQ_GCS_OBJECT = _faq_gcs_path(_env("FAQ_GCS_OBJECT", "science_olympiad_faq.txt"))
+FAQ_GCS_INDEX_OBJECT = _faq_gcs_path(
+    _env(
+        "FAQ_GCS_INDEX_OBJECT",
+        "science_olympiad_faq.txt.index.json",
+    )
 )
+# Branch that produced this Cloud Run revision (experiment tracking).
+DEPLOY_BRANCH = _env("DEPLOY_BRANCH", "")
 
 # RAG retrieval (match production defaults for DEV baseline)
 FAQ_EMBEDDING_MODEL = _env("FAQ_EMBEDDING_MODEL", "text-embedding-3-small")
@@ -154,9 +177,12 @@ GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
 # Deployed commit label (Cloud Run / local). Public via /health; never a secret.
 GIT_SHA = _env("GIT_SHA", "") or _env("K_REVISION", "")
 
-# Read-only Releases dashboard probes (local DEV). No tokens.
+# Read-only Releases dashboard probes. Staging uses GitHub API (token in Secret Manager).
 STAGING_BASE_URL = _env("STAGING_BASE_URL", "").rstrip("/")
 PRODUCTION_BASE_URL = _env("PRODUCTION_BASE_URL", "").rstrip("/")
+# Fine-grained PAT: contents + metadata (+ pull requests) read-only. Never write.
+GITHUB_TOKEN = _env("GITHUB_TOKEN", "") or _env("GH_TOKEN", "")
+GITHUB_REPO = _env("GITHUB_REPO", "mihirphalke1/outlook-invite-addin")  # owner/repo
 
 
 def staging_config_problems() -> list[str]:

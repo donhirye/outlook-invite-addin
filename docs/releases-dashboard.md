@@ -1,45 +1,49 @@
-# Releases dashboard (local DEV)
+# Releases dashboard (staging + local DEV)
 
-Read-only Development & Release view at `/admin/releases` when `APP_ENV=development`.
+Authenticated read-only view at `/admin/releases` when `APP_ENV` is `staging` or `development`.
 
-It is **not** registered on staging or production Cloud Run.
+**Not** registered in production.
 
-## What you see
+## Sections
 
-1. **DEV** — current branch/commit, dirty files, feature branches, PRs (`gh` when available), experiment registry
-2. **STAGING / PROD** — **Recorded** deploy JSON vs **Live** `/health` probe
-3. **Promotion matrix** — feature × DEV/STAGING/PROD from git ancestry (Unknown when SHAs missing)
-4. **Git diagram** — simplified Mermaid of main + tips + deploy markers
+| Section | Content |
+|---------|---------|
+| Funnel | PROD / STAGING / branch-tip formula + counts |
+| A — Branch hierarchy | feature/experiment/cursor/hotfix tips vs main |
+| B/C — Deploy versions | Recorded + live `/health` for staging and prod (commit, revision, image) |
+| D — Matrix | Feature × tip / staging / prod ancestry |
+| E — Evals | SHA-scoped staging eval reports when present |
 
-## Setup
+## Data sources
+
+| Environment | Branch metadata | Deploy records |
+|-------------|-----------------|----------------|
+| Local DEV | Laptop `git` + `gh` | `data/releases/*.json` |
+| Staging Cloud Run | GitHub API (read-only PAT) | Local file if present, else `gs://…/releases/*.json` |
+
+### Staging GitHub token (optional but recommended)
+
+Create a fine-grained PAT with **Contents: Read** and **Metadata: Read** (Pull requests: Read if you want PR links). Store it in the staging project:
 
 ```powershell
-cd whatsapp-hello-bot
-copy .env.development.example .env.development
-# set STAGING_BASE_URL / PRODUCTION_BASE_URL for live probes
-.\scripts\run-dev.ps1
-# open http://127.0.0.1:8080/admin/releases
+# One-time (from a machine with staging deployer rights)
+gcloud secrets create staging-github-token --project=vi1234-staging
+# then add a version with the PAT value
 ```
 
-Edit experiment names in [`whatsapp-hello-bot/data/experiments.json`](../whatsapp-hello-bot/data/experiments.json).
+`deploy-staging.ps1` mounts it as `GITHUB_TOKEN` when the secret exists. Without it, branch hierarchy shows Unknown / empty gracefully.
 
 ## Deployment records
 
-| Source | File | Written by |
-|--------|------|------------|
-| Staging | `data/releases/staging-latest.json` | `scripts/deploy-staging.ps1` |
-| Production | `data/releases/production-latest.json` | GitHub Actions artifact → `scripts/pull-production-release-record.ps1` |
-
-JSON files are gitignored. Refresh the dashboard after pulling/writing records.
-
-## Live vs recorded
-
-- **Recorded** = last deploy script / artifact (what was intended to ship)
-- **Live** = HTTP GET `{STAGING,PRODUCTION}_BASE_URL/health` (`status`, `app_env`, `git_sha`)
-- Missing data shows **Unknown** / **Not Verified** — never invented
+| Source | Path | Writer |
+|--------|------|--------|
+| Staging (laptop) | `whatsapp-hello-bot/data/releases/staging-latest.json` | `deploy-staging.ps1` |
+| Staging (GCS) | `gs://vi1234-staging-whatsapp-faq/releases/staging-latest.json` | same |
+| Staging known-good | `gs://…/releases/staging-known-good.json` | deploy after smoke pass |
+| Production | Actions artifact → `pull-production-release-record.ps1` | manual prod workflow |
 
 ## Security
 
-- Dashboard is login-protected and read-only (refresh only)
-- No merge, deploy, or Cloud write from the app
-- No secrets in `/health` or release JSON
+- Login required; UI is read-only (refresh only)
+- No merge/deploy/Cloud write from the app
+- GitHub token is read-only; never used for pushes

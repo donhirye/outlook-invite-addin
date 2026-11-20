@@ -744,9 +744,12 @@ if IS_NON_PRODUCTION:
         app.add_middleware(StagingHtmlMiddleware)
     if IS_DEVELOPMENT:
         from app.dev_ui import DevHtmlMiddleware
-        from app.releases.routes import register_releases
 
         app.add_middleware(DevHtmlMiddleware)
+    # Releases dashboard: local DEV (git) and staging admin (GitHub API). Never production.
+    if IS_DEVELOPMENT or IS_STAGING:
+        from app.releases.routes import register_releases
+
         register_releases(
             app,
             is_logged_in=_is_logged_in,

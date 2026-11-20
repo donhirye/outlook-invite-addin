@@ -59,14 +59,47 @@ function Assert-StagingTarget {
   }
 }
 
-function Assert-NotExperimentalBranch {
-  # Local DEV / scratch branches must never be pushed through staging deploy scripts.
+function Assert-AllowedStagingBranch {
+  # Allow feature/* and experiment/* (and main) onto staging. Block laptop-only / WIP names.
+  # Hard anti-prod checks remain in Assert-StagingTarget / Invoke-GCloud.
   param([Parameter(Mandatory = $true)][string]$Branch)
-  if ($Branch -match '^(dev|local|experiment|wip|scratch)/' -or
-      $Branch -match '(^|/)(local-dev|dev-worktree|experiment)(/|$)' -or
-      $Branch -eq 'feature/local-dev-environment') {
-    throw ("Refusing to deploy experimental/local-dev branch '{0}'. " +
-           "Promote changes via PR to main (or an approved release branch) first.") -f $Branch
+  if ($Branch -eq 'main' -or $Branch -eq 'master') { return }
+  if ($Branch -match '^(feature|experiment)/') { return }
+  if ($Branch -match '^(dev|local|wip|scratch)/' -or
+      $Branch -match '(^|/)(local-dev|dev-worktree|local-scratch)(/|$)' -or
+      $Branch -eq 'feature/local-dev-environment' -or
+      $Branch -eq 'experiment/local-scratch') {
+    throw ("Refusing to deploy laptop-only / WIP branch '{0}'. " +
+           "Use feature/<name> or experiment/<name>, or restore from main.") -f $Branch
+  }
+  throw ("Refusing to deploy branch '{0}'. Staging deploys allow main, feature/*, or experiment/* only.") -f $Branch
+}
+
+# Backward-compatible alias (older scripts / docs).
+function Assert-NotExperimentalBranch {
+  param([Parameter(Mandatory = $true)][string]$Branch)
+  Assert-AllowedStagingBranch -Branch $Branch
+}
+
+function Get-BranchFaqPrefix {
+  # Baseline objects have no prefix. Experiment branches get experiments/<slug>/.
+  param([Parameter(Mandatory = $true)][string]$Branch)
+  if ($Branch -eq 'main' -or $Branch -eq 'master') { return "" }
+  $slug = ($Branch -replace '[^a-zA-Z0-9._-]', '-').ToLowerInvariant()
+  if ($slug.Length -gt 80) { $slug = $slug.Substring(0, 80) }
+  return "experiments/$slug"
+}
+
+function Assert-NotProductionTarget {
+  param(
+    [string]$Project = $script:StagingProject,
+    [string]$Service = $script:StagingService
+  )
+  if ($Project -eq $script:ProdProject -or $Service -eq $script:ProdService) {
+    throw "Refusing: staging scripts must never target production project/service."
+  }
+  if ($Project -notmatch 'staging' -or $Service -notmatch 'staging') {
+    throw "Refusing: target project/service must contain 'staging'."
   }
 }
 

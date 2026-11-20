@@ -5,17 +5,20 @@
 # - Target is hard-coded: project vi1234-staging, service whatsapp-faq-bot-staging.
 #   There is no option to deploy to production (production deploys only via the
 #   GitHub Actions workflow, with approval).
-# - Deploys exactly what is committed (git archive HEAD), never the working folder,
-#   so what you test is what is recorded in Git. Uncommitted tracked changes -> refused.
-# - Runs as the staging-only deployer service account (impersonation).
-# - Staging secrets come from Secret Manager in the staging project.
+# - Allows main, feature/*, and experiment/* (see Assert-AllowedStagingBranch).
+# - Deploys exactly what is committed (git archive HEAD), never the working folder.
+# - FAQ + embedding index: feature/experiment branches use GCS prefix
+#   experiments/<branch-slug>/ (baseline objects are copied, never overwritten).
+# - Writes local + GCS release records under releases/.
 
 param(
-  [switch]$SkipSmokeTests
+  [switch]$SkipSmokeTests,
+  [switch]$BaselineFaq
 )
 
 . "$PSScriptRoot\staging-common.ps1"
 Assert-StagingTarget
+Assert-NotProductionTarget
 
 $repoRoot = (& git rev-parse --show-toplevel).Trim()
 if (-not $repoRoot) { throw "Run this from inside the git repository." }
@@ -26,7 +29,7 @@ try {
     throw "Uncommitted changes to tracked files. Commit them first (staging deploys the commit, not the folder):`n$dirty"
   }
   $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
-  Assert-NotExperimentalBranch -Branch $branch
+  Assert-AllowedStagingBranch -Branch $branch
   $sha = (& git rev-parse HEAD).Trim()
   $shortSha = $sha.Substring(0, 7)
   $appDir = "whatsapp-hello-bot"
@@ -34,10 +37,14 @@ try {
     throw "Expected $appDir\Dockerfile under $repoRoot."
   }
 
-  # Double-check intended staging target before any deploy call.
   if ($script:StagingProject -ne "vi1234-staging" -or
       $script:StagingService -ne "whatsapp-faq-bot-staging") {
     throw "Refusing: unexpected staging target project/service."
+  }
+
+  $faqPrefix = ""
+  if (-not $BaselineFaq) {
+    $faqPrefix = Get-BranchFaqPrefix -Branch $branch
   }
 
   Write-Host "Staging deploy" -ForegroundColor Cyan
@@ -45,8 +52,38 @@ try {
   Write-Host "  service : $script:StagingService ($script:Region)"
   Write-Host "  runs as : $script:DeployerSa (impersonated)"
   Write-Host "  commit  : $shortSha on branch $branch"
+  if ($faqPrefix) {
+    Write-Host "  FAQ     : gs://$($script:StagingBucket)/$faqPrefix/ (isolated copy)"
+  }
+  else {
+    Write-Host "  FAQ     : baseline bucket objects (no prefix)"
+  }
 
-  # Export the commit (tracked files only) to a temp folder and deploy from there.
+  # Seed isolated FAQ/index/records from baseline when missing (never overwrite baseline).
+  if ($faqPrefix) {
+    $baselineObjects = @(
+      "science_olympiad_faq.txt",
+      "science_olympiad_faq.txt.index.json",
+      "faq_records.json"
+    )
+    foreach ($name in $baselineObjects) {
+      $dest = "$faqPrefix/$name"
+      $exists = Get-GCloudOutput storage ls "gs://$($script:StagingBucket)/$dest" @StagingArgs
+      if ($exists) {
+        Write-Host "  FAQ seed: $dest already present"
+        continue
+      }
+      $src = "gs://$($script:StagingBucket)/$name"
+      $srcOk = Get-GCloudOutput storage ls $src @StagingArgs
+      if (-not $srcOk) {
+        Write-Host "  FAQ seed: skip $name (baseline missing)" -ForegroundColor DarkYellow
+        continue
+      }
+      Write-Host "  FAQ seed: $name -> $dest"
+      Invoke-GCloud storage cp $src "gs://$($script:StagingBucket)/$dest" @StagingArgs
+    }
+  }
+
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ("staging-deploy-" + $shortSha + "-" + [guid]::NewGuid().ToString("N").Substring(0, 6))
   New-Item -ItemType Directory -Path $tmp | Out-Null
   $zip = "$tmp.zip"
@@ -55,19 +92,41 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
 
-    $envVars = @(
+    $envParts = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
-      "GIT_SHA=$shortSha"
-    ) -join ","
-    $secrets = @(
+      "GIT_SHA=$shortSha",
+      "DEPLOY_BRANCH=$branch",
+      "GITHUB_REPO=mihirphalke1/outlook-invite-addin"
+    )
+    if ($faqPrefix) {
+      $envParts += "FAQ_GCS_PREFIX=$faqPrefix"
+    }
+    $envVars = $envParts -join ","
+    $clearPrefixArgs = @()
+    if (-not $faqPrefix) {
+      # Drop experiment prefix so the service reads baseline FAQ/index objects.
+      $clearPrefixArgs = @("--remove-env-vars=FAQ_GCS_PREFIX")
+    }
+
+    $secretParts = @(
       "ADMIN_PASSWORD=$($script:SecretAdminPassword):latest",
       "SECRET_KEY=$($script:SecretSecretKey):latest",
       "OPENAI_API_KEY=$($script:SecretOpenAiKey):latest"
-    ) -join ","
+    )
+    # Optional read-only GitHub PAT for Releases metadata (contents/metadata).
+    $ghSecret = "staging-github-token"
+    $ghExists = Get-GCloudOutput secrets describe $ghSecret @StagingArgs "--format=value(name)"
+    if ($ghExists) {
+      $secretParts += "GITHUB_TOKEN=${ghSecret}:latest"
+      Write-Host "  secrets : including $ghSecret (Releases GitHub metadata)"
+    }
+    else {
+      Write-Host "  secrets : $ghSecret not found — Releases will show Unknown for GitHub metadata" -ForegroundColor DarkYellow
+    }
+    $secrets = $secretParts -join ","
 
-    # WhatsApp tokens are intentionally never set on staging.
     Invoke-GCloud run deploy $script:StagingService `
       @StagingArgs `
       "--region=$script:Region" `
@@ -77,6 +136,7 @@ try {
       "--min-instances=0" `
       "--max-instances=2" `
       "--set-env-vars=$envVars" `
+      @clearPrefixArgs `
       "--set-secrets=$secrets" `
       "--update-labels=env=staging,git-sha=$shortSha" `
       "--quiet"
@@ -100,25 +160,48 @@ try {
   Write-Host "  image    : $image"
   Write-Host "  url      : $url"
   Write-Host "  test chat: $url/admin/test-chat"
+  Write-Host "  releases : $url/admin/releases"
 
   function Write-StagingReleaseRecord([bool]$SmokeOk) {
     $releasesDir = Join-Path $repoRoot "whatsapp-hello-bot\data\releases"
     New-Item -ItemType Directory -Path $releasesDir -Force | Out-Null
     $record = [ordered]@{
-      git_sha     = $sha
-      branch      = $branch
-      revision    = $revision
-      image       = $image
-      url         = $url
-      deployed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
-      smoke_ok    = $SmokeOk
-      service     = $script:StagingService
-      project     = $script:StagingProject
-      region      = $script:Region
+      git_sha         = $sha
+      branch          = $branch
+      revision        = $revision
+      image           = $image
+      url             = $url
+      deployed_at     = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+      smoke_ok        = $SmokeOk
+      service         = $script:StagingService
+      project         = $script:StagingProject
+      region          = $script:Region
+      faq_gcs_prefix  = $faqPrefix
+      known_good      = [bool]$SmokeOk
     }
+    $json = ($record | ConvertTo-Json -Depth 4)
     $outPath = Join-Path $releasesDir "staging-latest.json"
-    ($record | ConvertTo-Json -Depth 4) | Set-Content -Path $outPath -Encoding utf8
+    $json | Set-Content -Path $outPath -Encoding utf8
     Write-Host "  record   : $outPath"
+
+    # Durable copy for Cloud Run Releases dashboard + restore script.
+    $gcsLatest = "gs://$($script:StagingBucket)/releases/staging-latest.json"
+    $tmpRec = Join-Path ([IO.Path]::GetTempPath()) ("staging-latest-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".json")
+    try {
+      $json | Set-Content -Path $tmpRec -Encoding utf8
+      Invoke-GCloud storage cp $tmpRec $gcsLatest @StagingArgs
+      Write-Host "  record   : $gcsLatest"
+      if ($SmokeOk) {
+        $hist = "gs://$($script:StagingBucket)/releases/history/$shortSha-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss')).json"
+        Invoke-GCloud storage cp $tmpRec $hist @StagingArgs
+        $good = "gs://$($script:StagingBucket)/releases/staging-known-good.json"
+        Invoke-GCloud storage cp $tmpRec $good @StagingArgs
+        Write-Host "  known-good: $good"
+      }
+    }
+    finally {
+      Remove-Item -Force $tmpRec -ErrorAction SilentlyContinue
+    }
   }
 
   if ($SkipSmokeTests) {
@@ -126,7 +209,6 @@ try {
     return
   }
 
-  # ---- smoke tests ---------------------------------------------------------------
   Add-Type -AssemblyName System.Net.Http
   $handler = New-Object System.Net.Http.HttpClientHandler
   $handler.AllowAutoRedirect = $false
@@ -156,10 +238,12 @@ try {
   $r = Get-Url "/admin/test-chat"
   Check "Test Chat requires login (redirect)" ([int]$r.StatusCode -in 302, 303, 307) $r.StatusCode
 
+  $r = Get-Url "/admin/releases"
+  Check "Releases requires login (redirect)" ([int]$r.StatusCode -in 302, 303, 307) $r.StatusCode
+
   $r = Get-Url "/admin/test-chat/api/personas"
   Check "Test Chat JSON endpoint rejects anonymous (401)" ([int]$r.StatusCode -eq 401) $r.StatusCode
 
-  # Login form is GET /admin (POST /admin/login has no GET page).
   $r = Get-Url "/admin"
   $body = $r.Content.ReadAsStringAsync().GetAwaiter().GetResult()
   Check "Admin page shows the STAGING banner" ($body -match "STAGING") "banner text not found"
@@ -167,7 +251,6 @@ try {
   $r = Get-Url "/metrics"
   Check "/metrics requires login" ([int]$r.StatusCode -in 302, 303, 307, 401) $r.StatusCode
 
-  # Optional: a real Test Chat turn, if you have the staging password in this shell.
   if ($env:STAGING_ADMIN_PASSWORD) {
     $pairs = New-Object 'System.Collections.Generic.Dictionary[string,string]'
     $pairs.Add("password", $env:STAGING_ADMIN_PASSWORD)
@@ -178,6 +261,9 @@ try {
     $chat = $http.PostAsync("$url/admin/test-chat/api/message", $payload).GetAwaiter().GetResult()
     $chatBody = $chat.Content.ReadAsStringAsync().GetAwaiter().GetResult()
     Check "Test Chat answers a message (200)" ($chat.StatusCode -eq 200 -and $chatBody -match '"messages"') "status=$($chat.StatusCode) body=$($chatBody.Substring(0, [Math]::Min(120, $chatBody.Length)))"
+    $rel = Get-Url "/admin/releases"
+    $relBody = $rel.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+    Check "Releases page loads after login" ($rel.StatusCode -eq 200 -and $relBody -match "Promotion funnel") "status=$($rel.StatusCode)"
   }
   else {
     Write-Host "  (skipped authenticated checks: set `$env:STAGING_ADMIN_PASSWORD to include them)" -ForegroundColor DarkGray

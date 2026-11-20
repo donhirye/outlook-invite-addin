@@ -9,8 +9,8 @@ A small, separate copy of the bot for experiments (prompts, models, routing, ret
 | Bucket | `vi1234-whatsapp-faq` | `vi1234-staging-whatsapp-faq` |
 | OpenAI key | production key | separate staging project + key |
 | WhatsApp | connected (webhook, tokens) | **none** — webhook returns 404, sends blocked |
-| Deploy | GitHub Actions from `main`, with approval | `scripts/deploy-staging.ps1` (committed HEAD) |
-| Admin pages | same pages | same pages + red **STAGING** banner + **Test Chat** |
+| Deploy | GitHub Actions from `main`, with approval | `scripts/deploy-staging.ps1` (`main` / `feature/*` / `experiment/*`) |
+| Admin pages | same pages | same + **STAGING** banner + **Test Chat** + **Releases** |
 
 ## How it stays safe
 
@@ -38,6 +38,8 @@ git checkout main; git pull; git checkout -b feature/my-experiment
 ```
 
 The script refuses uncommitted tracked changes (it deploys the commit), prints commit/revision/URL, and runs smoke tests (set `$env:STAGING_ADMIN_PASSWORD` to include a real login + chat turn).
+
+Feature/experiment branches get an isolated FAQ/index prefix under `experiments/<slug>/` (baseline objects untouched). Restore a broken staging with `.\scripts\restore-staging.ps1` (see [operating-guide.md](operating-guide.md)).
 
 ### Evals from your laptop against staging
 
@@ -73,4 +75,5 @@ Staging result looks good → PR to `main` → review → merge → then explici
 
 ## See also
 
-Local DEV **Releases** dashboard (branch/staging/prod lifecycle): [releases-dashboard.md](releases-dashboard.md).
+- [operating-guide.md](operating-guide.md) — branch → staging → restore → merge → prod
+- [releases-dashboard.md](releases-dashboard.md) — staging/DEV Releases UI

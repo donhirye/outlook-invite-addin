@@ -22,19 +22,26 @@ BANNER_HTML = (
     "all data here is a separate copy.</div>"
 )
 TEST_CHAT_PATH = "/admin/test-chat"
+RELEASES_PATH = "/admin/releases"
 _TEST_CHAT_LINK = f'<a href="{TEST_CHAT_PATH}">Test Chat</a>'
+_RELEASES_LINK = f'<a href="{RELEASES_PATH}">Releases</a>'
 _LOGOUT_LINK = '<a href="/admin/logout">'
 _BODY_RE = re.compile(r"(<body[^>]*>)", re.IGNORECASE)
 _TITLE_RE = re.compile(r"(<title[^>]*>)", re.IGNORECASE)
 
 
 def decorate_html(html: str) -> str:
-    """Add the STAGING banner, title prefix and Test Chat nav link."""
+    """Add the STAGING banner, title prefix, Releases + Test Chat nav links."""
     if 'id="staging-banner"' not in html:
         html = _BODY_RE.sub(lambda m: m.group(1) + BANNER_HTML, html, count=1)
         html = _TITLE_RE.sub(lambda m: m.group(1) + "[STAGING] ", html, count=1)
-    if _LOGOUT_LINK in html and TEST_CHAT_PATH not in html:
-        html = html.replace(_LOGOUT_LINK, _TEST_CHAT_LINK + _LOGOUT_LINK, 1)
+    inject = ""
+    if RELEASES_PATH not in html:
+        inject += _RELEASES_LINK
+    if TEST_CHAT_PATH not in html:
+        inject += _TEST_CHAT_LINK
+    if inject and _LOGOUT_LINK in html:
+        html = html.replace(_LOGOUT_LINK, inject + _LOGOUT_LINK, 1)
     return html
 
 
