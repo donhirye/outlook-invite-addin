@@ -89,8 +89,10 @@ print(json.dumps({
   "anon": anon.status_code,
   "login": login.status_code,
   "page": page.status_code,
-  "has_dev_section": "DEV" in page.text and "Local workspace" in page.text,
   "has_funnel": "Promotion funnel" in page.text and "BASE" in page.text,
+  "has_staging_pill": "STAGING" in page.text,
+  "no_top_dev_card": "Local workspace" not in page.text,
+  "no_deploy_detail": "Smoke:" not in page.text and "Container image" not in page.text,
   "no_deploy_button": "Deploy to" not in page.text,
   "has_refresh": "/admin/releases/refresh" in page.text,
 }))
@@ -99,8 +101,10 @@ print(json.dumps({
     )
     assert dev["anon"] in {302, 303}
     assert dev["page"] == 200
-    assert dev["has_dev_section"] is True
     assert dev["has_funnel"] is True
+    assert dev["has_staging_pill"] is True
+    assert dev["no_top_dev_card"] is True
+    assert dev["no_deploy_detail"] is True
     assert dev["no_deploy_button"] is True
     assert dev["has_refresh"] is True
 
