@@ -89,7 +89,7 @@ print(json.dumps({
   "anon": anon.status_code,
   "login": login.status_code,
   "page": page.status_code,
-  "has_funnel": "Promotion funnel" in page.text and "BASE" in page.text,
+  "has_funnel": "Promotion funnel" in page.text and "PROD" in page.text,
   "has_staging_pill": "STAGING" in page.text,
   "no_top_dev_card": "Local workspace" not in page.text,
   "no_deploy_detail": "Smoke:" not in page.text and "Container image" not in page.text,
@@ -403,7 +403,7 @@ def test_funnel_counts_staging_extras_beyond_base(monkeypatch):
     assert data["formula"]["funnel"]["on_staging"] == 1
     assert data["formula"]["funnel"]["in_base"] == 0
     assert "Feature A" in data["formula"]["staging_expression"]
-    assert data["formula"]["staging_expression"].startswith("BASE +")
+    assert data["formula"]["staging_expression"].startswith("PROD +")
 
 
 def test_eval_report_match_by_git_sha(tmp_path, monkeypatch):

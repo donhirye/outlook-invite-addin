@@ -103,26 +103,26 @@ def _mermaid(
 ) -> str:
     lines = ["flowchart LR"]
     base_label = _sha_short(base_sha) or "?"
-    lines.append(f'  BASE["BASE\\n{base_label}"]')
+    lines.append(f'  PROD["PROD\\n{base_label}"]')
     st_extras = formula.get("staging_extras") or []
     dev_extras = formula.get("dev_extras") or []
     if staging_sha:
         st_bits = ", ".join(st_extras[:5]) if st_extras else "(no extras)"
         if len(st_extras) > 5:
             st_bits += f", +{len(st_extras) - 5}"
-        lines.append(f'  STG["STAGING = BASE +\\n{st_bits}"]')
-        lines.append("  BASE --> STG")
+        lines.append(f'  STG["STAGING = PROD +\\n{st_bits}"]')
+        lines.append("  PROD --> STG")
     else:
         lines.append('  STG["STAGING\\nNot Verified"]')
-        lines.append("  BASE -.-> STG")
+        lines.append("  PROD -.-> STG")
     if dev_extras:
         dev_bits = ", ".join(dev_extras[:5])
         if len(dev_extras) > 5:
             dev_bits += f", +{len(dev_extras) - 5}"
-        lines.append(f'  DEV["DEV = BASE +\\n{dev_bits}"]')
+        lines.append(f'  DEV["DEV = PROD +\\n{dev_bits}"]')
     else:
-        lines.append('  DEV["DEV = BASE\\n(no extras tracked)"]')
-    lines.append("  BASE --> DEV")
+        lines.append('  DEV["DEV = PROD\\n(no extras tracked)"]')
+    lines.append("  PROD --> DEV")
     return "\n".join(lines)
 
 
@@ -221,14 +221,14 @@ def _build_matrix(
     ]
 
     formula = {
-        "base_label": "BASE (production)",
+        "base_label": "PROD",
         "staging_expression": (
-            "BASE + " + " + ".join(staging_extras)
+            "PROD + " + " + ".join(staging_extras)
             if staging_extras
-            else ("BASE" if staging_sha else "Not Verified")
+            else ("PROD" if staging_sha else "Not Verified")
         ),
         "dev_expression": (
-            "BASE + " + " + ".join(dev_extras) if dev_extras else "BASE"
+            "PROD + " + " + ".join(dev_extras) if dev_extras else "PROD"
         ),
         "staging_extras": staging_extras,
         "dev_extras": dev_extras,
@@ -272,18 +272,18 @@ def _build() -> dict[str, Any]:
     if prod_sha:
         base_sha = prod_sha
         base_source = "production"
-        base_note = "BASE is the production deploy commit."
+        base_note = "PROD is the production deploy commit."
     elif git.main_sha:
         base_sha = git.main_sha
         base_source = "main_proxy"
         base_note = (
-            "BASE is origin/main (proxy). Production deploy SHA is Not Verified — "
+            "PROD is origin/main (proxy). Production deploy SHA is Not Verified — "
             "pull a production release record or set PRODUCTION_BASE_URL after GIT_SHA is live."
         )
     else:
         base_sha = None
         base_source = "unknown"
-        base_note = "BASE is Unknown — no production SHA and no main ref."
+        base_note = "PROD is Unknown — no production SHA and no main ref."
 
     # STAGING = deploy/live SHA when known; else tip of feature/staging-environment.
     if staging_deploy_sha:
@@ -343,11 +343,11 @@ def _build() -> dict[str, Any]:
     formula["staging_sha_short"] = _sha_short(staging_sha)
     formula["staging_source"] = staging_source
     formula["staging_note"] = staging_note
-    # Prefer a concrete STAGING = BASE + … line once we have any staging SHA.
+    # Prefer a concrete STAGING = PROD + … line once we have any staging SHA.
     if staging_sha and formula.get("staging_expression") == "Not Verified":
         extras = formula.get("staging_extras") or []
         formula["staging_expression"] = (
-            "BASE + " + " + ".join(extras) if extras else "BASE"
+            "PROD + " + " + ".join(extras) if extras else "PROD"
         )
 
     delta: list[str] = []

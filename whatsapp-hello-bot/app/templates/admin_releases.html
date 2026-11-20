@@ -103,7 +103,7 @@
       </div>
 
       <div class="env-row">
-        <span><span class="pill pill-prod">BASE</span>
+        <span><span class="pill pill-prod">PROD</span>
           {% if dash.formula.base_sha_short %}
             <span class="mono">{{ dash.formula.base_source }} @ {{ dash.formula.base_sha_short }}</span>
           {% else %}
@@ -124,7 +124,7 @@
       <p class="meta">{{ dash.formula.base_note }}</p>
       <p class="meta">{{ dash.formula.staging_note }}</p>
 
-      <div class="formula">BASE    ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
+      <div class="formula">PROD    ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
 STAGING ({{ dash.formula.staging_source }}) @ {{ dash.formula.staging_sha_short or "Unknown" }}
          = {{ dash.formula.staging_expression }}
 DEV     = {{ dash.formula.dev_expression }}</div>
@@ -140,20 +140,20 @@ DEV     = {{ dash.formula.dev_expression }}</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--prod)">{{ dash.formula.funnel.in_base }}</div>
-          <div class="lbl">in BASE / PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}<br />tip is inside production/main</div>
+          <div class="lbl">in PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}<br />tip is inside production/main</div>
         </div>
         <div class="stat">
           <div class="n">{{ dash.formula.funnel.dev_only }}</div>
-          <div class="lbl">DEV only<br />on DEV, and confirmed <em>not</em> on staging or BASE</div>
+          <div class="lbl">DEV only<br />on DEV, and confirmed <em>not</em> on staging or PROD</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.staging_candidates }}</div>
-          <div class="lbl">staging candidates<br />on staging, not yet in BASE</div>
+          <div class="lbl">staging candidates<br />on staging, not yet in PROD</div>
         </div>
         {% if dash.formula.funnel.dev_pending %}
         <div class="stat">
           <div class="n" style="color:#ffb4a8">{{ dash.formula.funnel.dev_pending }}</div>
-          <div class="lbl">pending<br />on DEV, but staging/BASE not verified yet</div>
+          <div class="lbl">pending<br />on DEV, but staging/PROD not verified yet</div>
         </div>
         {% endif %}
       </div>
@@ -165,7 +165,7 @@ DEV     = {{ dash.formula.dev_expression }}</div>
             <th>Feature</th>
             <th><span class="pill pill-dev">On DEV?</span></th>
             <th><span class="pill pill-staging">On STAGING?</span></th>
-            <th><span class="pill pill-prod">In BASE?</span></th>
+            <th><span class="pill pill-prod">In PROD?</span></th>
             <th>Lane</th>
           </tr>
         </thead>
@@ -187,11 +187,11 @@ DEV     = {{ dash.formula.dev_expression }}</div>
         </tbody>
       </table>
       <p class="meta" style="margin-top:1rem;">
-        Merged leftovers already inside BASE are hidden. Track names in
-        <span class="mono">data/experiments.json</span>. Staging stays unknown until a deploy record / live GIT_SHA exists.
+        Merged leftovers already inside PROD are hidden. Track names in
+        <span class="mono">data/experiments.json</span>. Prefer a staging deploy record for verified staging status.
       </p>
       {% else %}
-        <p>No tracked experiments outside BASE. Add rows to <span class="mono">data/experiments.json</span>.</p>
+        <p>No tracked experiments outside PROD. Add rows to <span class="mono">data/experiments.json</span>.</p>
       {% endif %}
     </div>
   </div>
