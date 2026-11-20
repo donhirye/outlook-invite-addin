@@ -1,0 +1,33 @@
+---
+description: Staging vs production rules for the WhatsApp bot (deploys, data, credentials, experiments).
+alwaysApply: true
+---
+
+# Staging environment rules (WhatsApp PTSA bot)
+
+Staging is a separate Google Cloud project (`vi1234-staging`), service `whatsapp-faq-bot-staging`, with its own bucket, secrets and OpenAI key. Production is project `vi1234`, service `whatsapp-faq-bot`. Details: `docs/staging.md`.
+
+## Deploying
+
+1. "Deploy" with no other words means **staging**: run `whatsapp-hello-bot\scripts\deploy-staging.ps1` (deploys the committed HEAD of the current branch).
+2. Deploy to **production** only when the user explicitly says "production" / "prod". Production deploys go only through the GitHub Actions workflow "Deploy WhatsApp bot to Cloud Run" from `main`, with the production-environment approval. Never use `gcloud run deploy` against project `vi1234` from a laptop or script unless the user explicitly authorizes that emergency path.
+3. **Never deploy to production during AI experimentation.** Experiments (prompts, models, retrieval, routing) run on staging first; promotion = PR → review → merge to `main` → explicit production request.
+4. Always pass the project explicitly. Never rely on, read, or change `gcloud config` default project.
+
+## Git
+
+1. Sync `main` (`git fetch`, checkout, pull) before creating any branch; state the starting SHA.
+2. Do not auto-merge experimental branches. Open a PR and wait for the user.
+3. Never discard Git changes: no `git reset --hard`, `git checkout -- .`, `git clean -f`, or force-push over work the user did not ask you to drop. Stash or branch instead.
+
+## Production data and credentials — hands off
+
+Do not modify or read for write: production data (bucket `vi1234-whatsapp-faq`), production secrets/env vars, production IAM, or Meta/WhatsApp configuration (webhook URL, tokens, phone numbers) — unless the user explicitly asks for that specific change. Read-only seeding of reference data from production into staging is allowed via `scripts/seed-staging-data.ps1`.
+
+## Staging safety (do not weaken)
+
+- `APP_ENV=staging` blocks all WhatsApp sends and disables `/webhook`. Do not add WhatsApp tokens to staging or bypass this.
+- Staging requires a strong `ADMIN_PASSWORD` and distinct `SECRET_KEY`; Test Chat and its JSON endpoint require admin login. Keep credentials out of Git (Secret Manager only).
+- Test Chat must stay unreachable in production (404). Production stays the default when `APP_ENV` is unset.
+- Use fake test personas only; never put real parent phone numbers or messages into staging.
+- Live-model evals against staging use `--max-llm-calls` and stay within the staging OpenAI budget.

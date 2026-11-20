@@ -17,8 +17,30 @@ def _env(name: str, default: str = "") -> str:
     return cleaned
 
 
-ADMIN_PASSWORD = _env("ADMIN_PASSWORD", "changeme")
-SECRET_KEY = _env("SECRET_KEY", "change-me-to-a-long-random-string")
+# Deployment mode. Anything other than the exact value "staging" means production,
+# so an unset/misspelled value can never switch on staging-only features
+# (Test Chat) or switch off production behavior.
+APP_ENV = _env("APP_ENV", "production").lower()
+IS_STAGING = APP_ENV == "staging"
+
+_DEFAULT_ADMIN_PASSWORD = "changeme"
+_DEFAULT_SECRET_KEY = "change-me-to-a-long-random-string"
+ADMIN_PASSWORD = _env("ADMIN_PASSWORD", _DEFAULT_ADMIN_PASSWORD)
+SECRET_KEY = _env("SECRET_KEY", _DEFAULT_SECRET_KEY)
+
+
+def staging_config_problems() -> list[str]:
+    """Reasons staging must refuse to start (empty list = fine / not staging)."""
+    if not IS_STAGING:
+        return []
+    problems: list[str] = []
+    if ADMIN_PASSWORD in {"", _DEFAULT_ADMIN_PASSWORD} or len(ADMIN_PASSWORD) < 12:
+        problems.append("ADMIN_PASSWORD must be set to a unique value of 12+ characters")
+    if SECRET_KEY in {"", _DEFAULT_SECRET_KEY} or len(SECRET_KEY) < 32:
+        problems.append("SECRET_KEY must be set to a unique value of 32+ characters")
+    if WHATSAPP_ACCESS_TOKEN:
+        problems.append("WHATSAPP_ACCESS_TOKEN must not be set in staging")
+    return problems
 
 WHATSAPP_VERIFY_TOKEN = _env("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
 WHATSAPP_ACCESS_TOKEN = _env("WHATSAPP_ACCESS_TOKEN", "")
@@ -104,6 +126,7 @@ GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
 
 def credential_status() -> dict[str, object]:
     return {
+        "app_env": APP_ENV,
         "env_file": str(BASE_DIR / ".env"),
         "env_file_exists": (BASE_DIR / ".env").exists(),
         "access_token_len": len(WHATSAPP_ACCESS_TOKEN),

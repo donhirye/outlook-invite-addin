@@ -5,7 +5,12 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, Request, Response, UploadFile
-from fastapi.responses import HTMLResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import (
+    HTMLResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from itsdangerous import BadSignature, URLSafeSerializer
@@ -21,10 +26,12 @@ from app.config import (
     ADMIN_PASSWORD,
     BASE_DIR,
     GUIDED_ENABLED,
+    IS_STAGING,
     SECRET_KEY,
     TEMPLATES_DIR,
     WHATSAPP_VERIFY_TOKEN,
     credential_status,
+    staging_config_problems,
 )
 from app.engine_config import get_selected_engine_id, set_selected_engine_id
 from app.engines.pipeline import process_message
@@ -60,7 +67,13 @@ from app.whatsapp import mark_as_read_with_typing, send_choices, send_text_messa
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="WhatsApp Hello Bot", docs_url="/docs")
+app = FastAPI(
+    title="WhatsApp Hello Bot",
+    # Staging exposes no unauthenticated API docs.
+    docs_url=None if IS_STAGING else "/docs",
+    redoc_url=None if IS_STAGING else "/redoc",
+    openapi_url=None if IS_STAGING else "/openapi.json",
+)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY, session_cookie="hello_bot_session")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 signer = URLSafeSerializer(SECRET_KEY, salt="admin-auth")
@@ -83,6 +96,10 @@ BRANDING = {
 
 @app.on_event("startup")
 async def log_credential_status() -> None:
+    problems = staging_config_problems()
+    if problems:
+        # Fail closed: a misconfigured staging service must not start.
+        raise RuntimeError("Unsafe staging configuration: " + "; ".join(problems))
     status = credential_status()
     logger.info("Startup credential check: %s", status)
     if not status["access_token_len"] or not status["phone_number_id_set"]:
@@ -158,9 +175,11 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@app.get("/metrics")
-async def metrics() -> dict[str, object]:
+@app.get("/metrics", response_model=None)
+async def metrics(request: Request) -> Response | dict[str, object]:
     """Simple usage counters for local/prod inspection."""
+    if IS_STAGING and not _is_logged_in(request):
+        return JSONResponse({"error": "login required"}, status_code=401)
     data = get_metrics()
     data["guided"] = get_guided_metrics()
     data["guided_enabled"] = GUIDED_ENABLED
@@ -621,6 +640,8 @@ def _load_eval_summary() -> dict[str, Any]:
 async def verify_webhook(
     request: Request,
 ) -> Response:
+    if IS_STAGING:
+        return PlainTextResponse(content="Webhook disabled in staging", status_code=404)
     params = request.query_params
     mode = params.get("hub.mode")
     token = params.get("hub.verify_token")
@@ -634,9 +655,12 @@ async def verify_webhook(
     return PlainTextResponse(content="Verification failed", status_code=403)
 
 
-@app.post("/webhook")
-async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
+@app.post("/webhook", response_model=None)
+async def receive_webhook(payload: dict[str, Any]) -> Response | dict[str, str]:
     """Receive inbound WhatsApp messages via shared answering-engine pipeline."""
+    if IS_STAGING:
+        # Staging never processes WhatsApp traffic.
+        return JSONResponse({"status": "disabled in staging"}, status_code=404)
     try:
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
@@ -688,3 +712,18 @@ async def receive_webhook(payload: dict[str, Any]) -> dict[str, str]:
         # Always acknowledge quickly so Meta does not disable the webhook.
         logger.exception("Error while handling webhook")
     return {"status": "ok"}
+
+
+if IS_STAGING:
+    # Staging-only: STAGING banner on every HTML page + browser Test Chat. In
+    # production none of this is registered, so /admin/test-chat returns 404.
+    from app.staging import StagingHtmlMiddleware
+    from app.test_chat import register_test_chat
+
+    app.add_middleware(StagingHtmlMiddleware)
+    register_test_chat(
+        app,
+        is_logged_in=_is_logged_in,
+        templates=templates,
+        branding=_branding_context,
+    )
