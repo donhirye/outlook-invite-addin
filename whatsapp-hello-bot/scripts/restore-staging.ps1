@@ -69,7 +69,10 @@ try {
   }
   finally {
     Remove-Item -Force $tmpRec -ErrorAction SilentlyContinue
-    & git checkout $prevRef 2>$null
+    # git writes "Switched to..." on stderr; do not treat that as failure.
+    $ErrorActionPreference = "Continue"
+    & git checkout $prevRef 2>&1 | Out-Null
+    $ErrorActionPreference = "Stop"
   }
 
   Write-Host ""

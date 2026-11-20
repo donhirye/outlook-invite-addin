@@ -127,6 +127,7 @@ try {
     }
     $secrets = $secretParts -join ","
 
+    # Use --update-env-vars (not --set-env-vars) so we can also --remove-env-vars.
     Invoke-GCloud run deploy $script:StagingService `
       @StagingArgs `
       "--region=$script:Region" `
@@ -135,9 +136,9 @@ try {
       "--allow-unauthenticated" `
       "--min-instances=0" `
       "--max-instances=2" `
-      "--set-env-vars=$envVars" `
+      "--update-env-vars=$envVars" `
       @clearPrefixArgs `
-      "--set-secrets=$secrets" `
+      "--update-secrets=$secrets" `
       "--update-labels=env=staging,git-sha=$shortSha" `
       "--quiet"
   }
