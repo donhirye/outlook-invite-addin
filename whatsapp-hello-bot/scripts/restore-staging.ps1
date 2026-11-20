@@ -5,6 +5,9 @@
 #
 # A bad experiment deploy can take down staging (including /admin/releases) until
 # this restore completes. Production is never touched.
+#
+# Important: the deploy scripts run from a temp copy of *this* worktree's scripts
+# so checking out an older known-good commit cannot rewind the restore tooling.
 
 param(
   [switch]$FromMain,
@@ -17,7 +20,12 @@ Assert-NotProductionTarget
 
 $repoRoot = (& git rev-parse --show-toplevel).Trim()
 if (-not $repoRoot) { throw "Run this from inside the git repository." }
-$deployScript = Join-Path $PSScriptRoot "deploy-staging.ps1"
+
+$scriptTmp = Join-Path ([IO.Path]::GetTempPath()) ("staging-restore-scripts-" + [guid]::NewGuid().ToString("N").Substring(0, 8))
+New-Item -ItemType Directory -Path $scriptTmp | Out-Null
+Copy-Item (Join-Path $PSScriptRoot "staging-common.ps1") $scriptTmp
+Copy-Item (Join-Path $PSScriptRoot "deploy-staging.ps1") $scriptTmp
+$deployScript = Join-Path $scriptTmp "deploy-staging.ps1"
 $tmpRec = Join-Path ([IO.Path]::GetTempPath()) ("staging-known-good-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".json")
 
 Push-Location $repoRoot
@@ -57,19 +65,18 @@ try {
   Write-Host "  FAQ will use baseline objects (FAQ_GCS_PREFIX cleared)." -ForegroundColor Cyan
   Write-Host "  Production is not modified." -ForegroundColor Cyan
 
-  # Named branch so deploy-staging allowlist + DEPLOY_BRANCH stay valid.
   $restoreBranch = "feature/staging-restore"
   & git checkout -B $restoreBranch $targetSha
   if ($LASTEXITCODE -ne 0) { throw "git checkout $targetSha failed." }
 
   try {
-    $args = @{ BaselineFaq = $true }
-    if ($SkipSmokeTests) { $args.SkipSmokeTests = $true }
-    & $deployScript @args
+    $argList = @("-BaselineFaq")
+    if ($SkipSmokeTests) { $argList += "-SkipSmokeTests" }
+    & powershell -NoProfile -File $deployScript @argList
+    if ($LASTEXITCODE -ne 0) { throw "deploy-staging.ps1 failed during restore ($LASTEXITCODE)." }
   }
   finally {
     Remove-Item -Force $tmpRec -ErrorAction SilentlyContinue
-    # git writes "Switched to..." on stderr; do not treat that as failure.
     $ErrorActionPreference = "Continue"
     & git checkout $prevRef 2>&1 | Out-Null
     $ErrorActionPreference = "Stop"
@@ -79,5 +86,6 @@ try {
   Write-Host "Restore finished. Confirm /health, /admin/test-chat, /admin/releases." -ForegroundColor Green
 }
 finally {
+  Remove-Item -Recurse -Force $scriptTmp -ErrorAction SilentlyContinue
   Pop-Location
 }
