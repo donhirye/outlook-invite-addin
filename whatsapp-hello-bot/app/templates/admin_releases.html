@@ -132,24 +132,30 @@ DEV     = {{ dash.formula.dev_expression }}</div>
       <div class="funnel">
         <div class="stat">
           <div class="n" style="color:var(--dev)">{{ dash.formula.funnel.on_dev }}</div>
-          <div class="lbl">on DEV <span class="pill pill-dev">of {{ dash.formula.funnel.tracked }} tracked</span></div>
+          <div class="lbl">on DEV <span class="pill pill-dev">of {{ dash.formula.funnel.tracked }} tracked</span><br />branch exists for this feature</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.on_staging }}</div>
-          <div class="lbl">on STAGING{% if dash.formula.funnel.staging_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.staging_unknown }} unknown</span>{% endif %}</div>
+          <div class="lbl">on STAGING{% if dash.formula.funnel.staging_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.staging_unknown }} unknown</span>{% endif %}<br />tip is inside the staging commit</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--prod)">{{ dash.formula.funnel.in_base }}</div>
-          <div class="lbl">in BASE / PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}</div>
+          <div class="lbl">in BASE / PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}<br />tip is inside production/main</div>
         </div>
         <div class="stat">
           <div class="n">{{ dash.formula.funnel.dev_only }}</div>
-          <div class="lbl">DEV only</div>
+          <div class="lbl">DEV only<br />on DEV, and confirmed <em>not</em> on staging or BASE</div>
         </div>
         <div class="stat">
           <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.staging_candidates }}</div>
-          <div class="lbl">staging candidates</div>
+          <div class="lbl">staging candidates<br />on staging, not yet in BASE</div>
         </div>
+        {% if dash.formula.funnel.dev_pending %}
+        <div class="stat">
+          <div class="n" style="color:#ffb4a8">{{ dash.formula.funnel.dev_pending }}</div>
+          <div class="lbl">pending<br />on DEV, but staging/BASE not verified yet</div>
+        </div>
+        {% endif %}
       </div>
 
       {% if dash.matrix %}

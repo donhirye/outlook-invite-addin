@@ -240,6 +240,7 @@ def _build_matrix(
             "staging_unknown": stg_unknown,
             "base_unknown": prod_unknown,
             "dev_only": sum(1 for r in rows if r["lane"] == "dev_only"),
+            "dev_pending": sum(1 for r in rows if r["lane"] == "dev_pending"),
             "staging_candidates": sum(
                 1 for r in rows if r["lane"] in {"staging_candidate", "on_staging"}
             ),
