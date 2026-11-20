@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -59,15 +59,7 @@
       <img src="{{ logo_url }}" alt="Crone logo" />
       <div class="brand-text"><strong>Crone Middle School PTSA</strong>Event Assistant admin</div>
     </div>
-    <nav>
-      <a href="/admin/link">Group link</a>
-      <a href="/admin/intro">Intro message</a>
-            <a href="/admin/faq">FAQs</a>
-      <a href="/admin/calendar">School Calendar</a>
-      <a href="/admin/guided">Guided Conversations</a>
-      <a class="active" href="/admin/analytics">Analytics</a>
-      <a href="/admin/logout">Log out</a>
-    </nav>
+    {% include "partials/admin_nav.html" %}
     <h1>Analytics</h1>
     <p>Product usage, answering-engine performance, and evaluation results. No raw phone numbers or message bodies.</p>
 

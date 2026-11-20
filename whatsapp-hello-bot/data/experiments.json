@@ -1,0 +1,26 @@
+{
+  "experiments": [
+    {
+      "id": "staging-environment",
+      "name": "Staging environment",
+      "objective": "Isolated Cloud Run staging with Test Chat and blocked WhatsApp sends",
+      "branch": "feature/staging-environment",
+      "status": "ready",
+      "notes": "Deploy via scripts/deploy-staging.ps1"
+    },
+    {
+      "id": "local-dev-environment",
+      "name": "Local DEV environment",
+      "objective": "Laptop-only APP_ENV=development with data/dev isolation",
+      "branch": "feature/local-dev-environment",
+      "status": "experimental"
+    },
+    {
+      "id": "releases-dashboard",
+      "name": "Releases dashboard",
+      "objective": "Visual DEV/STAGING/PROD lifecycle in local admin",
+      "branch": "feature/releases-dashboard",
+      "status": "experimental"
+    }
+  ]
+}

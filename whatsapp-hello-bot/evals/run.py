@@ -118,6 +118,25 @@ def _score_case(case: dict[str, Any], result, *, engine_id: str) -> dict[str, An
     }
 
 
+def _local_git_sha() -> str | None:
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=str(ROOT.parent),
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if out.returncode == 0:
+            return (out.stdout or "").strip() or None
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    return None
+
+
 def _remote_client(base_url: str):
     """Logged-in client for a staging service's Test Chat JSON endpoint."""
     import httpx
@@ -139,6 +158,20 @@ def _remote_client(base_url: str):
     return client
 
 
+def _probe_remote_git_sha(client) -> str | None:
+    try:
+        health = client.get("/health")
+        if health.status_code != 200:
+            return None
+        data = health.json()
+        sha = (data.get("git_sha") or "").strip()
+        if sha and sha.lower() != "unknown":
+            return sha
+    except Exception:
+        return None
+    return None
+
+
 def run_remote(
     base_url: str, cases: list[dict], *, max_llm_calls: int
 ) -> dict[str, Any]:
@@ -146,6 +179,7 @@ def run_remote(
     from types import SimpleNamespace
 
     client = _remote_client(base_url)
+    remote_sha = _probe_remote_git_sha(client)
     persona = "parent_a"
     results = []
     passed = 0
@@ -203,6 +237,7 @@ def run_remote(
     return {
         "engine_id": engine_seen,
         "target": base_url,
+        "git_sha": remote_sha,
         "passed": passed,
         "failed": ran - passed,
         "cases_run": ran,
@@ -341,6 +376,7 @@ def main() -> None:
         "case_count": len(cases),
         "mode": mode,
         "label": label,
+        "git_sha": _local_git_sha(),
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "live_cost_cap_usd": LIVE_COST_CAP_USD if args.live_model else None,
         "engines": [

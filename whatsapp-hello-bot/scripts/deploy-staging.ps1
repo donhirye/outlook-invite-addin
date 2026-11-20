@@ -26,11 +26,18 @@ try {
     throw "Uncommitted changes to tracked files. Commit them first (staging deploys the commit, not the folder):`n$dirty"
   }
   $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
+  Assert-NotExperimentalBranch -Branch $branch
   $sha = (& git rev-parse HEAD).Trim()
   $shortSha = $sha.Substring(0, 7)
   $appDir = "whatsapp-hello-bot"
   if (-not (Test-Path (Join-Path $repoRoot "$appDir\Dockerfile"))) {
     throw "Expected $appDir\Dockerfile under $repoRoot."
+  }
+
+  # Double-check intended staging target before any deploy call.
+  if ($script:StagingProject -ne "vi1234-staging" -or
+      $script:StagingService -ne "whatsapp-faq-bot-staging") {
+    throw "Refusing: unexpected staging target project/service."
   }
 
   Write-Host "Staging deploy" -ForegroundColor Cyan
@@ -80,16 +87,44 @@ try {
 
   $url = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.url)"
   $revision = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.latestReadyRevisionName)"
+  $image = ""
+  if ($revision) {
+    $image = Get-GCloudOutput run revisions describe $revision @StagingArgs "--region=$script:Region" "--format=value(spec.containers[0].image)"
+  }
   if (-not $url) { throw "Deploy finished but the service URL could not be read." }
 
   Write-Host ""
   Write-Host "Deployed." -ForegroundColor Green
   Write-Host "  commit   : $shortSha ($branch)"
   Write-Host "  revision : $revision"
+  Write-Host "  image    : $image"
   Write-Host "  url      : $url"
   Write-Host "  test chat: $url/admin/test-chat"
 
-  if ($SkipSmokeTests) { return }
+  function Write-StagingReleaseRecord([bool]$SmokeOk) {
+    $releasesDir = Join-Path $repoRoot "whatsapp-hello-bot\data\releases"
+    New-Item -ItemType Directory -Path $releasesDir -Force | Out-Null
+    $record = [ordered]@{
+      git_sha     = $sha
+      branch      = $branch
+      revision    = $revision
+      image       = $image
+      url         = $url
+      deployed_at = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
+      smoke_ok    = $SmokeOk
+      service     = $script:StagingService
+      project     = $script:StagingProject
+      region      = $script:Region
+    }
+    $outPath = Join-Path $releasesDir "staging-latest.json"
+    ($record | ConvertTo-Json -Depth 4) | Set-Content -Path $outPath -Encoding utf8
+    Write-Host "  record   : $outPath"
+  }
+
+  if ($SkipSmokeTests) {
+    Write-StagingReleaseRecord $false
+    return
+  }
 
   # ---- smoke tests ---------------------------------------------------------------
   Add-Type -AssemblyName System.Net.Http
@@ -149,8 +184,10 @@ try {
   }
 
   if ($script:failures.Count -gt 0) {
+    Write-StagingReleaseRecord $false
     throw "Smoke tests failed: $($script:failures -join '; ')"
   }
+  Write-StagingReleaseRecord $true
   Write-Host ""
   Write-Host "All smoke tests passed." -ForegroundColor Green
 }

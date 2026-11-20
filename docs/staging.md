@@ -70,3 +70,7 @@ The generated staging admin password is printed once during provisioning — sav
 ## Promoting an experiment
 
 Staging result looks good → PR to `main` → review → merge → then explicitly ask for a **production** deploy via the GitHub Actions workflow. Staging never promotes itself.
+
+## See also
+
+Local DEV **Releases** dashboard (branch/staging/prod lifecycle): [releases-dashboard.md](releases-dashboard.md).

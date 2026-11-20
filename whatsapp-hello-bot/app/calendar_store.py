@@ -14,15 +14,15 @@ from threading import Lock
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET, SHARED_DATA_DIR
 
 logger = logging.getLogger(__name__)
 
 CHICAGO = ZoneInfo("America/Chicago")
-CALENDAR_FILE = BASE_DIR / "data" / "school_calendar.json"
+CALENDAR_FILE = DATA_DIR / "school_calendar.json"
 CALENDAR_GCS_OBJECT = "school_calendar.json"
 CALENDAR_IMPORT_SEED = (
-    BASE_DIR / "data" / "imports" / "school_district_204_2026_2027_calendar.csv"
+    SHARED_DATA_DIR / "imports" / "school_district_204_2026_2027_calendar.csv"
 )
 DEFAULT_SOURCE_NAME = "School District 204 2026–2027 Calendar"
 DEFAULT_SOURCE_URL = (

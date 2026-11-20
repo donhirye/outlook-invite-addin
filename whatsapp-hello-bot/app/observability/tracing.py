@@ -11,14 +11,14 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET
 from app.engines.base import AnswerResult
 from app.observability.analytics_store import append_event
 from app.observability.privacy import message_fingerprint, phone_hash
 
 logger = logging.getLogger(__name__)
 
-TRACES_FILE = BASE_DIR / "data" / "answer_traces.jsonl"
+TRACES_FILE = DATA_DIR / "answer_traces.jsonl"
 TRACES_GCS_OBJECT = "answer_traces.jsonl"
 _lock = Lock()
 

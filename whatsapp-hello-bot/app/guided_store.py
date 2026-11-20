@@ -7,11 +7,11 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET
 
 logger = logging.getLogger(__name__)
 
-GUIDED_DIR = BASE_DIR / "data" / "guided"
+GUIDED_DIR = DATA_DIR / "guided"
 GUIDED_GCS_PREFIX = "guided/"
 
 

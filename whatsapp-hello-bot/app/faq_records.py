@@ -13,14 +13,15 @@ from threading import Lock
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET, SHARED_DATA_DIR
 
 logger = logging.getLogger(__name__)
 
 CHICAGO = ZoneInfo("America/Chicago")
-FAQ_RECORDS_FILE = BASE_DIR / "data" / "faq_records.json"
+FAQ_RECORDS_FILE = DATA_DIR / "faq_records.json"
 FAQ_RECORDS_GCS_OBJECT = "faq_records.json"
-FAQ_IMPORT_SEED = BASE_DIR / "data" / "imports" / "Crone_Combined_FAQs_Admin_Import.csv"
+# Shared seed CSV (not env-specific mutable state).
+FAQ_IMPORT_SEED = SHARED_DATA_DIR / "imports" / "Crone_Combined_FAQs_Admin_Import.csv"
 _lock = Lock()
 _cache: dict[str, Any] | None = None
 

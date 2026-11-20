@@ -5,6 +5,7 @@ import httpx
 
 from app.config import (
     GRAPH_API_VERSION,
+    IS_DEVELOPMENT,
     IS_STAGING,
     WHATSAPP_ACCESS_TOKEN,
     WHATSAPP_PHONE_NUMBER_ID,
@@ -14,10 +15,15 @@ logger = logging.getLogger(__name__)
 
 
 async def _post_whatsapp(payload: dict[str, Any], *, to_phone: str) -> dict:
-    # Hard stop: staging must never reach Meta, even if a token is configured by mistake.
+    # Hard stop: staging/DEV must never reach Meta, even if a token is present.
     if IS_STAGING:
         logger.info("Staging: WhatsApp sends are disabled; not sending to %s", to_phone)
         return {"skipped": True, "reason": "staging_sends_disabled"}
+    if IS_DEVELOPMENT:
+        logger.info(
+            "LOCAL DEV: WhatsApp sends are disabled; not sending to %s", to_phone
+        )
+        return {"skipped": True, "reason": "development_sends_disabled"}
 
     if not WHATSAPP_ACCESS_TOKEN:
         logger.warning(

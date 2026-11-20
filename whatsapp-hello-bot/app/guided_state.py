@@ -9,12 +9,12 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET
 
 logger = logging.getLogger(__name__)
 
-STATE_FILE = BASE_DIR / "data" / "guided_state.json"
-SEEN_FILE = BASE_DIR / "data" / "webhook_seen.json"
+STATE_FILE = DATA_DIR / "guided_state.json"
+SEEN_FILE = DATA_DIR / "webhook_seen.json"
 STATE_GCS_OBJECT = "guided_state.json"
 SEEN_GCS_OBJECT = "webhook_seen.json"
 STATE_TTL_SECONDS = 24 * 60 * 60

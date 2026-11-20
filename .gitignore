@@ -8,6 +8,8 @@ node_modules/
 whatsapp-hello-bot/.env
 whatsapp-hello-bot/.env.*
 !whatsapp-hello-bot/.env.example
+!whatsapp-hello-bot/.env.development.example
+whatsapp-hello-bot/data/dev/
 whatsapp-hello-bot/.venv/
 whatsapp-hello-bot/__pycache__/
 whatsapp-hello-bot/**/__pycache__/
@@ -32,3 +34,7 @@ whatsapp-hello-bot/docs/~$*
 
 # Live evals run against staging (local results)
 whatsapp-hello-bot/evals/reports/staging_*.json
+
+# Deployment records written by deploy scripts / artifact pull (local laptop)
+whatsapp-hello-bot/data/releases/*.json
+!whatsapp-hello-bot/data/releases/.gitkeep

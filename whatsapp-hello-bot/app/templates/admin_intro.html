@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -132,15 +132,7 @@
         Event Assistant admin
       </div>
     </div>
-    <nav>
-      <a href="/admin/link">Group link</a>
-      <a class="active" href="/admin/intro">Intro message</a>
-            <a href="/admin/faq">FAQs</a>
-      <a href="/admin/calendar">School Calendar</a>
-      <a href="/admin/guided">Guided Conversations</a>
-      <a href="/admin/analytics">Analytics</a>
-      <a href="/admin/logout">Log out</a>
-    </nav>
+    {% include "partials/admin_nav.html" %}
     <h1>Intro message</h1>
     <p>
       This is the first bot reply parents get after they tap Send on the

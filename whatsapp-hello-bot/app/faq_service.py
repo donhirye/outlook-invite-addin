@@ -23,6 +23,77 @@ logger = logging.getLogger(__name__)
 # Deterministic FAQ answering (not the same thing as confidence).
 FAQ_LLM_TEMPERATURE = 0
 
+
+def _is_reasoning_model(model: str) -> bool:
+    """Models that accept Responses API ``reasoning.effort`` (and often reject temperature)."""
+    m = (model or "").strip().lower()
+    return bool(
+        m.startswith("gpt-5")
+        or m.startswith("o1")
+        or m.startswith("o3")
+        or m.startswith("o4")
+    )
+
+
+def build_faq_llm_create_kwargs(
+    *,
+    model: str,
+    instructions: str,
+    user_input: str,
+    temperature: float = FAQ_LLM_TEMPERATURE,
+    reasoning_effort: str | None = None,
+) -> dict:
+    """Build Responses API kwargs compatible with the selected model.
+
+    - Chat models (gpt-4o-mini, …): send temperature; omit reasoning.
+    - Reasoning models (gpt-5*, o*): omit temperature; send reasoning.effort when set.
+    - ``none`` / empty effort always omits reasoning.
+    """
+    kwargs: dict = {
+        "model": model,
+        "instructions": instructions,
+        "input": user_input,
+    }
+    effort = (reasoning_effort or "").strip().lower()
+    if effort in {"", "none", "off"}:
+        effort = ""
+
+    if _is_reasoning_model(model):
+        if effort:
+            kwargs["reasoning"] = {"effort": effort}
+    else:
+        kwargs["temperature"] = temperature
+    return kwargs
+
+
+def call_faq_llm_with_param_fallback(client: OpenAI, create_kwargs: dict):
+    """Create a response; on unsupported-param errors, strip and retry.
+
+    Some models reject ``temperature``, others reject ``reasoning`` / specific
+    effort values. Strip only the disputed parameter(s) and retry until the
+    call succeeds or nothing left to strip.
+    """
+    kwargs = dict(create_kwargs)
+    last_exc: Exception | None = None
+    for _ in range(4):
+        try:
+            return client.responses.create(**kwargs)
+        except Exception as exc:  # noqa: BLE001 — surface after retries
+            last_exc = exc
+            msg = str(exc).lower()
+            stripped = False
+            if "temperature" in msg and "temperature" in kwargs:
+                kwargs.pop("temperature", None)
+                stripped = True
+            if "reasoning" in msg and "reasoning" in kwargs:
+                kwargs.pop("reasoning", None)
+                stripped = True
+            if not stripped:
+                raise
+    assert last_exc is not None
+    raise last_exc
+
+
 SYSTEM_INSTRUCTIONS = """You are the event FAQ Assistant for parents.
 Answer the parent's question using ONLY the FAQ excerpts provided to you, plus the
 TODAY'S DATE line in the user message (America/Chicago) when comparing event timing.
@@ -401,30 +472,14 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
 
         client = OpenAI(api_key=OPENAI_API_KEY)
         openai_started = time.perf_counter()
-        create_kwargs = {
-            "model": OPENAI_MODEL,
-            "instructions": SYSTEM_INSTRUCTIONS,
-            "input": user_input,
-            "temperature": FAQ_LLM_TEMPERATURE,
-        }
-        if OPENAI_REASONING_EFFORT:
-            create_kwargs["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
-        try:
-            response = client.responses.create(**create_kwargs)
-        except Exception as exc:
-            msg = str(exc).lower()
-            # gpt-5* often rejects temperature; non-reasoning models may reject reasoning.
-            retried = False
-            if "temperature" in msg and "temperature" in create_kwargs:
-                create_kwargs.pop("temperature", None)
-                retried = True
-            if "reasoning" in msg and "reasoning" in create_kwargs:
-                create_kwargs.pop("reasoning", None)
-                retried = True
-            if retried:
-                response = client.responses.create(**create_kwargs)
-            else:
-                raise
+        create_kwargs = build_faq_llm_create_kwargs(
+            model=OPENAI_MODEL,
+            instructions=SYSTEM_INSTRUCTIONS,
+            user_input=user_input,
+            temperature=FAQ_LLM_TEMPERATURE,
+            reasoning_effort=OPENAI_REASONING_EFFORT,
+        )
+        response = call_faq_llm_with_param_fallback(client, create_kwargs)
         openai_call_ms = (time.perf_counter() - openai_started) * 1000
         llm_invocations = 1
         usage = getattr(response, "usage", None)

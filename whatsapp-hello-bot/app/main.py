@@ -24,14 +24,18 @@ from app.calendar_store import (
 )
 from app.config import (
     ADMIN_PASSWORD,
+    APP_ENV,
     BASE_DIR,
+    GIT_SHA,
     GUIDED_ENABLED,
+    IS_DEVELOPMENT,
+    IS_NON_PRODUCTION,
     IS_STAGING,
     SECRET_KEY,
     TEMPLATES_DIR,
     WHATSAPP_VERIFY_TOKEN,
     credential_status,
-    staging_config_problems,
+    env_config_problems,
 )
 from app.engine_config import get_selected_engine_id, set_selected_engine_id
 from app.engines.pipeline import process_message
@@ -69,7 +73,7 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="WhatsApp Hello Bot",
-    # Staging exposes no unauthenticated API docs.
+    # Staging hides docs; local DEV keeps them for experimentation.
     docs_url=None if IS_STAGING else "/docs",
     redoc_url=None if IS_STAGING else "/redoc",
     openapi_url=None if IS_STAGING else "/openapi.json",
@@ -91,18 +95,25 @@ BRANDING = {
     "favicon_url": "/static/branding/crone_favicon.png",
     "pin_poster_url": "/static/branding/crone-ptsa-assistant-pin.png",
     "pin_poster_filename": "crone-ptsa-assistant-pin.png",
+    "is_development": IS_DEVELOPMENT,
+    "is_staging": IS_STAGING,
 }
 
 
 @app.on_event("startup")
 async def log_credential_status() -> None:
-    problems = staging_config_problems()
+    problems = env_config_problems()
     if problems:
-        # Fail closed: a misconfigured staging service must not start.
-        raise RuntimeError("Unsafe staging configuration: " + "; ".join(problems))
+        # Fail closed: misconfigured staging/DEV must not start.
+        raise RuntimeError("Unsafe environment configuration: " + "; ".join(problems))
     status = credential_status()
     logger.info("Startup credential check: %s", status)
-    if not status["access_token_len"] or not status["phone_number_id_set"]:
+    if IS_DEVELOPMENT:
+        logger.info(
+            "LOCAL DEV mode: data_dir=%s WhatsApp sends blocked; GCS forbidden",
+            status.get("data_dir"),
+        )
+    elif not status["access_token_len"] or not status["phone_number_id_set"]:
         logger.warning(
             "WhatsApp send will fail until WHATSAPP_ACCESS_TOKEN and "
             "WHATSAPP_PHONE_NUMBER_ID are set in .env and uvicorn is restarted."
@@ -172,13 +183,18 @@ async def privacy_policy() -> HTMLResponse:
 
 @app.get("/health")
 async def health() -> dict[str, str]:
-    return {"status": "ok"}
+    # Non-secret deploy fingerprint for the Releases dashboard live probe.
+    return {
+        "status": "ok",
+        "app_env": APP_ENV,
+        "git_sha": GIT_SHA or "Unknown",
+    }
 
 
 @app.get("/metrics", response_model=None)
 async def metrics(request: Request) -> Response | dict[str, object]:
     """Simple usage counters for local/prod inspection."""
-    if IS_STAGING and not _is_logged_in(request):
+    if IS_NON_PRODUCTION and not _is_logged_in(request):
         return JSONResponse({"error": "login required"}, status_code=401)
     data = get_metrics()
     data["guided"] = get_guided_metrics()
@@ -640,8 +656,11 @@ def _load_eval_summary() -> dict[str, Any]:
 async def verify_webhook(
     request: Request,
 ) -> Response:
-    if IS_STAGING:
-        return PlainTextResponse(content="Webhook disabled in staging", status_code=404)
+    if IS_NON_PRODUCTION:
+        label = "development" if IS_DEVELOPMENT else "staging"
+        return PlainTextResponse(
+            content=f"Webhook disabled in {label}", status_code=404
+        )
     params = request.query_params
     mode = params.get("hub.mode")
     token = params.get("hub.verify_token")
@@ -658,9 +677,9 @@ async def verify_webhook(
 @app.post("/webhook", response_model=None)
 async def receive_webhook(payload: dict[str, Any]) -> Response | dict[str, str]:
     """Receive inbound WhatsApp messages via shared answering-engine pipeline."""
-    if IS_STAGING:
-        # Staging never processes WhatsApp traffic.
-        return JSONResponse({"status": "disabled in staging"}, status_code=404)
+    if IS_NON_PRODUCTION:
+        label = "development" if IS_DEVELOPMENT else "staging"
+        return JSONResponse({"status": f"disabled in {label}"}, status_code=404)
     try:
         for entry in payload.get("entry", []):
             for change in entry.get("changes", []):
@@ -714,13 +733,26 @@ async def receive_webhook(payload: dict[str, Any]) -> Response | dict[str, str]:
     return {"status": "ok"}
 
 
-if IS_STAGING:
-    # Staging-only: STAGING banner on every HTML page + browser Test Chat. In
-    # production none of this is registered, so /admin/test-chat returns 404.
-    from app.staging import StagingHtmlMiddleware
+if IS_NON_PRODUCTION:
+    # Staging / local DEV: environment banner + browser Test Chat.
+    # In production none of this is registered, so /admin/test-chat returns 404.
     from app.test_chat import register_test_chat
 
-    app.add_middleware(StagingHtmlMiddleware)
+    if IS_STAGING:
+        from app.staging import StagingHtmlMiddleware
+
+        app.add_middleware(StagingHtmlMiddleware)
+    if IS_DEVELOPMENT:
+        from app.dev_ui import DevHtmlMiddleware
+        from app.releases.routes import register_releases
+
+        app.add_middleware(DevHtmlMiddleware)
+        register_releases(
+            app,
+            is_logged_in=_is_logged_in,
+            templates=templates,
+            branding=_branding_context,
+        )
     register_test_chat(
         app,
         is_logged_in=_is_logged_in,

@@ -11,11 +11,11 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET
 
 logger = logging.getLogger(__name__)
 
-EVENTS_FILE = BASE_DIR / "data" / "analytics_events.jsonl"
+EVENTS_FILE = DATA_DIR / "analytics_events.jsonl"
 EVENTS_GCS_OBJECT = "analytics_events.jsonl"
 SESSION_IDLE_MINUTES = 30
 ABANDON_IDLE_MINUTES = 30

@@ -51,6 +51,23 @@ function Assert-StagingTarget {
   if ($script:StagingProject -eq $script:ProdProject) {
     throw "Refusing to continue: staging project equals the production project."
   }
+  if ($script:StagingService -eq $script:ProdService) {
+    throw "Refusing to continue: staging service equals the production service."
+  }
+  if ($script:StagingBucket -eq $script:ProdBucket) {
+    throw "Refusing to continue: staging bucket equals the production bucket."
+  }
+}
+
+function Assert-NotExperimentalBranch {
+  # Local DEV / scratch branches must never be pushed through staging deploy scripts.
+  param([Parameter(Mandatory = $true)][string]$Branch)
+  if ($Branch -match '^(dev|local|experiment|wip|scratch)/' -or
+      $Branch -match '(^|/)(local-dev|dev-worktree|experiment)(/|$)' -or
+      $Branch -eq 'feature/local-dev-environment') {
+    throw ("Refusing to deploy experimental/local-dev branch '{0}'. " +
+           "Promote changes via PR to main (or an approved release branch) first.") -f $Branch
+  }
 }
 
 function Invoke-GCloud {

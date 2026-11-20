@@ -146,10 +146,12 @@ jobs:
           # Intentionally omit --set-env-vars / --update-env-vars / --clear-base-image
           # / --service-account so existing Cloud Run configuration is preserved.
           # .gcloudignore excludes .env, .venv, playground, learning artifacts, CSVs.
+          # --update-env-vars merges GIT_SHA only; do NOT use --set-env-vars (would wipe).
           gcloud run deploy "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --source=. \
+            --update-env-vars="GIT_SHA=${{ github.sha }}" \
             --quiet
 
       - name: Verify new revision is Ready
@@ -246,3 +248,52 @@ jobs:
             echo "  --to-revisions=${{ steps.before.outputs.revision }}=100"
             echo "\`\`\`"
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Write production release record artifact
+        if: ${{ !inputs.dry_run }}
+        working-directory: whatsapp-hello-bot
+        env:
+          RECORD_GIT_SHA: ${{ github.sha }}
+          RECORD_REVISION: ${{ steps.verify.outputs.revision }}
+          RECORD_IMAGE: ${{ steps.verify.outputs.image }}
+          RECORD_URL_VAR: ${{ vars.CLOUD_RUN_SERVICE_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/releases
+          SERVICE_URL="${RECORD_URL_VAR:-}"
+          if [ -z "${SERVICE_URL}" ]; then
+            SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --format='value(status.url)')"
+          fi
+          export SERVICE_URL
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          record = {
+              "git_sha": os.environ["RECORD_GIT_SHA"],
+              "branch": "main",
+              "revision": os.environ.get("RECORD_REVISION") or None,
+              "image": os.environ.get("RECORD_IMAGE") or None,
+              "url": (os.environ.get("SERVICE_URL") or "").strip() or None,
+              "deployed_at": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "smoke_ok": True,
+              "service": os.environ["SERVICE_NAME"],
+              "project": os.environ["PROJECT_ID"],
+              "region": os.environ["REGION"],
+          }
+          path = "data/releases/production-latest.json"
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(record, f, indent=2)
+              f.write("\n")
+          print(f"Wrote {path}: git_sha={record['git_sha'][:7]} revision={record['revision']}")
+          PY
+
+      - name: Upload production release record
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-record
+          path: whatsapp-hello-bot/data/releases/production-latest.json
+          if-no-files-found: error

@@ -11,11 +11,11 @@ import re
 from pathlib import Path
 from urllib.parse import quote
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET, FAQ_GCS_OBJECT
+from app.config import DATA_DIR, FAQ_GCS_BUCKET, FAQ_GCS_OBJECT
 
 logger = logging.getLogger(__name__)
 
-EVENT_LINK_FILE = BASE_DIR / "data" / "event_link.json"
+EVENT_LINK_FILE = DATA_DIR / "event_link.json"
 EVENT_LINK_GCS_OBJECT = "event_link.json"
 
 DEFAULT_PREFILL = "Hi, I have a question about Kendall 5th Grade Celebration"

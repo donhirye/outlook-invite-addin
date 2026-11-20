@@ -1,0 +1,13 @@
+<nav>
+  <a class="{% if active_nav == 'link' %}active{% endif %}" href="/admin/link">Group link</a>
+  <a class="{% if active_nav == 'intro' %}active{% endif %}" href="/admin/intro">Intro message</a>
+  <a class="{% if active_nav == 'faq' %}active{% endif %}" href="/admin/faq">FAQs</a>
+  <a class="{% if active_nav == 'calendar' %}active{% endif %}" href="/admin/calendar">School Calendar</a>
+  <a class="{% if active_nav == 'guided' %}active{% endif %}" href="/admin/guided">Guided Conversations</a>
+  <a class="{% if active_nav == 'analytics' %}active{% endif %}" href="/admin/analytics">Analytics</a>
+  {% if is_development %}
+  <a class="{% if active_nav == 'releases' %}active{% endif %}" href="/admin/releases">Releases</a>
+  <a class="{% if active_nav == 'test-chat' %}active{% endif %}" href="/admin/test-chat">Test Chat</a>
+  {% endif %}
+  <a href="/admin/logout">Log out</a>
+</nav>

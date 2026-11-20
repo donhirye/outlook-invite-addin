@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Releases — Admin</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "dark", securityLevel: "strict" });
+  </script>
+  <style>
+    :root {
+      --bg: #0f2a24;
+      --panel: #17352d;
+      --ink: #f3f7f5;
+      --muted: #a8c0b7;
+      --accent: #25d366;
+      --accent-ink: #0b1f19;
+      --border: rgba(255, 255, 255, 0.12);
+      --dev: #9b7bff;
+      --staging: #f0a14a;
+      --prod: #3dcf8e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Segoe UI", system-ui, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
+        radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
+        var(--bg);
+      padding: 1.5rem;
+    }
+    .wrap { width: min(72rem, 100%); margin: 0 auto; }
+    .card {
+      background: color-mix(in srgb, var(--panel) 92%, black);
+      border: 1px solid var(--border);
+      border-radius: 1rem;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+    }
+    .brand { display: flex; align-items: center; gap: .75rem; margin-bottom: 1rem; }
+    .brand img { width: 2.75rem; height: 2.75rem; object-fit: contain; border-radius: 999px; background: #000; }
+    .brand-text { font-size: .85rem; color: var(--muted); line-height: 1.35; }
+    .brand-text strong { display: block; color: var(--ink); font-size: .95rem; }
+    h1 { margin: 0 0 .35rem; font-size: 1.4rem; font-weight: 650; }
+    h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
+    p { margin: 0 0 1rem; color: var(--muted); line-height: 1.45; }
+    nav { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    nav a {
+      color: var(--muted); text-decoration: none; border: 1px solid var(--border);
+      border-radius: .65rem; padding: .45rem .75rem; font-size: .9rem;
+    }
+    nav a.active { color: var(--accent-ink); background: var(--accent); border-color: transparent; font-weight: 600; }
+    .section-dev { border-top: 4px solid var(--dev); }
+    .section-staging { border-top: 4px solid var(--staging); }
+    .section-prod { border-top: 4px solid var(--prod); }
+    .pill {
+      display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
+      text-transform: uppercase; padding: .2rem .45rem; border-radius: .4rem; margin-right: .35rem;
+    }
+    .pill-dev { background: color-mix(in srgb, var(--dev) 35%, transparent); color: #e6dcff; }
+    .pill-staging { background: color-mix(in srgb, var(--staging) 35%, transparent); color: #ffe2c2; }
+    .pill-prod { background: color-mix(in srgb, var(--prod) 35%, transparent); color: #c9ffe4; }
+    .pill-rec { background: rgba(255,255,255,.08); color: var(--muted); }
+    .pill-live { background: rgba(61,207,142,.2); color: var(--prod); }
+    .pill-unk { background: rgba(255,180,168,.15); color: #ffb4a8; }
+    .meta { font-size: .85rem; color: var(--muted); margin-bottom: 1rem; }
+    .grid2 { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+    th, td { text-align: left; padding: .45rem .4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { color: var(--muted); font-weight: 600; }
+    code, .mono { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
+    .cell {
+      display: inline-block; min-width: 5.5rem; text-align: center; padding: .25rem .4rem;
+      border-radius: .4rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
+    }
+    .cell-deployed { background: color-mix(in srgb, var(--prod) 30%, transparent); color: var(--prod); }
+    .cell-implemented { background: color-mix(in srgb, var(--dev) 25%, transparent); color: var(--dev); }
+    .cell-experimental { background: color-mix(in srgb, var(--staging) 28%, transparent); color: var(--staging); }
+    .cell-not_present { background: rgba(255,255,255,.06); color: var(--muted); }
+    .cell-unknown { background: rgba(255,180,168,.12); color: #ffb4a8; }
+    button, .btn {
+      border: 1px solid var(--border); background: rgba(0,0,0,.25); color: var(--ink);
+      border-radius: .65rem; padding: .55rem .9rem; font: inherit; cursor: pointer;
+    }
+    button:hover, .btn:hover { border-color: var(--accent); }
+    .mermaid { background: rgba(0,0,0,.25); border-radius: .75rem; padding: 1rem; overflow-x: auto; }
+    ul.compact { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .85rem; }
+    a { color: #9be7c4; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="brand">
+        <img src="{{ logo_url }}" alt="" />
+        <div class="brand-text">
+          <strong>Crone Middle School PTSA</strong>
+          Development &amp; Release Dashboard
+        </div>
+      </div>
+      {% include "partials/admin_nav.html" %}
+      <h1>Releases</h1>
+      <p>Read-only view of local experiments, staging, and production. No deploy or merge actions.</p>
+      <div class="meta">
+        Last refreshed: <span class="mono">{{ dash.refreshed_at }}</span>
+        &nbsp;·&nbsp;
+        <form method="post" action="/admin/releases/refresh" style="display:inline;">
+          <button type="submit">Refresh</button>
+        </form>
+      </div>
+    </div>
+
+    <div class="card section-dev">
+      <h2><span class="pill pill-dev">DEV</span> Local workspace</h2>
+      {% if not dash.dev.available %}
+        <p>Git unavailable: {{ dash.dev.error or "Unknown" }}</p>
+      {% else %}
+        <div class="grid2">
+          <div>
+            <div class="meta">Branch</div>
+            <div class="mono">{{ dash.dev.branch }}</div>
+          </div>
+          <div>
+            <div class="meta">Commit</div>
+            <div class="mono">{{ dash.dev.short_commit }}</div>
+            <div class="meta">{{ dash.dev.commit_subject }}</div>
+            <div class="meta">{{ dash.dev.commit_date }}</div>
+          </div>
+        </div>
+        <h3 style="font-size:.95rem;margin:1rem 0 .5rem;">Uncommitted changes</h3>
+        {% if dash.dev.dirty_files %}
+          <ul class="compact">{% for f in dash.dev.dirty_files %}<li class="mono">{{ f }}</li>{% endfor %}</ul>
+        {% else %}
+          <p>Working tree clean (tracked files).</p>
+        {% endif %}
+        <h3 style="font-size:.95rem;margin:1rem 0 .5rem;">Feature / experimental branches</h3>
+        {% if dash.dev.branches %}
+        <table>
+          <thead>
+            <tr>
+              <th>Branch</th>
+              <th>Experiment</th>
+              <th>Latest commit</th>
+              <th>vs main</th>
+              <th>Merged</th>
+              <th>PR</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for b in dash.dev.branches %}
+            <tr>
+              <td class="mono">{{ b.name }}{% if b.is_remote %} <span class="pill pill-rec">remote</span>{% endif %}</td>
+              <td>
+                <strong>{{ b.experiment_name }}</strong><br />
+                <span class="meta">{{ b.experiment_objective }}</span>
+              </td>
+              <td>
+                <span class="mono">{{ b.tip_sha_short or "Unknown" }}</span><br />
+                {{ b.tip_subject }}<br />
+                <span class="meta">{{ b.tip_date }} · first: {{ b.first_commit_date }}</span>
+              </td>
+              <td class="mono">
+                {% if b.ahead is not none %}▲{{ b.ahead }} {% else %}? {% endif %}
+                {% if b.behind is not none %}▼{{ b.behind }}{% else %}?{% endif %}
+              </td>
+              <td>
+                {% if b.merged_into_main is none %}Unknown
+                {% elif b.merged_into_main %}Yes
+                {% else %}No{% endif %}
+              </td>
+              <td>
+                {% if b.pr_url %}<a href="{{ b.pr_url }}" target="_blank" rel="noopener">#{{ b.pr_number or "?" }}</a>
+                <span class="meta">({{ b.pr_state }})</span>
+                {% else %}Unknown{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <p>No feature/experimental branches found.</p>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="card section-staging">
+      <h2><span class="pill pill-staging">STAGING</span> Deployed environment</h2>
+      <div class="grid2">
+        <div>
+          <h3 style="font-size:.9rem;"><span class="pill pill-rec">Recorded</span></h3>
+          {% set r = dash.staging.recorded %}
+          {% if r.available %}
+            <ul class="compact">
+              <li>Git: <span class="mono">{{ r.git_sha or "Unknown" }}</span></li>
+              <li>Branch: <span class="mono">{{ r.branch or "Unknown" }}</span></li>
+              <li>Service: <span class="mono">{{ r.service or "Unknown" }}</span></li>
+              <li>Revision: <span class="mono">{{ r.revision or "Unknown" }}</span></li>
+              <li>Image: <span class="mono">{{ r.image or "Unknown" }}</span></li>
+              <li>Deployed: {{ r.deployed_at or "Unknown" }}</li>
+              <li>Smoke: {% if r.smoke_ok is none %}Unknown{% elif r.smoke_ok %}ok{% else %}failed{% endif %}</li>
+              <li>URL: {% if r.url %}<a href="{{ r.url }}">{{ r.url }}</a>{% else %}Unknown{% endif %}</li>
+            </ul>
+          {% else %}
+            <p>{{ r.detail or "Unknown" }}</p>
+          {% endif %}
+        </div>
+        <div>
+          <h3 style="font-size:.9rem;"><span class="pill pill-live">Live</span></h3>
+          {% set L = dash.staging.live %}
+          {% if L.available %}
+            <ul class="compact">
+              <li>Health: {{ L.health_status }}</li>
+              <li>app_env: <span class="mono">{{ L.app_env }}</span></li>
+              <li>git_sha: <span class="mono">{{ L.git_sha }}</span></li>
+              <li>Probe: <span class="mono">{{ L.url }}</span></li>
+            </ul>
+          {% else %}
+            <p><span class="pill pill-unk">{{ L.status }}</span> {{ L.detail }}</p>
+            {% if not dash.config.staging_base_url %}
+              <p class="meta">Set STAGING_BASE_URL in .env.development to enable live checks.</p>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+      <h3 style="font-size:.95rem;margin:1rem 0 .5rem;">In staging, not production</h3>
+      {% if dash.staging.delta_status == "Recorded" and dash.staging.delta_vs_prod %}
+        <ul class="compact">{% for line in dash.staging.delta_vs_prod %}<li class="mono">{{ line }}</li>{% endfor %}</ul>
+      {% elif dash.staging.delta_status == "Recorded" %}
+        <p>No commits between production and staging SHAs (or identical).</p>
+      {% else %}
+        <p><span class="pill pill-unk">Not Verified</span> Need both staging and production git SHAs.</p>
+      {% endif %}
+      <h3 style="font-size:.95rem;margin:1rem 0 .5rem;">Regression tests for deployed SHA</h3>
+      {% if dash.staging.tests %}
+        <table>
+          <thead><tr><th>File</th><th>SHA</th><th>Passed</th><th>Failed</th><th>Cases</th></tr></thead>
+          <tbody>
+            {% for t in dash.staging.tests %}
+            <tr>
+              <td class="mono">{{ t.file }}</td>
+              <td class="mono">{{ t.git_sha }}</td>
+              <td>{{ t.passed if t.passed is not none else "Unknown" }}</td>
+              <td>{{ t.failed if t.failed is not none else "Unknown" }}</td>
+              <td>{{ t.cases_run if t.cases_run is not none else "Unknown" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <p><span class="pill pill-unk">Not Verified</span> No eval report with matching git_sha.</p>
+        {% if dash.staging.tests_unscoped %}
+          <p class="meta">Unscoped on-disk summary: {{ dash.staging.tests_unscoped.file }}
+            (git_sha={{ dash.staging.tests_unscoped.git_sha or "missing" }}) — not claimed for this deploy.</p>
+        {% endif %}
+      {% endif %}
+    </div>
+
+    <div class="card section-prod">
+      <h2><span class="pill pill-prod">PROD</span> Production</h2>
+      <div class="grid2">
+        <div>
+          <h3 style="font-size:.9rem;"><span class="pill pill-rec">Recorded</span></h3>
+          {% set r = dash.production.recorded %}
+          {% if r.available %}
+            <ul class="compact">
+              <li>Git: <span class="mono">{{ r.git_sha or "Unknown" }}</span></li>
+              <li>Branch: <span class="mono">{{ r.branch or "Unknown" }}</span></li>
+              <li>Service: <span class="mono">{{ r.service or "Unknown" }}</span></li>
+              <li>Revision: <span class="mono">{{ r.revision or "Unknown" }}</span></li>
+              <li>Image: <span class="mono">{{ r.image or "Unknown" }}</span></li>
+              <li>Deployed: {{ r.deployed_at or "Unknown" }}</li>
+              <li>URL: {% if r.url %}<a href="{{ r.url }}">{{ r.url }}</a>{% else %}Unknown{% endif %}</li>
+            </ul>
+          {% else %}
+            <p>{{ r.detail or "Unknown" }}</p>
+            <p class="meta">After a production deploy, run scripts/pull-production-release-record.ps1</p>
+          {% endif %}
+        </div>
+        <div>
+          <h3 style="font-size:.9rem;"><span class="pill pill-live">Live</span></h3>
+          {% set L = dash.production.live %}
+          {% if L.available %}
+            <ul class="compact">
+              <li>Health: {{ L.health_status }}</li>
+              <li>app_env: <span class="mono">{{ L.app_env }}</span></li>
+              <li>git_sha: <span class="mono">{{ L.git_sha }}</span></li>
+              <li>Probe: <span class="mono">{{ L.url }}</span></li>
+            </ul>
+          {% else %}
+            <p><span class="pill pill-unk">{{ L.status }}</span> {{ L.detail }}</p>
+            {% if not dash.config.production_base_url %}
+              <p class="meta">Set PRODUCTION_BASE_URL in .env.development to enable live checks.</p>
+            {% endif %}
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Feature promotion matrix</h2>
+      <p>Cells are derived from git ancestry and deploy records — never hardcoded.</p>
+      {% if dash.matrix %}
+      <table>
+        <thead>
+          <tr>
+            <th>Feature</th>
+            <th><span class="pill pill-dev">DEV</span></th>
+            <th><span class="pill pill-staging">STAGING</span></th>
+            <th><span class="pill pill-prod">PROD</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in dash.matrix %}
+          <tr>
+            <td>
+              <strong>{{ row.name }}</strong><br />
+              <span class="meta">{{ row.objective }}</span><br />
+              <span class="mono">{{ row.branch }}</span>
+            </td>
+            <td><span class="cell cell-{{ row.dev }}">{{ row.dev.replace('_', ' ') }}</span></td>
+            <td><span class="cell cell-{{ row.staging }}">{{ row.staging.replace('_', ' ') }}</span></td>
+            <td><span class="cell cell-{{ row.production }}">{{ row.production.replace('_', ' ') }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+        <p>No experiments or feature branches to show.</p>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <h2>Visual git history</h2>
+      <p>Simplified view of main and experimental tips. Staging/prod markers appear when SHAs are known.</p>
+      <pre class="mermaid">{{ dash.mermaid }}</pre>
+    </div>
+  </div>
+</body>
+</html>

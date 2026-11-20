@@ -6,12 +6,12 @@ import json
 import logging
 from pathlib import Path
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET
 from app.engines.base import ENGINE_1, IMPLEMENTED_ENGINES
 
 logger = logging.getLogger(__name__)
 
-CONFIG_FILE = BASE_DIR / "data" / "engine_config.json"
+CONFIG_FILE = DATA_DIR / "engine_config.json"
 CONFIG_GCS_OBJECT = "engine_config.json"
 
 

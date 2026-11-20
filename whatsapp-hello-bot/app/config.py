@@ -5,8 +5,52 @@ from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# utf-8-sig strips Windows Notepad BOM that can break variable names
-load_dotenv(BASE_DIR / ".env", encoding="utf-8-sig")
+# Dangerous vars that must not leak into DEV from the parent shell / leftover env.
+_DEV_CLEAR_VARS = (
+    "FAQ_GCS_BUCKET",
+    "WHATSAPP_ACCESS_TOKEN",
+    "WHATSAPP_PHONE_NUMBER_ID",
+    "OPENAI_API_KEY",
+    "ADMIN_PASSWORD",
+    "SECRET_KEY",
+)
+
+
+def _load_dotenv_files() -> Path | None:
+    """Load env files. DEV never silently inherits ``.env`` (prod/staging secrets).
+
+    Precedence:
+    1. ``DOTENV_PATH`` (absolute or relative to BASE_DIR) — used by ``run-dev.ps1``
+    2. If process ``APP_ENV=development`` already set → only ``.env.development``
+    3. Otherwise ``.env`` (local prod-like / legacy)
+    """
+    explicit = (os.environ.get("DOTENV_PATH") or "").strip()
+    app_env_hint = (os.environ.get("APP_ENV") or "").strip().lower()
+
+    if explicit:
+        path = Path(explicit)
+        if not path.is_absolute():
+            path = BASE_DIR / path
+        # Scrub inherited cloud/WhatsApp/OpenAI secrets before loading DEV file.
+        if app_env_hint == "development" or "development" in path.name:
+            for name in _DEV_CLEAR_VARS:
+                os.environ.pop(name, None)
+        load_dotenv(path, encoding="utf-8-sig", override=True)
+        return path
+
+    if app_env_hint == "development":
+        for name in _DEV_CLEAR_VARS:
+            os.environ.pop(name, None)
+        path = BASE_DIR / ".env.development"
+        load_dotenv(path, encoding="utf-8-sig", override=True)
+        return path
+
+    path = BASE_DIR / ".env"
+    load_dotenv(path, encoding="utf-8-sig")
+    return path if path.exists() else None
+
+
+_LOADED_DOTENV = _load_dotenv_files()
 
 
 def _env(name: str, default: str = "") -> str:
@@ -17,16 +61,102 @@ def _env(name: str, default: str = "") -> str:
     return cleaned
 
 
-# Deployment mode. Anything other than the exact value "staging" means production,
-# so an unset/misspelled value can never switch on staging-only features
-# (Test Chat) or switch off production behavior.
+# Deployment mode. Only exact values enable non-production features.
+# Unset / misspelled / anything else => production behavior (fail closed for Test Chat).
 APP_ENV = _env("APP_ENV", "production").lower()
 IS_STAGING = APP_ENV == "staging"
+IS_DEVELOPMENT = APP_ENV == "development"
+IS_NON_PRODUCTION = IS_STAGING or IS_DEVELOPMENT
 
 _DEFAULT_ADMIN_PASSWORD = "changeme"
 _DEFAULT_SECRET_KEY = "change-me-to-a-long-random-string"
 ADMIN_PASSWORD = _env("ADMIN_PASSWORD", _DEFAULT_ADMIN_PASSWORD)
 SECRET_KEY = _env("SECRET_KEY", _DEFAULT_SECRET_KEY)
+
+WHATSAPP_VERIFY_TOKEN = _env("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
+WHATSAPP_ACCESS_TOKEN = _env("WHATSAPP_ACCESS_TOKEN", "")
+WHATSAPP_PHONE_NUMBER_ID = _env("WHATSAPP_PHONE_NUMBER_ID", "")
+GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
+
+OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
+OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-4o-mini")
+# For gpt-5* reasoning models via Responses API. Empty = omit (non-reasoning models).
+OPENAI_REASONING_EFFORT = _env("OPENAI_REASONING_EFFORT", "minimal").lower()
+if OPENAI_REASONING_EFFORT not in {
+    "",
+    "none",
+    "minimal",
+    "low",
+    "medium",
+    "high",
+    "xhigh",
+}:
+    OPENAI_REASONING_EFFORT = "minimal"
+
+# Comma-separated admin phones allowed to run /faq (digits with country code, no +)
+_raw_admin_phones = _env("FAQ_ADMIN_PHONES", "")
+FAQ_ADMIN_PHONES = {
+    "".join(ch for ch in part if ch.isdigit())
+    for part in _raw_admin_phones.split(",")
+    if part.strip()
+}
+
+# Mutable runtime data: isolated under data/dev when APP_ENV=development.
+SHARED_DATA_DIR = BASE_DIR / "data"
+DATA_DIR = SHARED_DATA_DIR / "dev" if IS_DEVELOPMENT else SHARED_DATA_DIR
+
+GREETING_FILE = DATA_DIR / "greeting.json"
+FAQ_FILE = DATA_DIR / "science_olympiad_faq.txt"
+METRICS_FILE = DATA_DIR / "usage_metrics.json"
+TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
+
+# Durable FAQ on Cloud Run (optional). Forbidden in local development.
+FAQ_GCS_BUCKET = _env("FAQ_GCS_BUCKET", "")
+FAQ_GCS_OBJECT = _env("FAQ_GCS_OBJECT", "science_olympiad_faq.txt")
+FAQ_GCS_INDEX_OBJECT = _env(
+    "FAQ_GCS_INDEX_OBJECT",
+    "science_olympiad_faq.txt.index.json",
+)
+
+# RAG retrieval (match production defaults for DEV baseline)
+FAQ_EMBEDDING_MODEL = _env("FAQ_EMBEDDING_MODEL", "text-embedding-3-small")
+try:
+    FAQ_TOP_K = max(1, int(_env("FAQ_TOP_K", "4")))
+except ValueError:
+    FAQ_TOP_K = 4
+
+try:
+    FAQ_SKIP_RAG_MAX_CHARS = max(0, int(_env("FAQ_SKIP_RAG_MAX_CHARS", "30000")))
+except ValueError:
+    FAQ_SKIP_RAG_MAX_CHARS = 30000
+
+PARENT_FALLBACK_MESSAGE = (
+    "Sorry, I'm having trouble answering right now. Please try again shortly."
+)
+FAQ_NOT_FOUND_MESSAGE = (
+    "I couldn't find that information in the event FAQ. "
+    "Please contact the PTSA Administrators."
+)
+STUDENT_PRIVACY_MESSAGE = (
+    "Sorry — per PTSA privacy policy, a privacy filter has been applied. "
+    "This assistant cannot provide student personal information "
+    "(including student names, student IDs, phone numbers, or email addresses). "
+    "Please contact the school office for help with student records."
+)
+
+GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
+    "1",
+    "true",
+    "yes",
+    "on",
+}
+
+# Deployed commit label (Cloud Run / local). Public via /health; never a secret.
+GIT_SHA = _env("GIT_SHA", "") or _env("K_REVISION", "")
+
+# Read-only Releases dashboard probes (local DEV). No tokens.
+STAGING_BASE_URL = _env("STAGING_BASE_URL", "").rstrip("/")
+PRODUCTION_BASE_URL = _env("PRODUCTION_BASE_URL", "").rstrip("/")
 
 
 def staging_config_problems() -> list[str]:
@@ -42,93 +172,37 @@ def staging_config_problems() -> list[str]:
         problems.append("WHATSAPP_ACCESS_TOKEN must not be set in staging")
     return problems
 
-WHATSAPP_VERIFY_TOKEN = _env("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
-WHATSAPP_ACCESS_TOKEN = _env("WHATSAPP_ACCESS_TOKEN", "")
-WHATSAPP_PHONE_NUMBER_ID = _env("WHATSAPP_PHONE_NUMBER_ID", "")
-GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
 
-OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
-OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-4o-mini")
-# For gpt-5* reasoning models via Responses API. Empty = omit (non-reasoning models).
-# minimal keeps FAQ quality high while cutting default medium-effort latency.
-OPENAI_REASONING_EFFORT = _env("OPENAI_REASONING_EFFORT", "minimal").lower()
-if OPENAI_REASONING_EFFORT not in {
-    "",
-    "none",
-    "minimal",
-    "low",
-    "medium",
-    "high",
-    "xhigh",
-}:
-    OPENAI_REASONING_EFFORT = "minimal"
+def development_config_problems() -> list[str]:
+    """Reasons local DEV must refuse to start (empty list = fine / not development)."""
+    if not IS_DEVELOPMENT:
+        return []
+    problems: list[str] = []
+    if FAQ_GCS_BUCKET:
+        problems.append(
+            "FAQ_GCS_BUCKET must be empty in development "
+            "(local DEV cannot use staging/production GCS)"
+        )
+    if not (BASE_DIR / ".env.development").exists() and not (
+        os.environ.get("DOTENV_PATH") or ""
+    ).strip():
+        problems.append(
+            "Create whatsapp-hello-bot/.env.development "
+            "(copy from .env.development.example)"
+        )
+    return problems
 
-# Comma-separated WhatsApp numbers allowed to run /faq (digits with country code, no +)
-# Example: 18122165774,15551234567
-_raw_admin_phones = _env("FAQ_ADMIN_PHONES", "")
-FAQ_ADMIN_PHONES = {
-    "".join(ch for ch in part if ch.isdigit())
-    for part in _raw_admin_phones.split(",")
-    if part.strip()
-}
 
-GREETING_FILE = BASE_DIR / "data" / "greeting.json"
-FAQ_FILE = BASE_DIR / "data" / "science_olympiad_faq.txt"
-METRICS_FILE = BASE_DIR / "data" / "usage_metrics.json"
-TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
-
-# Durable FAQ on Cloud Run (optional). When set, FAQ text + embedding index
-# live in GCS so admin UI and WhatsApp /faq share one source of truth.
-FAQ_GCS_BUCKET = _env("FAQ_GCS_BUCKET", "")
-FAQ_GCS_OBJECT = _env("FAQ_GCS_OBJECT", "science_olympiad_faq.txt")
-FAQ_GCS_INDEX_OBJECT = _env(
-    "FAQ_GCS_INDEX_OBJECT",
-    "science_olympiad_faq.txt.index.json",
-)
-
-# RAG retrieval
-FAQ_EMBEDDING_MODEL = _env("FAQ_EMBEDDING_MODEL", "text-embedding-3-small")
-try:
-    FAQ_TOP_K = max(1, int(_env("FAQ_TOP_K", "4")))
-except ValueError:
-    FAQ_TOP_K = 4
-
-# If FAQ text is at or below this size, skip embeddings and send the whole FAQ
-# to the LLM (faster for small school-event FAQs). Set 0 to always use RAG.
-try:
-    FAQ_SKIP_RAG_MAX_CHARS = max(0, int(_env("FAQ_SKIP_RAG_MAX_CHARS", "30000")))
-except ValueError:
-    FAQ_SKIP_RAG_MAX_CHARS = 30000
-
-PARENT_FALLBACK_MESSAGE = (
-    "Sorry, I'm having trouble answering right now. Please try again shortly."
-)
-FAQ_NOT_FOUND_MESSAGE = (
-    "I couldn't find that information in the event FAQ. "
-    "Please contact the PTSA Administrators."
-)
-# Parent-facing policy when someone asks for student PII (name/ID/phone/email).
-STUDENT_PRIVACY_MESSAGE = (
-    "Sorry — per PTSA privacy policy, a privacy filter has been applied. "
-    "This assistant cannot provide student personal information "
-    "(including student names, student IDs, phone numbers, or email addresses). "
-    "Please contact the school office for help with student records."
-)
-
-# Guided conversations (Lost & Found, conferences, spiritwear, ...)
-GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
+def env_config_problems() -> list[str]:
+    return staging_config_problems() + development_config_problems()
 
 
 def credential_status() -> dict[str, object]:
     return {
         "app_env": APP_ENV,
-        "env_file": str(BASE_DIR / ".env"),
-        "env_file_exists": (BASE_DIR / ".env").exists(),
+        "data_dir": str(DATA_DIR),
+        "env_file": str(_LOADED_DOTENV) if _LOADED_DOTENV else None,
+        "env_file_exists": bool(_LOADED_DOTENV and Path(_LOADED_DOTENV).exists()),
         "access_token_len": len(WHATSAPP_ACCESS_TOKEN),
         "phone_number_id_set": bool(WHATSAPP_PHONE_NUMBER_ID),
         "phone_number_id": WHATSAPP_PHONE_NUMBER_ID,

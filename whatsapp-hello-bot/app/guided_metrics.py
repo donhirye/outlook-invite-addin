@@ -8,11 +8,11 @@ from pathlib import Path
 from threading import Lock
 from typing import Any
 
-from app.config import BASE_DIR, FAQ_GCS_BUCKET
+from app.config import DATA_DIR, FAQ_GCS_BUCKET
 
 logger = logging.getLogger(__name__)
 
-METRICS_FILE = BASE_DIR / "data" / "guided_metrics.json"
+METRICS_FILE = DATA_DIR / "guided_metrics.json"
 METRICS_GCS_OBJECT = "guided_metrics.json"
 _lock = Lock()
 

@@ -32,7 +32,8 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
     class FakeResponses:
         def create(self, **kwargs):
             assert kwargs["model"] == "gpt-5.6-luna"
-            assert kwargs.get("temperature", 0) == 0
+            # Reasoning models: no temperature; optional reasoning.effort only.
+            assert "temperature" not in kwargs
             assert kwargs.get("reasoning") == {"effort": "minimal"}
             assert "TODAY'S DATE" in kwargs["instructions"]
             assert "TODAY'S DATE (America/Chicago): 2026-11-12" in kwargs["input"]
@@ -47,6 +48,7 @@ def test_answer_faq_question_uses_openai_response(monkeypatch, tmp_path):
 
     monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(faq_service, "OPENAI_MODEL", "gpt-5.6-luna")
+    monkeypatch.setattr(faq_service, "OPENAI_REASONING_EFFORT", "minimal")
     monkeypatch.setattr(
         faq_service,
         "load_faq_text",
