@@ -93,9 +93,10 @@ def _github_owner_repo() -> tuple[str, str] | None:
 
 
 def _collect_via_github() -> GitSnapshot | None:
+    # Public repos work without a token; private repos need GITHUB_TOKEN.
     token = (GITHUB_TOKEN or "").strip()
     owner_repo = _github_owner_repo()
-    if not token or not owner_repo:
+    if not owner_repo:
         return None
     owner, repo = owner_repo
     try:
@@ -322,7 +323,13 @@ def _collect_via_local_git() -> GitSnapshot:
 
 
 def collect_git_snapshot() -> GitSnapshot:
-    """Prefer local git when available; otherwise GitHub API (staging)."""
+    """Prefer GitHub on Cloud Run (no .git); local git when present."""
+    # On Cloud Run the image is not a git work tree — skip straight to GitHub.
+    if _run(["git", "rev-parse", "--is-inside-work-tree"]) != "true":
+        gh = _collect_via_github()
+        if gh is not None:
+            return gh
+        return GitSnapshot(available=False, error="GitHub metadata unavailable", source="github_api")
     local = _collect_via_local_git()
     if local.available:
         return local
@@ -342,10 +349,10 @@ def resolve_ref_sha(*refs: str) -> str | None:
         if sha:
             return sha
     # GitHub fallback: match branch name from last GitHub snapshot path
-    token = (GITHUB_TOKEN or "").strip()
     owner_repo = _github_owner_repo()
-    if token and owner_repo:
+    if owner_repo:
         owner, repo = owner_repo
+        token = (GITHUB_TOKEN or "").strip()
         from app.releases.github_api import _request
 
         for ref in refs:
@@ -370,11 +377,11 @@ def commits_between(older_sha: str, newer_sha: str, *, limit: int = 40) -> list[
     if out:
         return [line for line in out.splitlines() if line.strip()]
 
-    token = (GITHUB_TOKEN or "").strip()
     owner_repo = _github_owner_repo()
-    if not token or not owner_repo:
+    if not owner_repo:
         return []
     owner, repo = owner_repo
+    token = (GITHUB_TOKEN or "").strip()
     from app.releases.github_api import _request
     import urllib.parse
 
@@ -401,11 +408,11 @@ def is_ancestor(commit: str, maybe_descendant: str) -> bool | None:
     if local is not None and _run(["git", "rev-parse", "--is-inside-work-tree"]) == "true":
         return local
 
-    token = (GITHUB_TOKEN or "").strip()
     owner_repo = _github_owner_repo()
-    if not token or not owner_repo:
+    if not owner_repo:
         return local
     owner, repo = owner_repo
+    token = (GITHUB_TOKEN or "").strip()
     from app.releases.github_api import compare_contains
 
     return compare_contains(owner, repo, token, commit, maybe_descendant)

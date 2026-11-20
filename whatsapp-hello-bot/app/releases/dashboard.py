@@ -1,10 +1,9 @@
 """Assemble the Releases dashboard view model (cached, refreshable).
 
 Rules:
-- Never guess staging/production commits from branch names.
-- Yes / No / Unknown only from verified SHAs.
-- Production: health + release records; live-verified only when health git_sha
-  agrees with the record (or health alone provides a git_sha).
+- Prefer live Cloud Run traffic/revision/image (read-only).
+- Commit SHA from Cloud Run GIT_SHA/label, else matching release record.
+- Never guess from branch names alone.
 """
 
 from __future__ import annotations
@@ -15,9 +14,18 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from app.config import PRODUCTION_BASE_URL, STAGING_BASE_URL
+from app.config import (
+    CLOUD_RUN_REGION,
+    PRODUCTION_BASE_URL,
+    PRODUCTION_CLOUD_RUN_PROJECT,
+    PRODUCTION_CLOUD_RUN_SERVICE,
+    STAGING_BASE_URL,
+    STAGING_CLOUD_RUN_PROJECT,
+    STAGING_CLOUD_RUN_SERVICE,
+)
+from app.releases.cloudrun import describe_serving
 from app.releases.evals import find_reports_for_sha, latest_summary_unscoped
-from app.releases.git_info import GitSnapshot, collect_git_snapshot, is_ancestor
+from app.releases.git_info import collect_git_snapshot, is_ancestor
 from app.releases.live import probe_health
 from app.releases.records import load_production_record, load_staging_record
 from app.releases.registry import experiments_by_branch, load_experiments, load_registry_document
@@ -65,15 +73,19 @@ def _sha_match(a: str | None, b: str | None) -> bool:
 
 
 def _contains(tip_sha: str | None, env_sha: str | None) -> str:
-    """yes | no | unknown — is tip contained in env commit?"""
+    """yes | no | pending — is tip contained in env commit?"""
     if not tip_sha or not env_sha:
-        return "unknown"
+        return "pending"
     contained = is_ancestor(tip_sha, env_sha)
     if contained is True:
         return "yes"
     if contained is False:
         return "no"
-    return "unknown"
+    return "pending"
+
+
+def _status_label(code: str) -> str:
+    return {"yes": "Yes", "no": "No", "pending": "—"}.get(code, "—")
 
 
 def _resolve_environment(
@@ -81,48 +93,82 @@ def _resolve_environment(
     name: str,
     record: dict[str, Any],
     live: dict[str, Any],
+    cloudrun: dict[str, Any],
 ) -> dict[str, Any]:
-    """Build a simple env card. Never invent a serving commit."""
+    """Build env card from Cloud Run (preferred), then health + release record."""
     checked_at = _utc_now_iso()
     rec_sha = _real_sha(record.get("git_sha") if record.get("available") else None)
-    live_sha = _real_sha(live.get("git_sha") if live.get("available") else None)
-    # Treat literal "Unknown" from probe as missing.
-    if live_sha and live_sha.lower() == "unknown":
-        live_sha = None
+    rec_revision = (record.get("revision") or "").strip() or None
+    rec_image = (record.get("image") or "").strip() or None
+    health_sha = _real_sha(live.get("git_sha") if live.get("available") else None)
+    if health_sha and health_sha.lower() == "unknown":
+        health_sha = None
 
+    cr_ok = bool(cloudrun.get("available"))
+    cr_revision = (cloudrun.get("revision") or "").strip() or None
+    cr_image = (cloudrun.get("image") or "").strip() or None
+    cr_sha = _real_sha(cloudrun.get("git_sha"))
+    cr_split = bool(cloudrun.get("split"))
+    cr_traffic = cloudrun.get("traffic") or []
+
+    serving_revision = cr_revision
+    serving_image = cr_image
     serving_sha: str | None = None
     verification = "not_verified"
     verification_label = "Not verified"
     note = ""
 
-    if live_sha and rec_sha and _sha_match(live_sha, rec_sha):
-        serving_sha = rec_sha if len(rec_sha) >= len(live_sha) else live_sha
+    if cr_ok and cr_revision:
+        # Live Cloud Run revision is source of truth for what is serving.
+        if cr_sha:
+            serving_sha = cr_sha
+            verification = "verified"
+            verification_label = "Verified"
+            note = "Live Cloud Run revision (commit from revision env/label)."
+        elif rec_sha and rec_revision and rec_revision == cr_revision:
+            serving_sha = rec_sha
+            verification = "verified"
+            verification_label = "Verified"
+            note = "Live Cloud Run revision matches the deployment record commit."
+        elif rec_sha and rec_image and cr_image and (
+            rec_image == cr_image or rec_image.split("@")[-1] == cr_image.split("@")[-1]
+        ):
+            serving_sha = rec_sha
+            verification = "verified"
+            verification_label = "Verified"
+            note = "Live Cloud Run image matches the deployment record commit."
+        elif health_sha:
+            serving_sha = health_sha
+            verification = "verified"
+            verification_label = "Verified"
+            note = "Live Cloud Run revision; commit from /health."
+        else:
+            verification = "verified_revision"
+            verification_label = "Verified (revision)"
+            note = (
+                "Live Cloud Run revision/image confirmed. "
+                "Commit id not on the revision — add GIT_SHA on deploy for commit-level tracking."
+            )
+        if cr_split:
+            parts = ", ".join(
+                f"{t.get('revision')} ({t.get('percent')}%)"
+                for t in cr_traffic
+                if (t.get("percent") or 0) > 0
+            )
+            note += f" Traffic split: {parts}."
+    elif health_sha:
+        serving_sha = health_sha
+        serving_revision = rec_revision
+        serving_image = rec_image
         verification = "verified"
         verification_label = "Verified"
-        note = "Live /health git_sha matches the deployment record."
-    elif live_sha and not rec_sha:
-        serving_sha = live_sha
-        verification = "verified_health_only"
-        verification_label = "Verified (health only)"
-        note = "Serving commit from /health. No deployment record available for revision/image."
-    elif rec_sha and not live_sha:
-        serving_sha = None  # do not treat record as live-verified serving commit
+        note = "Serving commit from /health (Cloud Run describe unavailable)."
+    elif rec_sha:
         verification = "recorded_unverified"
-        verification_label = "Recorded — not live-verified"
-        note = (
-            "A deployment record exists, but live /health did not return a matching git_sha, "
-            "so this cannot be confirmed as the currently serving revision."
-        )
-    elif live_sha and rec_sha and not _sha_match(live_sha, rec_sha):
-        serving_sha = None
-        verification = "conflict"
-        verification_label = "Not verified (mismatch)"
-        note = (
-            f"Live health commit ({_sha_short(live_sha)}) does not match "
-            f"deployment record ({_sha_short(rec_sha)})."
-        )
+        verification_label = "Record only"
+        note = "Deployment record present, but live Cloud Run/health could not confirm it."
     else:
-        note = "No live health git_sha and no deployment record."
+        note = cloudrun.get("detail") or "Could not read live deployment status."
 
     return {
         "name": name,
@@ -131,20 +177,23 @@ def _resolve_environment(
         "serving_sha_short": _sha_short(serving_sha),
         "recorded_sha": rec_sha,
         "recorded_sha_short": _sha_short(rec_sha),
-        "live_sha": live_sha,
-        "live_sha_short": _sha_short(live_sha),
-        "revision": record.get("revision") if record.get("available") else None,
-        "image": record.get("image") if record.get("available") else None,
+        "live_sha": health_sha,
+        "live_sha_short": _sha_short(health_sha),
+        "revision": serving_revision or rec_revision,
+        "image": serving_image or rec_image,
         "deployed_at": record.get("deployed_at") if record.get("available") else None,
         "url": (record.get("url") if record.get("available") else None)
         or (live.get("url") if live.get("available") else None),
+        "traffic": cr_traffic,
+        "traffic_split": cr_split,
         "verification": verification,
         "verification_label": verification_label,
-        "verified": verification in {"verified", "verified_health_only"},
+        "verified": verification in {"verified", "verified_revision"},
         "note": note,
         "checked_at": checked_at,
         "live": live,
         "recorded": record,
+        "cloudrun": cloudrun,
     }
 
 
@@ -158,10 +207,26 @@ def _build() -> dict[str, Any]:
     prod_rec = load_production_record()
     staging_live = probe_health(STAGING_BASE_URL)
     prod_live = probe_health(PRODUCTION_BASE_URL)
+    staging_cr = describe_serving(
+        project=STAGING_CLOUD_RUN_PROJECT,
+        region=CLOUD_RUN_REGION,
+        service=STAGING_CLOUD_RUN_SERVICE,
+    )
+    production_cr = describe_serving(
+        project=PRODUCTION_CLOUD_RUN_PROJECT,
+        region=CLOUD_RUN_REGION,
+        service=PRODUCTION_CLOUD_RUN_SERVICE,
+    )
 
-    staging = _resolve_environment(name="STAGING", record=staging_rec, live=staging_live)
-    production = _resolve_environment(name="PRODUCTION", record=prod_rec, live=prod_live)
+    staging = _resolve_environment(
+        name="STAGING", record=staging_rec, live=staging_live, cloudrun=staging_cr
+    )
+    production = _resolve_environment(
+        name="PRODUCTION", record=prod_rec, live=prod_live, cloudrun=production_cr
+    )
 
+    # Use serving commit when verified; for revision-only verified still allow
+    # Yes/No when we have a SHA from the matching record path above.
     staging_sha = staging["serving_sha"] if staging["verified"] else None
     prod_sha = production["serving_sha"] if production["verified"] else None
     main_sha = git.main_sha if git.available else None
@@ -188,20 +253,23 @@ def _build() -> dict[str, Any]:
                 "branch": branch,
                 "decision": exp["decision"],
                 "decision_label": exp["decision_label"],
-                "decision_date": exp.get("decision_date") or "Unknown",
+                "decision_date": exp.get("decision_date") or "—",
                 "reason": exp.get("reason") or exp.get("notes") or "",
                 "commit_id": tip,
                 "commit_id_short": _sha_short(tip),
                 "in_staging": in_staging,
+                "in_staging_label": _status_label(in_staging),
                 "in_main": in_main,
+                "in_main_label": _status_label(in_main),
                 "in_production": in_prod,
+                "in_production_label": _status_label(in_prod),
                 "evals": evals,
                 "eval_summary": exp.get("eval_summary"),
                 "pr_url": exp.get("pr_url"),
                 "waiting_for_production": (
                     exp["decision"] == "accepted"
                     and in_main == "yes"
-                    and in_prod in {"no", "unknown"}
+                    and in_prod in {"no", "pending"}
                 ),
             }
         )
@@ -274,8 +342,8 @@ def _build() -> dict[str, Any]:
                 "on_dev": 0,
                 "on_staging": sum(1 for r in rows if r["in_staging"] == "yes"),
                 "in_base": sum(1 for r in rows if r["in_production"] == "yes"),
-                "staging_unknown": sum(1 for r in rows if r["in_staging"] == "unknown"),
-                "base_unknown": sum(1 for r in rows if r["in_production"] == "unknown"),
+                "staging_unknown": sum(1 for r in rows if r["in_staging"] == "pending"),
+                "base_unknown": sum(1 for r in rows if r["in_production"] == "pending"),
                 "dev_only": 0,
                 "dev_pending": 0,
                 "staging_candidates": sum(

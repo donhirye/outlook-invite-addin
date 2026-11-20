@@ -22,19 +22,15 @@ Saving a decision appends an audit history entry. It does **not** write to Git o
 
 ## How status is verified
 
-| Signal | Staging | Production (today) |
-|--------|---------|----------------------|
-| `/health` `git_sha` | Yes | **No** (health returns `{status:ok}` only) |
-| Deploy record (revision, image, git_sha) | Yes (GCS `releases/staging-latest.json`) | Actions artifact / optional `releases/production-latest.json` |
-| Live-verified serving commit | When health `git_sha` matches record (or health alone) | **Not available** until production `/health` exposes `git_sha` **or** you approve read-only Cloud Run access |
+| Signal | Staging | Production |
+|--------|---------|------------|
+| Cloud Run describe (read-only) | Yes — revision, image, traffic | Yes — same (staging-runtime has `roles/run.viewer`) |
+| `/health` `git_sha` | Yes | Not currently set on prod |
+| Deploy record | GCS `releases/staging-latest.json` | GCS `releases/production-latest.json` |
 
-**Never guess.** If production cannot be live-verified, the Production card shows **Recorded — not live-verified** (when a record exists) and **In Production?** stays **Unknown**.
+Serving revision/image come from live Cloud Run. Commit is taken from the revision’s `GIT_SHA` when present, otherwise from a release record whose revision/image matches the live revision.
 
-### Optional next step (needs your separate approval)
-
-Grant the staging runtime service account **read-only** `roles/run.viewer` on the production service (or project) so the dashboard can read the serving revision/image/traffic split directly. Do **not** implement that without approval.
-
-Better long-term fix (also separate): set `GIT_SHA` on production deploys so `/health` can confirm the serving commit without extra IAM.
+Table cells show **Yes** / **No** / **—** (not the word “Unknown”).
 
 ## Workflow reminder
 

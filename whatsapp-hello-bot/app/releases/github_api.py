@@ -18,15 +18,17 @@ logger = logging.getLogger(__name__)
 _TIMEOUT = 20
 
 
-def _request(url: str, token: str) -> Any | None:
+def _request(url: str, token: str = "") -> Any | None:
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+        "User-Agent": "whatsapp-faq-bot-releases",
+    }
+    if (token or "").strip():
+        headers["Authorization"] = f"Bearer {token.strip()}"
     req = urllib.request.Request(
         url,
-        headers={
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {token}",
-            "X-GitHub-Api-Version": "2022-11-28",
-            "User-Agent": "whatsapp-faq-bot-releases",
-        },
+        headers=headers,
         method="GET",
     )
     try:
@@ -47,9 +49,10 @@ def fetch_repo_snapshot(owner: str, repo: str, token: str) -> dict[str, Any]:
         "prs_by_head": {},
         "error": None,
     }
-    if not token or not owner or not repo:
-        out["error"] = "GitHub token or repo not configured"
+    if not owner or not repo:
+        out["error"] = "GitHub repo not configured"
         return out
+    # token may be empty for public repositories.
 
     main = _request(f"{base}/commits/main", token)
     if isinstance(main, dict) and main.get("sha"):
@@ -137,7 +140,7 @@ def fetch_repo_snapshot(owner: str, repo: str, token: str) -> dict[str, Any]:
 
 def compare_contains(owner: str, repo: str, token: str, tip: str, env_sha: str) -> bool | None:
     """True if tip is an ancestor of env_sha (tip contained in env)."""
-    if not tip or not env_sha or not token:
+    if not tip or not env_sha:
         return None
     # compare tip...env: if ahead_by of tip relative to env is 0, tip is behind/equal env
     data = _request(

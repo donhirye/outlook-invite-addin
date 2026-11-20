@@ -184,6 +184,13 @@ PRODUCTION_BASE_URL = _env("PRODUCTION_BASE_URL", "").rstrip("/")
 GITHUB_TOKEN = _env("GITHUB_TOKEN", "") or _env("GH_TOKEN", "")
 GITHUB_REPO = _env("GITHUB_REPO", "donhirye/outlook-invite-addin")  # owner/repo
 
+# Read-only Cloud Run describe targets (staging-runtime needs roles/run.viewer).
+CLOUD_RUN_REGION = _env("CLOUD_RUN_REGION", "us-central1")
+STAGING_CLOUD_RUN_PROJECT = _env("STAGING_CLOUD_RUN_PROJECT", "vi1234-staging")
+STAGING_CLOUD_RUN_SERVICE = _env("STAGING_CLOUD_RUN_SERVICE", "whatsapp-faq-bot-staging")
+PRODUCTION_CLOUD_RUN_PROJECT = _env("PRODUCTION_CLOUD_RUN_PROJECT", "vi1234")
+PRODUCTION_CLOUD_RUN_SERVICE = _env("PRODUCTION_CLOUD_RUN_SERVICE", "whatsapp-faq-bot")
+
 
 def staging_config_problems() -> list[str]:
     """Reasons staging must refuse to start (empty list = fine / not staging)."""

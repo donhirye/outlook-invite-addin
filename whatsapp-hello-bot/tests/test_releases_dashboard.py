@@ -242,12 +242,13 @@ def test_live_probe_handles_missing_url_and_http(monkeypatch):
     assert ok["git_sha"] == "deadbeef"
 
 
-def test_dashboard_never_guesses_production(monkeypatch):
+def test_dashboard_uses_cloudrun_revision_and_matching_record(monkeypatch):
     from app.releases import dashboard
     from app.releases.git_info import BranchInfo, GitSnapshot
 
     tip_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
     main_sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    prod_sha = "cccccccccccccccccccccccccccccccccccccccc"
 
     monkeypatch.setattr(
         dashboard,
@@ -298,48 +299,49 @@ def test_dashboard_never_guesses_production(monkeypatch):
         "load_production_record",
         lambda: {
             "available": True,
-            "git_sha": "cccccccccccccccccccccccccccccccccccccccc",
-            "revision": "prod-rev",
-            "image": "img@sha256:x",
+            "git_sha": prod_sha,
+            "revision": "prod-rev-1",
+            "image": "img@sha256:abc",
             "branch": "main",
             "deployed_at": "2026-01-01T00:00:00Z",
         },
     )
-    # Production health has no git_sha — must not treat record as live-verified.
     monkeypatch.setattr(
         dashboard,
         "probe_health",
-        lambda url: {
-            "available": True,
-            "source": "live",
-            "status": "Live",
-            "git_sha": "Unknown",
-            "ok": True,
-        }
-        if url and "prod" in url
-        else {
-            "available": False,
-            "source": "live",
-            "status": "Not Verified",
-            "detail": "Base URL not configured",
-        },
+        lambda url: {"available": False, "status": "Not Verified"},
     )
+
+    def fake_cr(*, project, region, service):
+        if "staging" in service:
+            return {"available": False, "detail": "skip"}
+        return {
+            "available": True,
+            "revision": "prod-rev-1",
+            "image": "img@sha256:abc",
+            "git_sha": None,
+            "traffic": [{"revision": "prod-rev-1", "percent": 100}],
+            "split": False,
+            "percent": 100,
+        }
+
+    monkeypatch.setattr(dashboard, "describe_serving", fake_cr)
     monkeypatch.setattr(dashboard, "find_reports_for_sha", lambda *a, **k: [])
     monkeypatch.setattr(dashboard, "latest_summary_unscoped", lambda: None)
     monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "")
     monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "https://prod.example")
-    monkeypatch.setattr(dashboard, "is_ancestor", lambda tip, env: False)
+    monkeypatch.setattr(dashboard, "is_ancestor", lambda tip, env: tip == env)
 
     dashboard.clear_cache()
     data = dashboard.get_dashboard(force=True)
-    assert data["production"]["verified"] is False
-    assert data["production"]["serving_sha"] is None
-    assert "not live-verified" in data["production"]["verification_label"].lower()
-    assert data["experiments"][0]["in_production"] == "unknown"
-    assert data["base"]["source"] == "unknown"
+    assert data["production"]["verified"] is True
+    assert data["production"]["serving_sha"] == prod_sha
+    assert data["production"]["revision"] == "prod-rev-1"
+    assert data["experiments"][0]["in_production_label"] in {"Yes", "No", "—"}
+    assert "unknown" not in data["experiments"][0]["in_production_label"].lower()
 
 
-def test_dashboard_verifies_when_health_matches_record(monkeypatch):
+def test_dashboard_verifies_staging_from_cloudrun(monkeypatch):
     from app.releases import dashboard
     from app.releases.git_info import GitSnapshot
 
@@ -375,14 +377,22 @@ def test_dashboard_verifies_when_health_matches_record(monkeypatch):
     monkeypatch.setattr(
         dashboard,
         "probe_health",
-        lambda url: {
+        lambda url: {"available": False, "status": "Not Verified"},
+    )
+    monkeypatch.setattr(
+        dashboard,
+        "describe_serving",
+        lambda **k: {
             "available": True,
+            "revision": "stg-1",
+            "image": "stg@sha256:1",
             "git_sha": sha[:7],
-            "status": "Live",
-            "ok": True,
+            "traffic": [{"revision": "stg-1", "percent": 100}],
+            "split": False,
+            "percent": 100,
         }
-        if url
-        else {"available": False, "status": "Not Verified"},
+        if "staging" in (k.get("service") or "")
+        else {"available": False},
     )
     monkeypatch.setattr(dashboard, "find_reports_for_sha", lambda *a, **k: [])
     monkeypatch.setattr(dashboard, "latest_summary_unscoped", lambda: None)
