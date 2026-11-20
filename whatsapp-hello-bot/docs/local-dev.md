@@ -4,10 +4,21 @@ Isolated `APP_ENV=development` for AI/RAG experiments. Staging remains the Cloud
 release-validation environment. Production deploys only via GitHub Actions
 `workflow_dispatch` on `main` (merge does **not** auto-deploy).
 
-## Start
+## Two folders (recommended)
+
+| Folder | Role | Typical branch |
+|--------|------|----------------|
+| `C:\Users\mihir\Projects\outlook-invite-addin-local-dev` | **Experiments** (AI, Releases dashboard, scratch) | `experiment/*` or `feature/*` |
+| `C:\Users\mihir\Projects\outlook-invite-addin` | **Release prep** (PRs, staging/prod deploy scripts) | `main` or a short-lived `feature/*` for promotion |
+
+They share one Git object database (linked worktrees). Commit in the local-dev
+worktree; cherry-pick or merge into a feature branch in the original folder only
+when you are ready to promote. Never experiment directly on `main`.
+
+## Start (from the local-dev worktree)
 
 ```powershell
-cd whatsapp-hello-bot
+cd C:\Users\mihir\Projects\outlook-invite-addin-local-dev\whatsapp-hello-bot
 .\scripts\run-dev.ps1
 ```
 
@@ -15,8 +26,9 @@ First run copies `.env.development.example` → `.env.development` and exits unt
 set a **DEV-only** `OPENAI_API_KEY`. Never reuse production or staging keys.
 
 - URL: http://127.0.0.1:8000/admin (bound to localhost only)
+- Releases: http://127.0.0.1:8000/admin/releases
 - Stop: Ctrl+C in the terminal
-- Data: `whatsapp-hello-bot/data/dev/` (gitignored)
+- Data: `whatsapp-hello-bot/data/dev/` (gitignored; per worktree)
 - Reseed: `.\scripts\run-dev.ps1 -Seed` or delete `data\dev` and re-run
 
 ## Safety
@@ -28,8 +40,9 @@ set a **DEV-only** `OPENAI_API_KEY`. Never reuse production or staging keys.
 
 ## Promote experiments
 
-1. Prove the change in local DEV.
-2. Commit on an approved feature branch (not a scratch worktree tip you intend to abandon).
-3. Open a PR → `main`. Do **not** merge or deploy without explicit approval.
-4. Staging deploy (when asked): `.\scripts\deploy-staging.ps1` from a non-experimental branch.
-5. Production: only via the GitHub Actions workflow after merge to `main` and an explicit request.
+1. Prove the change in the **local-dev** worktree.
+2. Commit there on `experiment/*` or `feature/*`.
+3. In the **original** folder, create/update a promotion `feature/*` from latest `main`, bring the commits across, open a PR → `main`.
+4. Do **not** merge or deploy without explicit approval.
+5. Staging deploy (when asked): `.\scripts\deploy-staging.ps1` from a non-experimental branch in the original folder.
+6. Production: only via the GitHub Actions workflow after merge to `main` and an explicit request.
