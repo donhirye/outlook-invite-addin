@@ -62,6 +62,8 @@ class FaqAnswer:
     faq_id: str | None = None
     source_name: str | None = None
     source_url: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
 
 _STOPWORDS = {
     "a",
@@ -425,6 +427,9 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
                 raise
         openai_call_ms = (time.perf_counter() - openai_started) * 1000
         llm_invocations = 1
+        usage = getattr(response, "usage", None)
+        input_tokens = getattr(usage, "input_tokens", None)
+        output_tokens = getattr(usage, "output_tokens", None)
 
         raw = _extract_output_text(response)
         if not raw:
@@ -454,6 +459,8 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
             source_name=source_name,
             source_url=source_url,
             faq_id=faq_id,
+            input_tokens=input_tokens if isinstance(input_tokens, int) else None,
+            output_tokens=output_tokens if isinstance(output_tokens, int) else None,
         )
         return result
     except Exception:

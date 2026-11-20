@@ -5,6 +5,11 @@ Usage:
   python -m evals.run --engine engine2_hybrid
   python -m evals.run --engine all
   python -m evals.run --engine engine1_legacy --live-model   # optional, cost-capped
+
+Against the staging service (runs the same cases through its Test Chat JSON
+endpoint; uses staging's OpenAI key, so it needs --live-model):
+  $env:STAGING_ADMIN_PASSWORD = "<staging admin password>"
+  python -m evals.run --base-url https://<staging-url> --live-model [--max-llm-calls 150]
 """
 
 from __future__ import annotations
@@ -113,6 +118,105 @@ def _score_case(case: dict[str, Any], result, *, engine_id: str) -> dict[str, An
     }
 
 
+def _remote_client(base_url: str):
+    """Logged-in client for a staging service's Test Chat JSON endpoint."""
+    import httpx
+
+    password = os.environ.get("STAGING_ADMIN_PASSWORD", "")
+    if not password:
+        raise SystemExit("Set STAGING_ADMIN_PASSWORD (the staging admin password).")
+    client = httpx.Client(base_url=base_url.rstrip("/"), timeout=120.0)
+    login = client.post("/admin/login", data={"password": password}, follow_redirects=False)
+    if login.status_code != 303:
+        raise SystemExit(f"Staging login failed (HTTP {login.status_code}).")
+    probe = client.get("/admin/test-chat/api/personas")
+    if probe.status_code != 200:
+        # Production has no Test Chat, so this also refuses to evaluate production.
+        raise SystemExit(
+            f"{base_url} has no Test Chat endpoint (HTTP {probe.status_code}); "
+            "refusing to run. Is this really the staging URL?"
+        )
+    return client
+
+
+def run_remote(
+    base_url: str, cases: list[dict], *, max_llm_calls: int
+) -> dict[str, Any]:
+    """Run the dataset through a staging service's Test Chat JSON endpoint."""
+    from types import SimpleNamespace
+
+    client = _remote_client(base_url)
+    persona = "parent_a"
+    results = []
+    passed = 0
+    latencies = []
+    llm_calls = 0
+    tokens_in = 0
+    tokens_out = 0
+    engine_seen = ENGINE_1
+    for case in cases:
+        prior = case.get("prior_context") or {}
+        client.post(
+            "/admin/test-chat/api/reset",
+            json={
+                "persona": persona,
+                "guided_topic": prior.get("guided_topic"),
+                "step": prior.get("step"),
+            },
+        ).raise_for_status()
+        started = time.perf_counter()
+        resp = client.post(
+            "/admin/test-chat/api/message",
+            json={"text": case.get("input") or "", "persona": persona},
+        )
+        latency = (time.perf_counter() - started) * 1000
+        resp.raise_for_status()
+        data = resp.json()
+        engine_seen = data.get("engine_id") or engine_seen
+        model = data.get("model") or {}
+        llm_calls += int(model.get("llm_invocations") or 0)
+        tokens_in += int(model.get("input_tokens") or 0)
+        tokens_out += int(model.get("output_tokens") or 0)
+        result = SimpleNamespace(
+            messages=data.get("messages") or [],
+            route=data.get("route"),
+            flow_id=data.get("flow_id"),
+            extracted=data.get("extracted") or {},
+            state_transition=data.get("state_transition"),
+            engine_id=data.get("engine_id"),
+        )
+        scored = _score_case(case, result, engine_id=engine_seen)
+        scored["latency_ms"] = round(latency, 1)
+        latencies.append(latency)
+        passed += 1 if scored["passed"] else 0
+        results.append(scored)
+        client.post("/admin/test-chat/api/reset", json={"persona": persona})
+        if llm_calls >= max_llm_calls:
+            print(f"Stopping early: reached --max-llm-calls={max_llm_calls}")
+            break
+
+    ran = len(results)
+    by_cat: dict[str, dict[str, int]] = {}
+    for row in results:
+        bucket = by_cat.setdefault(row.get("category") or "unknown", {"passed": 0, "failed": 0})
+        bucket["passed" if row["passed"] else "failed"] += 1
+    return {
+        "engine_id": engine_seen,
+        "target": base_url,
+        "passed": passed,
+        "failed": ran - passed,
+        "cases_run": ran,
+        "cases_total": len(cases),
+        "pass_rate": round(passed / ran, 3) if ran else 0.0,
+        "avg_latency_ms": round(sum(latencies) / len(latencies), 1) if latencies else None,
+        "llm_calls": llm_calls,
+        "input_tokens": tokens_in,
+        "output_tokens": tokens_out,
+        "by_category": by_cat,
+        "results": results,
+    }
+
+
 def run_engine(engine_id: str, cases: list[dict], *, live_model: bool) -> dict[str, Any]:
     if not live_model:
         # Keep deterministic offline runs free of accidental live spend unless opted in.
@@ -167,12 +271,44 @@ def main() -> None:
     parser.add_argument("--engine", default="all")
     parser.add_argument("--live-model", action="store_true")
     parser.add_argument("--rebuild-cases", action="store_true")
+    parser.add_argument(
+        "--base-url",
+        help="Run against a staging service's Test Chat JSON endpoint instead of in-process.",
+    )
+    parser.add_argument(
+        "--max-llm-calls",
+        type=int,
+        default=150,
+        help="With --base-url: stop after this many LLM calls (staging spend guard).",
+    )
     args = parser.parse_args()
 
     if args.rebuild_cases or not CASES_PATH.exists():
         build_cases()
     dataset = _load_cases()
     cases = dataset["cases"]
+
+    if args.base_url:
+        if not args.live_model:
+            raise SystemExit(
+                "Remote runs use the staging service's real OpenAI key. "
+                "Pass --live-model to confirm you want that spend."
+            )
+        print(f"Running {len(cases)} cases against {args.base_url} (live model)...")
+        row = run_remote(args.base_url, cases, max_llm_calls=args.max_llm_calls)
+        REPORTS.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        out = REPORTS / f"staging_{dataset['dataset_version']}_{stamp}.json"
+        out.write_text(json.dumps(row, indent=2) + "\n", encoding="utf-8")
+        # Deliberately not latest_summary.json: that file is the local/CI baseline.
+        print(
+            f"  engine={row['engine_id']} pass_rate={row['pass_rate']} "
+            f"passed={row['passed']} failed={row['failed']} "
+            f"llm_calls={row['llm_calls']} tokens={row['input_tokens']}/{row['output_tokens']} "
+            f"avg_latency_ms={row['avg_latency_ms']}"
+        )
+        print(f"Wrote {out}")
+        return
 
     engines = []
     if args.engine == "all":

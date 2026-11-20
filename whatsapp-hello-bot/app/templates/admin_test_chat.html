@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Test Chat — Admin</title>
+  <link rel="icon" href="{{ favicon_url }}" type="image/png" />
+  <style>
+    :root {
+      --bg: #0f2a24; --panel: #17352d; --ink: #f3f7f5; --muted: #a8c0b7;
+      --accent: #25d366; --accent-ink: #0b1f19; --danger: #ffb4a8; --ok: #9be7c4;
+      --border: rgba(255,255,255,0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin:0; min-height:100vh; font-family:"Segoe UI",system-ui,sans-serif; color:var(--ink);
+      background: radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%), var(--bg);
+      display:grid; place-items:start center; padding:1.5rem;
+    }
+    .card {
+      width:min(72rem,100%); margin-top:1rem;
+      background:color-mix(in srgb, var(--panel) 92%, black);
+      border:1px solid var(--border); border-radius:1rem; padding:1.75rem;
+    }
+    h1 { margin:0 0 .35rem; font-size:1.4rem; }
+    h2 { margin:0 0 .5rem; font-size:1rem; }
+    p { color:var(--muted); line-height:1.45; }
+    nav { display:flex; gap:.75rem; flex-wrap:wrap; margin-bottom:1.25rem; }
+    nav a {
+      color:var(--muted); text-decoration:none; border:1px solid var(--border);
+      border-radius:.65rem; padding:.45rem .75rem; font-size:.9rem;
+    }
+    nav a.active { background:var(--accent); color:var(--accent-ink); border-color:transparent; font-weight:600; }
+    button {
+      appearance:none; border:0; border-radius:.65rem; padding:.6rem 1rem; font:inherit;
+      font-weight:600; cursor:pointer; background:var(--accent); color:var(--accent-ink);
+    }
+    button.secondary { background:transparent; color:var(--ink); border:1px solid var(--border); }
+    button:disabled { opacity:.5; cursor:wait; }
+    select, input[type=text] {
+      font:inherit; color:var(--ink); background:rgba(0,0,0,.25);
+      border:1px solid var(--border); border-radius:.65rem; padding:.55rem .7rem;
+    }
+    .meta { font-size:.85rem; color:var(--muted); }
+    .brand { display:flex; gap:.75rem; align-items:center; margin-bottom:1rem; }
+    .brand img { width:2.75rem; height:2.75rem; border-radius:999px; background:#000; object-fit:contain; }
+    .grid { display:grid; grid-template-columns: minmax(0,3fr) minmax(16rem,2fr); gap:1rem; }
+    @media (max-width: 52rem) { .grid { grid-template-columns: 1fr; } }
+    .toolbar { display:flex; gap:.6rem; flex-wrap:wrap; align-items:center; margin-bottom:.75rem; }
+    #log {
+      height:26rem; overflow:auto; padding:.75rem; border:1px solid var(--border);
+      border-radius:.75rem; background:rgba(0,0,0,.2); display:flex; flex-direction:column; gap:.5rem;
+    }
+    .msg { max-width:88%; padding:.55rem .75rem; border-radius:.75rem; white-space:pre-wrap; word-break:break-word; line-height:1.4; }
+    .msg.me { align-self:flex-end; background:var(--accent); color:var(--accent-ink); }
+    .msg.bot { align-self:flex-start; background:rgba(255,255,255,.08); }
+    .msg.err { align-self:flex-start; background:rgba(255,180,168,.15); color:var(--danger); }
+    .choices { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.25rem; }
+    .choices button { padding:.35rem .7rem; font-size:.85rem; }
+    form { display:flex; gap:.5rem; margin-top:.75rem; }
+    form input { flex:1; }
+    dl { margin:0; display:grid; grid-template-columns: auto 1fr; gap:.25rem .75rem; font-size:.85rem; }
+    dt { color:var(--muted); }
+    dd { margin:0; word-break:break-word; }
+    .pill { display:inline-block; padding:.05rem .5rem; border-radius:999px; border:1px solid var(--border); font-size:.8rem; }
+    .warn { color:#ffd479; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="brand">
+      <img src="{{ logo_url }}" alt="Crone logo" />
+      <div class="meta"><strong style="color:var(--ink);display:block;">Crone Middle School PTSA</strong>Event Assistant admin</div>
+    </div>
+    <nav>
+      <a href="/admin/link">Group link</a>
+      <a href="/admin/intro">Intro message</a>
+      <a href="/admin/faq">FAQs</a>
+      <a href="/admin/calendar">School Calendar</a>
+      <a href="/admin/guided">Guided Conversations</a>
+      <a href="/admin/analytics">Analytics</a>
+      <a class="active" href="/admin/test-chat">Test Chat</a>
+      <a href="/admin/logout">Log out</a>
+    </nav>
+    <h1>Test Chat</h1>
+    <p>
+      Talks to the same answering pipeline WhatsApp uses, with staging data only.
+      Nothing is sent to WhatsApp. Conversation state is kept per test identity, so
+      guided flows and the calendar question continue across turns until you reset.
+    </p>
+
+    <div class="toolbar">
+      <label class="meta" for="persona">Test identity</label>
+      <select id="persona">
+        {% for p in personas %}
+        <option value="{{ p.id }}">{{ p.label }}</option>
+        {% endfor %}
+      </select>
+      <span class="meta" id="persona-info"></span>
+      <button class="secondary" id="reset" type="button">Reset conversation</button>
+    </div>
+
+    <div class="grid">
+      <section>
+        <div id="log" aria-live="polite"></div>
+        <form id="chat-form" autocomplete="off">
+          <input type="text" id="text" maxlength="1000" placeholder="Type a parent question…" required />
+          <button type="submit" id="send">Send</button>
+        </form>
+      </section>
+      <aside>
+        <h2>Last response details</h2>
+        <dl id="details"><dt>—</dt><dd class="meta">Send a message to see latency, model, tokens, route and sources.</dd></dl>
+      </aside>
+    </div>
+  </main>
+
+<script>
+(function () {
+  const personas = {{ personas | tojson }};
+  const log = document.getElementById("log");
+  const form = document.getElementById("chat-form");
+  const input = document.getElementById("text");
+  const send = document.getElementById("send");
+  const personaSel = document.getElementById("persona");
+  const personaInfo = document.getElementById("persona-info");
+  const details = document.getElementById("details");
+  const history = {};   // persona id -> [{role, text, choices}]
+  personas.forEach(p => history[p.id] = []);
+
+  function persona() { return personaSel.value; }
+  function describePersona() {
+    const p = personas.find(x => x.id === persona());
+    personaInfo.textContent = "id " + p.phone_hash.slice(0, 8) + " · FAQ admin permission: " + (p.faq_admin ? "yes" : "no");
+    personaInfo.className = "meta" + (p.id === "faq_admin" && !p.faq_admin ? " warn" : "");
+  }
+  function render() {
+    log.textContent = "";
+    history[persona()].forEach(m => {
+      const div = document.createElement("div");
+      div.className = "msg " + m.role;
+      div.textContent = m.text;
+      if (m.choices && m.choices.length) {
+        const box = document.createElement("div");
+        box.className = "choices";
+        m.choices.forEach(c => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.className = "secondary";
+          b.textContent = c.label || c.id;
+          b.addEventListener("click", () => submit(c.id, "interactive"));
+          box.appendChild(b);
+        });
+        div.appendChild(box);
+      }
+      log.appendChild(div);
+    });
+    log.scrollTop = log.scrollHeight;
+  }
+  function row(k, v) {
+    const dt = document.createElement("dt"); dt.textContent = k;
+    const dd = document.createElement("dd");
+    if (v instanceof Node) dd.appendChild(v); else dd.textContent = (v === null || v === undefined || v === "") ? "—" : String(v);
+    details.appendChild(dt); details.appendChild(dd);
+  }
+  function showDetails(r) {
+    details.textContent = "";
+    row("Latency", r.latency_ms != null ? r.latency_ms + " ms" : "—");
+    row("Route", r.route);
+    row("Engine", r.engine_id + " v" + r.engine_version);
+    row("Intent", r.intent);
+    row("Flow / step", (r.flow_id || "—") + " / " + (r.step_id || "—"));
+    row("Outcome", r.answer_outcome);
+    row("Fallback", r.fallback);
+    row("FAQ id", r.faq_id);
+    row("FAQ match score", r.faq_match_score);
+    row("Confidence", r.answer_confidence);
+    row("Retrieval", r.retrieval_mode);
+    row("Model", r.model.model);
+    row("LLM calls", r.model.llm_invocations);
+    row("Tokens in / out", (r.model.input_tokens ?? "—") + " / " + (r.model.output_tokens ?? "—"));
+    row("Est. cost (USD)", r.model.estimated_cost_usd);
+    row("Tools called", r.tools.length ? JSON.stringify(r.tools) : "none (no tool layer yet)");
+    row("Sources", r.sources.join(", "));
+    if (r.source_url) {
+      const a = document.createElement("a");
+      a.href = r.source_url; a.textContent = r.source_name || r.source_url; a.target = "_blank"; a.rel = "noopener";
+      a.style.color = "#d7ffe9";
+      row("Cited source", a);
+    }
+    if (r.trace_id) {
+      const a = document.createElement("a");
+      a.href = "/admin/analytics/trace/" + encodeURIComponent(r.trace_id);
+      a.textContent = r.trace_id.slice(0, 8) + "…"; a.style.color = "#d7ffe9";
+      row("Trace", a);
+    }
+    if (r.error) row("Error", r.error);
+  }
+  async function submit(text, messageType) {
+    const pid = persona();
+    history[pid].push({ role: "me", text: text });
+    render();
+    send.disabled = true;
+    try {
+      const resp = await fetch("/admin/test-chat/api/message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: text, persona: pid, message_type: messageType || "text" }),
+      });
+      if (resp.status === 401) { window.location = "/admin"; return; }
+      const data = await resp.json();
+      if (!data.ok) {
+        history[pid].push({ role: "err", text: data.error || "Request failed" });
+      } else {
+        (data.messages || []).forEach((m, i, arr) => {
+          history[pid].push({ role: "bot", text: m, choices: i === arr.length - 1 ? data.choices : null });
+        });
+        showDetails(data);
+      }
+    } catch (e) {
+      history[pid].push({ role: "err", text: "Network error" });
+    } finally {
+      send.disabled = false;
+      render();
+    }
+  }
+  form.addEventListener("submit", e => {
+    e.preventDefault();
+    const text = input.value.trim();
+    if (!text) return;
+    input.value = "";
+    submit(text, "text");
+  });
+  document.getElementById("reset").addEventListener("click", async () => {
+    const pid = persona();
+    await fetch("/admin/test-chat/api/reset", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ persona: pid }),
+    });
+    history[pid] = [];
+    details.textContent = "";
+    render();
+  });
+  personaSel.addEventListener("change", () => { describePersona(); render(); });
+  describePersona();
+  render();
+})();
+</script>
+</body>
+</html>
