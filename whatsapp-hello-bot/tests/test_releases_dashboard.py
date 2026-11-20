@@ -1,4 +1,4 @@
-"""Releases dashboard — DEV-only routes + pure helpers (no Cloud writes)."""
+"""Releases dashboard — routes + helpers (no Cloud writes in unit tests)."""
 
 from __future__ import annotations
 
@@ -30,6 +30,7 @@ def _run(code: str, **env: str) -> dict:
             "GIT_SHA",
             "STAGING_BASE_URL",
             "PRODUCTION_BASE_URL",
+            "GITHUB_TOKEN",
         }
     }
     base.update(
@@ -89,24 +90,25 @@ print(json.dumps({
   "anon": anon.status_code,
   "login": login.status_code,
   "page": page.status_code,
-  "has_funnel": "Promotion funnel" in page.text and "PROD" in page.text,
-  "has_staging_pill": "STAGING" in page.text,
-  "has_hierarchy": "Branch hierarchy" in page.text,
-  "has_deploy_panels": "Deployment versions" in page.text,
+  "has_tracker": "Experiment" in page.text and "release tracker" in page.text.lower(),
+  "has_staging_card": "STAGING" in page.text,
+  "has_prod_card": "PRODUCTION" in page.text,
+  "no_local_dev_card": "Local DEV environment" not in page.text or "Parked" in page.text,
   "no_deploy_button": "Deploy to" not in page.text,
   "has_refresh": "/admin/releases/refresh" in page.text,
+  "has_decision_form": "/admin/releases/decision" in page.text,
 }))
 """,
         APP_ENV="development",
     )
     assert dev["anon"] in {302, 303}
     assert dev["page"] == 200
-    assert dev["has_funnel"] is True
-    assert dev["has_staging_pill"] is True
-    assert dev["has_hierarchy"] is True
-    assert dev["has_deploy_panels"] is True
+    assert dev["has_tracker"] is True
+    assert dev["has_staging_card"] is True
+    assert dev["has_prod_card"] is True
     assert dev["no_deploy_button"] is True
     assert dev["has_refresh"] is True
+    assert dev["has_decision_form"] is True
 
     staging = _run(
         """
@@ -120,7 +122,7 @@ page = c.get("/admin/releases")
 print(json.dumps({
   "anon": anon.status_code,
   "page": page.status_code,
-  "has_funnel": "Promotion funnel" in page.text,
+  "has_tracker": "release tracker" in page.text.lower(),
 }))
 """,
         APP_ENV="staging",
@@ -130,7 +132,7 @@ print(json.dumps({
     )
     assert staging["anon"] in {302, 303}
     assert staging["page"] == 200
-    assert staging["has_funnel"] is True
+    assert staging["has_tracker"] is True
 
     prod = _run(
         """
@@ -149,8 +151,8 @@ print(json.dumps({"status": r.status_code}))
     assert prod["status"] == 404
 
 
-def test_registry_and_records(tmp_path, monkeypatch):
-    from app.releases import records, registry
+def test_registry_decisions_and_history(tmp_path, monkeypatch):
+    from app.releases import registry
 
     reg = tmp_path / "experiments.json"
     reg.write_text(
@@ -162,6 +164,48 @@ def test_registry_and_records(tmp_path, monkeypatch):
                         "name": "Demo",
                         "objective": "Try things",
                         "branch": "feature/demo",
+                        "decision": "testing",
+                    }
+                ],
+                "history": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(registry, "REGISTRY_PATH", reg)
+    monkeypatch.setattr(registry, "FAQ_GCS_BUCKET", "")
+    items = registry.load_experiments()
+    assert items[0]["decision"] == "testing"
+    assert items[0]["decision_label"] == "Testing"
+
+    out = registry.record_decision(
+        experiment_id="x",
+        decision="accepted",
+        reason="Looks good",
+        commit_id="abc1234",
+    )
+    assert out["ok"] is True
+    updated = registry.load_experiments()[0]
+    assert updated["decision"] == "accepted"
+    assert updated["reason"] == "Looks good"
+    doc = json.loads(reg.read_text(encoding="utf-8"))
+    assert doc["history"][-1]["from"] == "testing"
+    assert doc["history"][-1]["to"] == "accepted"
+
+
+def test_registry_migrates_legacy_status(tmp_path, monkeypatch):
+    from app.releases import registry
+
+    reg = tmp_path / "experiments.json"
+    reg.write_text(
+        json.dumps(
+            {
+                "experiments": [
+                    {
+                        "id": "old",
+                        "name": "Old",
+                        "objective": "legacy",
+                        "branch": "feature/old",
                         "status": "experimental",
                     }
                 ]
@@ -170,36 +214,8 @@ def test_registry_and_records(tmp_path, monkeypatch):
         encoding="utf-8",
     )
     monkeypatch.setattr(registry, "REGISTRY_PATH", reg)
-    items = registry.load_experiments()
-    assert items[0]["name"] == "Demo"
-    assert registry.experiments_by_branch()["feature/demo"]["objective"] == "Try things"
-
-    releases = tmp_path / "releases"
-    releases.mkdir()
-    staging = releases / "staging-latest.json"
-    staging.write_text(
-        json.dumps(
-            {
-                "git_sha": "1111111111111111111111111111111111111111",
-                "revision": "rev-1",
-                "image": "img@sha256:abc",
-                "deployed_at": "2026-01-01T00:00:00Z",
-                "smoke_ok": True,
-                "service": "whatsapp-faq-bot-staging",
-            }
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(records, "RELEASES_DIR", releases)
-    monkeypatch.setattr(records, "STAGING_RECORD", staging)
-    monkeypatch.setattr(records, "PRODUCTION_RECORD", releases / "production-latest.json")
-    st = records.load_staging_record()
-    assert st["available"] is True
-    assert st["source"] == "recorded"
-    assert st["revision"] == "rev-1"
-    prod = records.load_production_record()
-    assert prod["available"] is False
-    assert prod["status"] == "Unknown"
+    monkeypatch.setattr(registry, "FAQ_GCS_BUCKET", "")
+    assert registry.load_experiments()[0]["decision"] == "testing"
 
 
 def test_live_probe_handles_missing_url_and_http(monkeypatch):
@@ -224,15 +240,14 @@ def test_live_probe_handles_missing_url_and_http(monkeypatch):
     ok = live.probe_health("https://staging.example")
     assert ok["available"] is True
     assert ok["git_sha"] == "deadbeef"
-    assert ok["app_env"] == "staging"
 
 
-def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
+def test_dashboard_never_guesses_production(monkeypatch):
     from app.releases import dashboard
     from app.releases.git_info import BranchInfo, GitSnapshot
 
-    main_sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
     tip_sha = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    main_sha = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 
     monkeypatch.setattr(
         dashboard,
@@ -242,18 +257,11 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
             branch="feature/releases-dashboard",
             commit=tip_sha,
             short_commit="aaaaaaa",
-            commit_subject="wip",
-            commit_date="2026-01-01",
-            dirty_files=[],
             main_sha=main_sha,
             branches=[
                 BranchInfo(
                     name="feature/releases-dashboard",
                     tip_sha=tip_sha,
-                    tip_date="2026-01-01",
-                    tip_subject="wip",
-                    ahead=2,
-                    behind=0,
                     merged_into_main=False,
                 )
             ],
@@ -266,20 +274,20 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
             {
                 "id": "releases-dashboard",
                 "name": "Releases dashboard",
-                "objective": "Visual lifecycle",
+                "objective": "Tracker",
                 "branch": "feature/releases-dashboard",
-                "status": "experimental",
+                "decision": "testing",
+                "decision_label": "Testing",
+                "commit_id": tip_sha,
             }
         ],
     )
-    monkeypatch.setattr(dashboard, "experiments_by_branch", lambda: {
-        "feature/releases-dashboard": {
-            "name": "Releases dashboard",
-            "objective": "Visual lifecycle",
-            "branch": "feature/releases-dashboard",
-            "status": "experimental",
-        }
-    })
+    monkeypatch.setattr(dashboard, "experiments_by_branch", lambda: {})
+    monkeypatch.setattr(
+        dashboard,
+        "load_registry_document",
+        lambda: {"experiments": [], "history": [], "source": "local", "path": "x"},
+    )
     monkeypatch.setattr(
         dashboard,
         "load_staging_record",
@@ -288,12 +296,28 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
     monkeypatch.setattr(
         dashboard,
         "load_production_record",
-        lambda: {"available": False, "source": "recorded", "status": "Unknown"},
+        lambda: {
+            "available": True,
+            "git_sha": "cccccccccccccccccccccccccccccccccccccccc",
+            "revision": "prod-rev",
+            "image": "img@sha256:x",
+            "branch": "main",
+            "deployed_at": "2026-01-01T00:00:00Z",
+        },
     )
+    # Production health has no git_sha — must not treat record as live-verified.
     monkeypatch.setattr(
         dashboard,
         "probe_health",
         lambda url: {
+            "available": True,
+            "source": "live",
+            "status": "Live",
+            "git_sha": "Unknown",
+            "ok": True,
+        }
+        if url and "prod" in url
+        else {
             "available": False,
             "source": "live",
             "status": "Not Verified",
@@ -303,127 +327,69 @@ def test_matrix_and_dashboard_build_without_hardcoded_shas(monkeypatch):
     monkeypatch.setattr(dashboard, "find_reports_for_sha", lambda *a, **k: [])
     monkeypatch.setattr(dashboard, "latest_summary_unscoped", lambda: None)
     monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "")
-    monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "")
-    monkeypatch.setattr(dashboard, "is_ancestor", lambda tip, env: tip == env)
-    monkeypatch.setattr(dashboard, "resolve_ref_sha", lambda *refs: None)
+    monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "https://prod.example")
+    monkeypatch.setattr(dashboard, "is_ancestor", lambda tip, env: False)
 
     dashboard.clear_cache()
     data = dashboard.get_dashboard(force=True)
-    assert data["base"]["source"] == "main_proxy"
-    assert data["base"]["sha"] == main_sha
-    assert data["formula"]["funnel"]["on_dev"] == 1
-    assert data["formula"]["funnel"]["in_base"] == 0
-    assert data["matrix"][0]["on_dev"] == "yes"
-    assert data["matrix"][0]["on_prod"] == "no"
-    assert data["matrix"][0]["on_staging"] == "unknown"  # no staging SHA / proxy
-    assert "Releases dashboard" in data["formula"]["dev_expression"]
-    assert data["formula"]["staging_expression"] == "Not Verified"
-    assert data["formula"]["staging_source"] == "unknown"
+    assert data["production"]["verified"] is False
+    assert data["production"]["serving_sha"] is None
+    assert "not live-verified" in data["production"]["verification_label"].lower()
+    assert data["experiments"][0]["in_production"] == "unknown"
+    assert data["base"]["source"] == "unknown"
 
 
-def test_funnel_counts_staging_extras_beyond_base(monkeypatch):
+def test_dashboard_verifies_when_health_matches_record(monkeypatch):
     from app.releases import dashboard
-    from app.releases.git_info import BranchInfo, GitSnapshot
+    from app.releases.git_info import GitSnapshot
 
-    base = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
-    stg = "cccccccccccccccccccccccccccccccccccccccc"
-    feat_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
-
+    sha = "dddddddddddddddddddddddddddddddddddddddd"
     monkeypatch.setattr(
         dashboard,
         "collect_git_snapshot",
-        lambda: GitSnapshot(
-            available=True,
-            branch="feature/a",
-            commit=feat_a,
-            short_commit="aaaaaaa",
-            commit_subject="a",
-            commit_date="2026-01-01",
-            dirty_files=[],
-            main_sha=base,
-            branches=[
-                BranchInfo(name="feature/a", tip_sha=feat_a, merged_into_main=False),
-            ],
-        ),
+        lambda: GitSnapshot(available=True, main_sha=sha, branches=[]),
     )
+    monkeypatch.setattr(dashboard, "load_experiments", lambda: [])
+    monkeypatch.setattr(dashboard, "experiments_by_branch", lambda: {})
     monkeypatch.setattr(
         dashboard,
-        "load_experiments",
-        lambda: [
-            {
-                "id": "a",
-                "name": "Feature A",
-                "objective": "A",
-                "branch": "feature/a",
-                "status": "ready",
-            }
-        ],
+        "load_registry_document",
+        lambda: {"experiments": [], "history": [], "source": "local", "path": "x"},
     )
-    monkeypatch.setattr(dashboard, "experiments_by_branch", lambda: {})
     monkeypatch.setattr(
         dashboard,
         "load_staging_record",
         lambda: {
             "available": True,
-            "git_sha": stg,
-            "source": "recorded",
-            "status": "Recorded",
+            "git_sha": sha,
+            "branch": "feature/x",
+            "revision": "stg-1",
+            "deployed_at": "2026-01-02T00:00:00Z",
         },
     )
     monkeypatch.setattr(
         dashboard,
         "load_production_record",
-        lambda: {
-            "available": True,
-            "git_sha": base,
-            "source": "recorded",
-            "status": "Recorded",
-        },
+        lambda: {"available": False, "status": "Unknown"},
     )
     monkeypatch.setattr(
         dashboard,
         "probe_health",
-        lambda url: {"available": False, "source": "live", "status": "Not Verified"},
+        lambda url: {
+            "available": True,
+            "git_sha": sha[:7],
+            "status": "Live",
+            "ok": True,
+        }
+        if url
+        else {"available": False, "status": "Not Verified"},
     )
     monkeypatch.setattr(dashboard, "find_reports_for_sha", lambda *a, **k: [])
     monkeypatch.setattr(dashboard, "latest_summary_unscoped", lambda: None)
-    monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "")
+    monkeypatch.setattr(dashboard, "STAGING_BASE_URL", "https://staging.example")
     monkeypatch.setattr(dashboard, "PRODUCTION_BASE_URL", "")
-
-    def fake_ancestor(tip, env):
-        if tip == feat_a and env == stg:
-            return True
-        if tip == feat_a and env == base:
-            return False
-        return False
-
-    monkeypatch.setattr(dashboard, "is_ancestor", fake_ancestor)
-    monkeypatch.setattr(dashboard, "commits_between", lambda a, b, **k: ["ccccccc Feature A"])
-    monkeypatch.setattr(dashboard, "resolve_ref_sha", lambda *refs: None)
 
     dashboard.clear_cache()
     data = dashboard.get_dashboard(force=True)
-    assert data["base"]["source"] == "production"
-    assert data["formula"]["staging_source"] == "staging_deploy"
-    assert data["matrix"][0]["on_staging"] == "yes"
-    assert data["matrix"][0]["on_prod"] == "no"
-    assert data["matrix"][0]["lane"] == "staging_candidate"
-    assert data["formula"]["funnel"]["on_staging"] == 1
-    assert data["formula"]["funnel"]["in_base"] == 0
-    assert "Feature A" in data["formula"]["staging_expression"]
-    assert data["formula"]["staging_expression"].startswith("PROD +")
-
-
-def test_eval_report_match_by_git_sha(tmp_path, monkeypatch):
-    from app.releases import evals as eval_mod
-
-    reports = tmp_path / "reports"
-    reports.mkdir()
-    (reports / "staging_demo.json").write_text(
-        json.dumps({"git_sha": "ffffeeee", "passed": 3, "failed": 1, "cases_run": 4}),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(eval_mod, "REPORTS_DIR", reports)
-    hits = eval_mod.find_reports_for_sha("ffffeeee0000")
-    assert hits and hits[0]["passed"] == 3
-    assert eval_mod.find_reports_for_sha(None) == []
+    assert data["staging"]["verified"] is True
+    assert data["staging"]["serving_sha_short"] == sha[:7]

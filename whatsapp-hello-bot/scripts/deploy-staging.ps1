@@ -59,6 +59,20 @@ try {
     Write-Host "  FAQ     : baseline bucket objects (no prefix)"
   }
 
+  # Seed experiment decisions registry in GCS once (never overwrite existing decisions).
+  $decisionsObj = "gs://$($script:StagingBucket)/releases/experiments/decisions.json"
+  $decisionsExists = Get-GCloudOutput storage ls $decisionsObj @StagingArgs
+  if (-not $decisionsExists) {
+    $seedLocal = Join-Path $repoRoot "whatsapp-hello-bot\data\experiments.json"
+    if (Test-Path $seedLocal) {
+      Write-Host "  decisions: seeding $decisionsObj from experiments.json"
+      Invoke-GCloud storage cp $seedLocal $decisionsObj @StagingArgs
+    }
+  }
+  else {
+    Write-Host "  decisions: keeping existing $decisionsObj"
+  }
+
   # Seed isolated FAQ/index/records from baseline when missing (never overwrite baseline).
   if ($faqPrefix) {
     $baselineObjects = @(
@@ -92,13 +106,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
 
+    $stagingUrl = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.url)"
+    if (-not $stagingUrl) {
+      $stagingUrl = "https://whatsapp-faq-bot-staging-lvay5sgo6q-uc.a.run.app"
+    }
+    $prodUrl = "https://whatsapp-faq-bot-7baznmhe7q-uc.a.run.app"
     $envParts = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
       "GIT_SHA=$shortSha",
       "DEPLOY_BRANCH=$branch",
-      "GITHUB_REPO=donhirye/outlook-invite-addin"
+      "GITHUB_REPO=donhirye/outlook-invite-addin",
+      "STAGING_BASE_URL=$stagingUrl",
+      "PRODUCTION_BASE_URL=$prodUrl"
     )
     if ($faqPrefix) {
       $envParts += "FAQ_GCS_PREFIX=$faqPrefix"

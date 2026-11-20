@@ -14,308 +14,264 @@
       --accent: #25d366;
       --accent-ink: #0b1f19;
       --border: rgba(255, 255, 255, 0.12);
-      --dev: #9b7bff;
       --staging: #f0a14a;
       --prod: #3dcf8e;
+      --warn: #ffb4a8;
     }
     * { box-sizing: border-box; }
     body {
-      margin: 0;
-      min-height: 100vh;
+      margin: 0; min-height: 100vh;
       font-family: "Segoe UI", system-ui, sans-serif;
       color: var(--ink);
       background:
         radial-gradient(ellipse 80% 50% at 10% 0%, #1f4d3f 0%, transparent 55%),
-        radial-gradient(ellipse 60% 40% at 100% 100%, #0a3d2e 0%, transparent 50%),
         var(--bg);
       padding: 1.5rem;
     }
-    .wrap { width: min(72rem, 100%); margin: 0 auto; }
+    .wrap { width: min(68rem, 100%); margin: 0 auto; }
     .card {
       background: color-mix(in srgb, var(--panel) 92%, black);
       border: 1px solid var(--border);
       border-radius: 1rem;
-      padding: 1.5rem;
-      box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-      margin-bottom: 1.25rem;
+      padding: 1.35rem 1.5rem;
+      margin-bottom: 1.1rem;
     }
-    h1 { margin: 0 0 .35rem; font-size: 1.4rem; font-weight: 650; }
-    h2 { margin: 0 0 .75rem; font-size: 1.05rem; }
-    p { margin: 0 0 1rem; color: var(--muted); line-height: 1.45; }
-    nav { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+    h1 { margin: 0 0 .35rem; font-size: 1.35rem; font-weight: 650; }
+    h2 { margin: 0 0 .65rem; font-size: 1.05rem; }
+    p { margin: 0 0 .85rem; color: var(--muted); line-height: 1.45; }
+    nav { display: flex; gap: .75rem; flex-wrap: wrap; margin-bottom: 1.1rem; }
     nav a {
       color: var(--muted); text-decoration: none; border: 1px solid var(--border);
       border-radius: .65rem; padding: .45rem .75rem; font-size: .9rem;
     }
     nav a.active { color: var(--accent-ink); background: var(--accent); border-color: transparent; font-weight: 600; }
+    .meta { font-size: .85rem; color: var(--muted); }
+    .mono { font-family: ui-monospace, Consolas, monospace; font-size: .82rem; }
+    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
+    .env {
+      border: 1px solid var(--border); border-radius: .85rem; padding: 1rem;
+      background: rgba(0,0,0,.18);
+    }
     .pill {
       display: inline-block; font-size: .72rem; font-weight: 700; letter-spacing: .04em;
       text-transform: uppercase; padding: .2rem .45rem; border-radius: .4rem; margin-right: .35rem;
     }
-    .pill-dev { background: color-mix(in srgb, var(--dev) 35%, transparent); color: #e6dcff; }
     .pill-staging { background: color-mix(in srgb, var(--staging) 35%, transparent); color: #ffe2c2; }
     .pill-prod { background: color-mix(in srgb, var(--prod) 35%, transparent); color: #c9ffe4; }
-    .pill-unk { background: rgba(255,180,168,.15); color: #ffb4a8; }
-    .meta { font-size: .85rem; color: var(--muted); margin-bottom: 1rem; }
-    table { width: 100%; border-collapse: collapse; font-size: .82rem; }
-    th, td { text-align: left; padding: .45rem .4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .pill-ok { background: color-mix(in srgb, var(--prod) 30%, transparent); color: var(--prod); }
+    .pill-unk { background: rgba(255,180,168,.15); color: var(--warn); }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    th, td { text-align: left; padding: .55rem .4rem; border-bottom: 1px solid var(--border); vertical-align: top; }
     th { color: var(--muted); font-weight: 600; }
-    .mono { font-family: ui-monospace, Consolas, monospace; font-size: .8rem; }
     .cell {
-      display: inline-block; min-width: 5.5rem; text-align: center; padding: .25rem .4rem;
+      display: inline-block; min-width: 4.5rem; text-align: center; padding: .2rem .35rem;
       border-radius: .4rem; font-size: .72rem; font-weight: 700; text-transform: uppercase;
     }
     .cell-yes { background: color-mix(in srgb, var(--prod) 30%, transparent); color: var(--prod); }
     .cell-no { background: rgba(255,255,255,.06); color: var(--muted); }
-    .cell-unknown { background: rgba(255,180,168,.12); color: #ffb4a8; }
-    .funnel { display: flex; flex-wrap: wrap; gap: .75rem; margin: 0 0 1rem; }
-    .funnel .stat {
-      flex: 1 1 8rem; background: rgba(0,0,0,.22); border: 1px solid var(--border);
-      border-radius: .75rem; padding: .75rem .9rem;
-    }
-    .funnel .stat .n { font-size: 1.6rem; font-weight: 700; line-height: 1.1; }
-    .funnel .stat .lbl { font-size: .78rem; color: var(--muted); margin-top: .25rem; }
-    .formula {
-      font-family: ui-monospace, Consolas, monospace; font-size: .85rem;
-      background: rgba(0,0,0,.25); border-radius: .65rem; padding: .85rem 1rem;
-      margin: 0 0 1rem; line-height: 1.55; white-space: pre-wrap;
-    }
-    .lane { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); }
-    button {
+    .cell-unknown { background: rgba(255,180,168,.12); color: var(--warn); }
+    button, select, textarea, input {
       border: 1px solid var(--border); background: rgba(0,0,0,.25); color: var(--ink);
-      border-radius: .65rem; padding: .55rem .9rem; font: inherit; cursor: pointer;
+      border-radius: .55rem; padding: .45rem .65rem; font: inherit;
     }
+    button { cursor: pointer; }
     button:hover { border-color: var(--accent); }
-    a { color: #9be7c4; }
-    .env-row { display: flex; flex-wrap: wrap; gap: .5rem 1rem; margin: 0 0 1rem; font-size: .85rem; color: var(--muted); }
-    .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 1rem; }
-    .panel {
-      background: rgba(0,0,0,.18); border: 1px solid var(--border); border-radius: .75rem; padding: 1rem;
+    details.tech { margin-top: .5rem; }
+    details.tech summary { cursor: pointer; color: var(--muted); margin-bottom: .75rem; }
+    .warn {
+      background: rgba(255,180,168,.1); border: 1px solid rgba(255,180,168,.35);
+      border-radius: .65rem; padding: .75rem .9rem; color: #ffd7d0; margin-bottom: 1rem;
     }
-    .panel h3 { margin: 0 0 .5rem; font-size: .95rem; }
-    ul.compact { margin: 0; padding-left: 1.1rem; color: var(--muted); font-size: .85rem; }
-    .ro { font-size: .75rem; color: var(--muted); margin-top: .75rem; }
+    .legend { font-size: .82rem; color: var(--muted); }
+    .legend li { margin: .25rem 0; }
+    .decision-form { display: flex; flex-wrap: wrap; gap: .5rem; align-items: flex-start; margin-top: .5rem; }
+    .decision-form textarea { width: min(24rem, 100%); min-height: 2.5rem; }
+    a { color: #9be7c4; }
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="card">
       {% include "partials/admin_nav.html" %}
-      <h1>Promotion funnel</h1>
-      <div class="meta">
+      <h1>Experiment &amp; release tracker</h1>
+      <p>
+        Track what you are testing on Staging, what you decided, and what parents see in Production.
+        This page never merges, deploys, or changes Production.
+      </p>
+      <p class="meta">
         Last refreshed: <span class="mono">{{ dash.refreshed_at }}</span>
         &nbsp;·&nbsp;
         <form method="post" action="/admin/releases/refresh" style="display:inline;">
           <button type="submit">Refresh</button>
         </form>
-      </div>
-      <p class="ro">Read-only. Staging hosts this dashboard; production deploys stay manual via GitHub Actions.</p>
-
-      <div class="env-row">
-        <span><span class="pill pill-prod">PROD</span>
-          {% if dash.formula.base_sha_short %}
-            <span class="mono">{{ dash.formula.base_source }} @ {{ dash.formula.base_sha_short }}</span>
-          {% else %}
-            <span class="pill pill-unk">Unknown</span>
-          {% endif %}
-        </span>
-        <span><span class="pill pill-staging">STAGING</span>
-          {% if dash.formula.staging_sha_short %}
-            <span class="mono">{{ dash.formula.staging_source }} @ {{ dash.formula.staging_sha_short }}</span>
-          {% else %}
-            <span class="pill pill-unk">Unknown</span>
-          {% endif %}
-        </span>
-        <span><span class="pill pill-dev">BRANCHES</span>
-          <span class="mono">{{ dash.dev.branch }} @ {{ dash.dev.short_commit }}</span>
-          {% if dash.dev.error %}<span class="pill pill-unk">{{ dash.dev.error }}</span>{% endif %}
-        </span>
-      </div>
-      <p class="meta">{{ dash.formula.base_note }}</p>
-      <p class="meta">{{ dash.formula.staging_note }}</p>
-
-      <div class="formula">PROD    ({{ dash.formula.base_source }}) @ {{ dash.formula.base_sha_short or "Unknown" }}
-STAGING ({{ dash.formula.staging_source }}) @ {{ dash.formula.staging_sha_short or "Unknown" }}
-         = {{ dash.formula.staging_expression }}
-BRANCHES = {{ dash.formula.dev_expression }}</div>
-
-      <div class="funnel">
-        <div class="stat">
-          <div class="n" style="color:var(--dev)">{{ dash.formula.funnel.on_dev }}</div>
-          <div class="lbl">on branch tips <span class="pill pill-dev">of {{ dash.formula.funnel.tracked }} tracked</span></div>
-        </div>
-        <div class="stat">
-          <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.on_staging }}</div>
-          <div class="lbl">on STAGING{% if dash.formula.funnel.staging_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.staging_unknown }} unknown</span>{% endif %}</div>
-        </div>
-        <div class="stat">
-          <div class="n" style="color:var(--prod)">{{ dash.formula.funnel.in_base }}</div>
-          <div class="lbl">in PROD{% if dash.formula.funnel.base_unknown %} <span class="pill pill-unk">{{ dash.formula.funnel.base_unknown }} unknown</span>{% endif %}</div>
-        </div>
-        <div class="stat">
-          <div class="n">{{ dash.formula.funnel.dev_only }}</div>
-          <div class="lbl">branch-only (not staging/PROD)</div>
-        </div>
-        <div class="stat">
-          <div class="n" style="color:var(--staging)">{{ dash.formula.funnel.staging_candidates }}</div>
-          <div class="lbl">staging candidates</div>
-        </div>
-      </div>
+      </p>
     </div>
 
     <div class="card">
-      <h2>A — Branch hierarchy</h2>
-      <p>Feature / experiment / cursor / hotfix tips vs main (GitHub on staging, local git on DEV).</p>
-      {% if dash.dev.branches %}
-      <table>
-        <thead>
-          <tr>
-            <th>Branch</th>
-            <th>Tip</th>
-            <th>Ahead / behind</th>
-            <th>Merged?</th>
-            <th>Experiment</th>
-            <th>PR</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for b in dash.dev.branches %}
-          <tr>
-            <td><span class="mono">{{ b.name }}</span></td>
-            <td>
-              <span class="mono">{{ b.tip_sha_short or "Unknown" }}</span><br />
-              <span class="meta">{{ b.tip_subject }}</span>
-            </td>
-            <td class="mono">
-              {% if b.ahead is not none %}{{ b.ahead }} / {{ b.behind }}{% else %}Unknown{% endif %}
-            </td>
-            <td>
-              {% if b.merged_into_main is sameas true %}yes
-              {% elif b.merged_into_main is sameas false %}no
-              {% else %}Unknown{% endif %}
-            </td>
-            <td>
-              {{ b.experiment_name }}
-              <span class="lane">{{ b.experiment_status }}</span>
-            </td>
-            <td>
-              {% if b.pr_url %}<a href="{{ b.pr_url }}" target="_blank" rel="noopener">#{{ b.pr_number or "?" }}</a>
-              {% else %}{{ b.pr_state or "Unknown" }}{% endif %}
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      {% else %}
-      <p>No feature-like branches found (or GitHub metadata Unavailable).</p>
-      {% endif %}
-    </div>
-
-    <div class="card">
-      <h2>B / C — Deployment versions</h2>
+      <h2>Current environments</h2>
       <div class="grid2">
-        <div class="panel">
-          <h3><span class="pill pill-staging">STAGING</span></h3>
-          {% set st = dash.staging.recorded %}
-          {% set stl = dash.staging.live %}
-          <p class="meta">
-            Recorded: {% if st.available %}<span class="mono">{{ st.git_sha[:7] if st.git_sha else "Unknown" }}</span>
-            · {{ st.branch or "Unknown" }} · {{ st.deployed_at or "Unknown" }}
-            {% if st.smoke_ok is sameas true %}· smoke ok{% elif st.smoke_ok is sameas false %}· smoke fail{% endif %}
-            {% else %}<span class="pill pill-unk">Unknown</span>{% endif %}
+        {% for env in [dash.staging, dash.production] %}
+        <div class="env">
+          <div>
+            {% if env.name == 'STAGING' %}
+              <span class="pill pill-staging">STAGING</span>
+            {% else %}
+              <span class="pill pill-prod">PRODUCTION</span>
+            {% endif %}
+            {% if env.verified %}
+              <span class="pill pill-ok">{{ env.verification_label }}</span>
+            {% else %}
+              <span class="pill pill-unk">{{ env.verification_label }}</span>
+            {% endif %}
+          </div>
+          <p style="margin-top:.75rem;">
+            {% if env.name == 'STAGING' %}
+              Currently deployed for testing
+            {% else %}
+              Currently serving parents
+            {% endif %}
+          </p>
+          <p>
+            Branch:
+            <strong class="mono">{{ env.branch or "Unknown" }}</strong><br />
+            Commit:
+            {% if env.serving_sha_short %}
+              <strong class="mono">{{ env.serving_sha_short }}</strong>
+            {% else %}
+              <span class="pill pill-unk">Unknown</span>
+            {% endif %}
           </p>
           <p class="meta">
-            Live /health: {% if stl.ok %}<span class="mono">{{ stl.git_sha or "Unknown" }}</span>
-            {% else %}<span class="pill pill-unk">{{ stl.status or "Unknown" }}</span>{% endif %}
+            Deployed: {{ env.deployed_at or "Unknown" }}<br />
+            Checked: <span class="mono">{{ env.checked_at }}</span>
           </p>
-          {% if st.image %}<p class="meta">Image: <span class="mono">{{ st.image }}</span></p>{% endif %}
-          {% if st.revision %}<p class="meta">Revision: <span class="mono">{{ st.revision }}</span></p>{% endif %}
-          {% if st.faq_gcs_prefix %}<p class="meta">FAQ prefix: <span class="mono">{{ st.faq_gcs_prefix }}</span></p>{% endif %}
-          <p class="meta">Delta vs PROD ({{ dash.staging.delta_status }}):</p>
-          {% if dash.staging.delta_vs_prod %}
-          <ul class="compact">
-            {% for line in dash.staging.delta_vs_prod[:15] %}
-            <li class="mono">{{ line }}</li>
-            {% endfor %}
-          </ul>
-          {% else %}
-          <p class="meta">None / Unknown</p>
-          {% endif %}
+          <p class="meta">{{ env.note }}</p>
         </div>
-        <div class="panel">
-          <h3><span class="pill pill-prod">PROD</span></h3>
-          {% set pr = dash.production.recorded %}
-          {% set prl = dash.production.live %}
-          <p class="meta">
-            Recorded: {% if pr.available %}<span class="mono">{{ pr.git_sha[:7] if pr.git_sha else "Unknown" }}</span>
-            · {{ pr.deployed_at or "Unknown" }}
-            {% else %}<span class="pill pill-unk">Unknown</span>{% endif %}
-          </p>
-          <p class="meta">
-            Live /health: {% if prl.ok %}<span class="mono">{{ prl.git_sha or "Unknown" }}</span>
-            {% else %}<span class="pill pill-unk">{{ prl.status or "Unknown" }}</span>{% endif %}
-          </p>
-          {% if pr.image %}<p class="meta">Image: <span class="mono">{{ pr.image }}</span></p>{% endif %}
-          {% if pr.revision %}<p class="meta">Revision: <span class="mono">{{ pr.revision }}</span></p>{% endif %}
-          <p class="meta">Promote via manual GitHub Actions only (image-digest promote deferred).</p>
-        </div>
+        {% endfor %}
       </div>
     </div>
 
+    {% if dash.multiple_testing %}
     <div class="card">
-      <h2>D — Feature matrix</h2>
-      {% if dash.matrix %}
+      <div class="warn">
+        {{ dash.testing_count }} experiments are marked <strong>Testing</strong>.
+        Only one experiment should be actively tested on the shared Staging environment at a time.
+      </div>
+    </div>
+    {% endif %}
+
+    {% if dash.waiting_for_production %}
+    <div class="card">
+      <h2>Waiting for Production</h2>
+      <p>Accepted features that are in Main but not yet verified in Production.</p>
+      <ul>
+        {% for row in dash.waiting_for_production %}
+        <li>
+          <strong>{{ row.name }}</strong>
+          <span class="mono">({{ row.branch }})</span>
+          — In Production: <span class="cell cell-{{ row.in_production }}">{{ row.in_production }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <h2>Experiments</h2>
+      <p class="legend">How to read the columns:</p>
+      <ul class="legend">
+        <li><strong>Feature</strong> — {{ dash.legend.feature }}</li>
+        <li><strong>Decision</strong> — {{ dash.legend.decision }}</li>
+        <li><strong>In Staging?</strong> — {{ dash.legend.in_staging }}</li>
+        <li><strong>In Main?</strong> — {{ dash.legend.in_main }}</li>
+        <li><strong>In Production?</strong> — {{ dash.legend.in_production }}</li>
+      </ul>
+
+      {% if dash.experiments %}
       <table>
         <thead>
           <tr>
             <th>Feature</th>
-            <th><span class="pill pill-dev">On tip?</span></th>
-            <th><span class="pill pill-staging">On STAGING?</span></th>
-            <th><span class="pill pill-prod">In PROD?</span></th>
-            <th>Lane</th>
+            <th>Decision</th>
+            <th>In Staging?</th>
+            <th>In Main?</th>
+            <th>In Production?</th>
           </tr>
         </thead>
         <tbody>
-          {% for row in dash.matrix %}
+          {% for row in dash.experiments %}
           <tr>
             <td>
               <strong>{{ row.name }}</strong><br />
               <span class="meta">{{ row.objective }}</span><br />
               <span class="mono">{{ row.branch }}</span>
-              {% if row.tip_sha_short %} · <span class="mono">{{ row.tip_sha_short }}</span>{% endif %}
+              {% if row.commit_id_short %} · <span class="mono">{{ row.commit_id_short }}</span>{% endif %}
             </td>
-            <td><span class="cell cell-{{ row.on_dev }}">{{ row.on_dev }}</span></td>
-            <td><span class="cell cell-{{ row.on_staging }}">{{ row.on_staging }}</span></td>
-            <td><span class="cell cell-{{ row.on_prod }}">{{ row.on_prod }}</span></td>
-            <td><span class="lane">{{ row.lane.replace('_', ' ') }}</span></td>
+            <td>
+              <strong>{{ row.decision_label }}</strong><br />
+              <span class="meta">{{ row.decision_date }}</span>
+              {% if row.reason %}<br /><span class="meta">{{ row.reason }}</span>{% endif %}
+              {% if row.evals %}
+              <br /><span class="meta">Evals: {{ row.evals|length }} report(s)</span>
+              {% elif row.eval_summary %}
+              <br /><span class="meta">{{ row.eval_summary }}</span>
+              {% endif %}
+              <form class="decision-form" method="post" action="/admin/releases/decision">
+                <input type="hidden" name="experiment_id" value="{{ row.id }}" />
+                <input type="hidden" name="commit_id" value="{{ row.commit_id or '' }}" />
+                <select name="decision" required>
+                  <option value="testing" {% if row.decision == 'testing' %}selected{% endif %}>Testing</option>
+                  <option value="accepted" {% if row.decision == 'accepted' %}selected{% endif %}>Accepted</option>
+                  <option value="parked" {% if row.decision == 'parked' %}selected{% endif %}>Parked</option>
+                  <option value="rejected" {% if row.decision == 'rejected' %}selected{% endif %}>Rejected</option>
+                </select>
+                <textarea name="reason" placeholder="Short reason / notes (optional)">{{ row.reason }}</textarea>
+                <button type="submit">Save decision</button>
+              </form>
+            </td>
+            <td><span class="cell cell-{{ row.in_staging }}">{{ row.in_staging }}</span></td>
+            <td><span class="cell cell-{{ row.in_main }}">{{ row.in_main }}</span></td>
+            <td><span class="cell cell-{{ row.in_production }}">{{ row.in_production }}</span></td>
           </tr>
           {% endfor %}
         </tbody>
       </table>
-      <p class="meta" style="margin-top:1rem;">
-        Track names in <span class="mono">data/experiments.json</span>.
-      </p>
       {% else %}
-        <p>No tracked experiments outside PROD.</p>
+      <p>No experiments registered yet.</p>
       {% endif %}
     </div>
 
     <div class="card">
-      <h2>E — Staging evals</h2>
-      {% if dash.staging.tests %}
-      <ul class="compact">
-        {% for t in dash.staging.tests %}
-        <li>
-          <span class="mono">{{ t.path or t.name or "report" }}</span>
-          {% if t.summary %} — {{ t.summary }}{% endif %}
-        </li>
-        {% endfor %}
-      </ul>
-      {% elif dash.staging.tests_unscoped %}
-      <p class="meta">No SHA-scoped reports. Latest unscoped: {{ dash.staging.tests_unscoped }}</p>
-      {% else %}
-      <p class="meta">No eval reports found for the staging SHA.</p>
-      {% endif %}
+      <details class="tech">
+        <summary>Technical details</summary>
+        <p class="meta">Registry: {{ dash.tech.registry_source }} · <span class="mono">{{ dash.tech.registry_path }}</span></p>
+        <p class="meta">
+          Staging record revision: <span class="mono">{{ dash.staging.revision or "Unknown" }}</span><br />
+          Staging image: <span class="mono">{{ dash.staging.image or "Unknown" }}</span><br />
+          Production record revision: <span class="mono">{{ dash.production.revision or "Unknown" }}</span><br />
+          Production image: <span class="mono">{{ dash.production.image or "Unknown" }}</span>
+        </p>
+        <p class="meta">
+          Main (GitHub): <span class="mono">{{ dash.tech.main_sha_short or "Unknown" }}</span>
+          · Git source: {{ dash.tech.git_source or "Unknown" }}
+        </p>
+        {% if dash.tech.history %}
+        <h2>Recent decision history</h2>
+        <ul class="meta">
+          {% for h in dash.tech.history|reverse %}
+          <li class="mono">{{ h.at }} · {{ h.experiment_id }} · {{ h.from }} → {{ h.to }}{% if h.reason %} · {{ h.reason }}{% endif %}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+        {% if dash.tech.branches %}
+        <h2>Branch tips</h2>
+        <ul class="meta">
+          {% for b in dash.tech.branches %}
+          <li class="mono">{{ b.name }} @ {{ b.tip_sha_short or "?" }}</li>
+          {% endfor %}
+        </ul>
+        {% endif %}
+      </details>
     </div>
   </div>
 </body>

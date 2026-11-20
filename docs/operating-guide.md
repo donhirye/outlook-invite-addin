@@ -53,6 +53,11 @@ Uses `gs://…/releases/staging-known-good.json` when present (last smoke-passin
 Staging: `https://<staging-url>/admin/releases` (after login).  
 See [releases-dashboard.md](releases-dashboard.md).
 
+Decisions (Testing / Accepted / Parked / Rejected) are saved in staging GCS  
+`releases/experiments/decisions.json` with history. The UI never deploys or changes Production.
+
+**Production visibility today:** production `/health` does not expose `git_sha`, so the dashboard will not claim a verified production commit from health alone. Upload/pull a production release record for recorded metadata; live **In Production?** stays Unknown until health includes `git_sha` or you separately approve read-only Cloud Run access.
+
 ## Local-dev worktree
 
 Keep the separate local-dev worktree until staging Releases is validated and valuables are retained. Do **not** delete the worktree or DEV-only paths without an explicit later approval (Phase 6).

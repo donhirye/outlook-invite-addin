@@ -1,49 +1,41 @@
-# Releases dashboard (staging + local DEV)
+# Releases dashboard (staging experiment tracker)
 
-Authenticated read-only view at `/admin/releases` when `APP_ENV` is `staging` or `development`.
+Authenticated page at `/admin/releases` when `APP_ENV` is `staging` or `development`.
 
-**Not** registered in production.
+**Not** registered in production. Never merges, deploys, or changes Cloud Run from the UI.
 
-## Sections
+## What you see
 
-| Section | Content |
-|---------|---------|
-| Funnel | PROD / STAGING / branch-tip formula + counts |
-| A — Branch hierarchy | feature/experiment/cursor/hotfix tips vs main |
-| B/C — Deploy versions | Recorded + live `/health` for staging and prod (commit, revision, image) |
-| D — Matrix | Feature × tip / staging / prod ancestry |
-| E — Evals | SHA-scoped staging eval reports when present |
+1. **Staging / Production cards** — verified serving commit when live `/health` provides `git_sha` (and matches the deploy record when both exist). Otherwise **Not verified** / **Unknown**.
+2. **Experiments table** — Feature, Decision (Testing / Accepted / Parked / Rejected), In Staging?, In Main?, In Production?
+3. **Waiting for Production** — Accepted + in Main, not verified in Production.
+4. **Technical details** — SHAs, images, decision history (collapsed).
 
-## Data sources
+## Decisions storage
 
-| Environment | Branch metadata | Deploy records |
-|-------------|-----------------|----------------|
-| Local DEV | Laptop `git` + `gh` | `data/releases/*.json` |
-| Staging Cloud Run | GitHub API (read-only PAT) | Local file if present, else `gs://…/releases/*.json` |
+| Host | Location |
+|------|----------|
+| Staging | `gs://vi1234-staging-whatsapp-faq/releases/experiments/decisions.json` |
+| Local DEV | `whatsapp-hello-bot/data/experiments.json` |
 
-### Staging GitHub token (optional but recommended)
+Saving a decision appends an audit history entry. It does **not** write to Git or Production.
 
-Create a fine-grained PAT with **Contents: Read** and **Metadata: Read** (Pull requests: Read if you want PR links). Store it in the staging project:
+## How status is verified
 
-```powershell
-# One-time (from a machine with staging deployer rights)
-gcloud secrets create staging-github-token --project=vi1234-staging
-# then add a version with the PAT value
-```
+| Signal | Staging | Production (today) |
+|--------|---------|----------------------|
+| `/health` `git_sha` | Yes | **No** (health returns `{status:ok}` only) |
+| Deploy record (revision, image, git_sha) | Yes (GCS `releases/staging-latest.json`) | Actions artifact / optional `releases/production-latest.json` |
+| Live-verified serving commit | When health `git_sha` matches record (or health alone) | **Not available** until production `/health` exposes `git_sha` **or** you approve read-only Cloud Run access |
 
-`deploy-staging.ps1` mounts it as `GITHUB_TOKEN` when the secret exists. Without it, branch hierarchy shows Unknown / empty gracefully.
+**Never guess.** If production cannot be live-verified, the Production card shows **Recorded — not live-verified** (when a record exists) and **In Production?** stays **Unknown**.
 
-## Deployment records
+### Optional next step (needs your separate approval)
 
-| Source | Path | Writer |
-|--------|------|--------|
-| Staging (laptop) | `whatsapp-hello-bot/data/releases/staging-latest.json` | `deploy-staging.ps1` |
-| Staging (GCS) | `gs://vi1234-staging-whatsapp-faq/releases/staging-latest.json` | same |
-| Staging known-good | `gs://…/releases/staging-known-good.json` | deploy after smoke pass |
-| Production | Actions artifact → `pull-production-release-record.ps1` | manual prod workflow |
+Grant the staging runtime service account **read-only** `roles/run.viewer` on the production service (or project) so the dashboard can read the serving revision/image/traffic split directly. Do **not** implement that without approval.
 
-## Security
+Better long-term fix (also separate): set `GIT_SHA` on production deploys so `/health` can confirm the serving commit without extra IAM.
 
-- Login required; UI is read-only (refresh only)
-- No merge/deploy/Cloud write from the app
-- GitHub token is read-only; never used for pushes
+## Workflow reminder
+
+Create branch → deploy staging → test → decide → if Accepted, merge to main → deploy main to staging → validate → manual Production Actions release.
