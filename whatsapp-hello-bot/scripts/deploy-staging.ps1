@@ -98,7 +98,7 @@ try {
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
       "GIT_SHA=$shortSha",
       "DEPLOY_BRANCH=$branch",
-      "GITHUB_REPO=mihirphalke1/outlook-invite-addin"
+      "GITHUB_REPO=donhirye/outlook-invite-addin"
     )
     if ($faqPrefix) {
       $envParts += "FAQ_GCS_PREFIX=$faqPrefix"

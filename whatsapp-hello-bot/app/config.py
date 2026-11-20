@@ -182,7 +182,7 @@ STAGING_BASE_URL = _env("STAGING_BASE_URL", "").rstrip("/")
 PRODUCTION_BASE_URL = _env("PRODUCTION_BASE_URL", "").rstrip("/")
 # Fine-grained PAT: contents + metadata (+ pull requests) read-only. Never write.
 GITHUB_TOKEN = _env("GITHUB_TOKEN", "") or _env("GH_TOKEN", "")
-GITHUB_REPO = _env("GITHUB_REPO", "mihirphalke1/outlook-invite-addin")  # owner/repo
+GITHUB_REPO = _env("GITHUB_REPO", "donhirye/outlook-invite-addin")  # owner/repo
 
 
 def staging_config_problems() -> list[str]:
