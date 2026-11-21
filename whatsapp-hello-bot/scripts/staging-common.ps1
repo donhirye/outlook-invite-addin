@@ -83,5 +83,40 @@ function Get-StagingArgs {
   )
 }
 
+function Get-LabelSafeSlug {
+  # Cloud Run label values: lowercase letters, digits, _ and - (max 63).
+  param([Parameter(Mandatory = $true)][string]$Value)
+  $slug = ($Value.ToLowerInvariant() -replace '[^a-z0-9_-]', '-').Trim('-')
+  if ([string]::IsNullOrWhiteSpace($slug)) { return "unknown" }
+  if ($slug.Length -gt 63) { return $slug.Substring(0, 63).TrimEnd('-') }
+  return $slug
+}
+
+function Get-ServingRevisionName {
+  # Prefer the revision that currently has traffic (source of truth for "what's live").
+  # Fall back to latestReady only if traffic is empty.
+  param(
+    [Parameter(Mandatory = $true)][string]$Service,
+    [Parameter(Mandatory = $true)][string[]]$GcloudArgs
+  )
+  $json = Get-GCloudOutput run services describe $Service @GcloudArgs "--region=$($script:Region)" "--format=json"
+  if (-not $json) { return "" }
+  try {
+    $obj = $json | ConvertFrom-Json
+  }
+  catch {
+    return ""
+  }
+  $traffic = @($obj.status.traffic)
+  $serving = $traffic |
+    Where-Object { $_.percent -and [int]$_.percent -gt 0 -and $_.revisionName } |
+    Sort-Object { -[int]$_.percent } |
+    Select-Object -First 1
+  if ($serving -and $serving.revisionName) {
+    return [string]$serving.revisionName
+  }
+  return [string]($obj.status.latestReadyRevisionName)
+}
+
 # Splat this (@StagingArgs) after dot-sourcing: it must stay a real array, not a joined string.
 $StagingArgs = Get-StagingArgs

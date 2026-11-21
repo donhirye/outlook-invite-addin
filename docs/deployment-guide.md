@@ -26,9 +26,21 @@ You need:
 7. First time / safety check: set **dry_run** to **true**
 8. Click the green **Run workflow**
 9. Open the new run. If `production` environment protection is on, click **Review deployments** → **Approve**
-10. Wait for the green check. Open the run’s **Summary** for Git SHA + revision
+10. Wait for the green check. Open the run’s **Summary** for Git SHA + serving revision + image
 
 When dry_run looks good, repeat steps 5–9 with **dry_run = false** to deploy for real.
+
+### What each Production deploy records
+
+| Field | Where to look |
+|---|---|
+| Commit SHA | Env `GIT_SHA` on the serving revision; label `git-sha`; Actions summary |
+| Serving revision | Cloud Run **Traffic** (revision with % > 0) |
+| Image digest | That revision’s container image |
+| Timestamp | Revision create time; Actions artifact `production-release-record` |
+| Branch | Always `main` (label `git-branch=main`) |
+
+Console: [Production revisions](https://console.cloud.google.com/run/detail/us-central1/whatsapp-faq-bot/revisions?project=vi1234)
 
 ## Deploy from your phone
 

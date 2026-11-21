@@ -143,24 +143,54 @@ jobs:
         if: ${{ !inputs.dry_run }}
         working-directory: whatsapp-hello-bot
         run: |
-          # Intentionally omit --set-env-vars / --update-env-vars / --clear-base-image
-          # / --service-account so existing Cloud Run configuration is preserved.
+          set -euo pipefail
+          # Stamp commit onto the serving revision. Use --update-env-vars / --update-labels
+          # so existing FAQ/WhatsApp/OpenAI configuration is preserved (never --set-env-vars).
           # .gcloudignore excludes .env, .venv, playground, learning artifacts, CSVs.
+          SHORT_SHA="$(echo '${{ github.sha }}' | cut -c1-7)"
           gcloud run deploy "${SERVICE_NAME}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --source=. \
+            --update-env-vars="GIT_SHA=${{ github.sha }}" \
+            --update-labels="env=production,git-sha=${SHORT_SHA},git-branch=main" \
             --quiet
 
-      - name: Verify new revision is Ready
+      - name: Verify serving revision is Ready
         if: ${{ !inputs.dry_run }}
         id: verify
+        env:
+          EXPECTED_GIT_SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
-          REVISION="$(gcloud run services describe "${SERVICE_NAME}" \
-            --project="${PROJECT_ID}" \
-            --region="${REGION}" \
-            --format='value(status.latestReadyRevisionName)')"
+          # Source of truth for "what's live" = revision with traffic > 0.
+          eval "$(python3 - <<'PY'
+          import json, os, subprocess
+          desc = json.loads(subprocess.check_output([
+              "gcloud", "run", "services", "describe", os.environ["SERVICE_NAME"],
+              f"--project={os.environ['PROJECT_ID']}",
+              f"--region={os.environ['REGION']}",
+              "--format=json",
+          ], text=True))
+          traffic = desc.get("status", {}).get("traffic") or []
+          serving = sorted(
+              [t for t in traffic if int(t.get("percent") or 0) > 0 and t.get("revisionName")],
+              key=lambda t: -int(t.get("percent") or 0),
+          )
+          revision = (
+              serving[0]["revisionName"] if serving
+              else (desc.get("status", {}) or {}).get("latestReadyRevisionName") or ""
+          )
+          percent = int(serving[0]["percent"]) if serving else 0
+          print(f"REVISION={revision}")
+          print(f"TRAFFIC_PCT={percent}")
+          PY
+          )"
+          if [ -z "${REVISION}" ]; then
+            echo "::error::Could not determine serving revision from traffic"
+            exit 1
+          fi
+
           IMAGE="$(gcloud run revisions describe "${REVISION}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
@@ -169,21 +199,37 @@ jobs:
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
             --format=json | python3 -c "import json,sys; c=json.load(sys.stdin).get('status',{}).get('conditions',[]); print(next((x.get('status') for x in c if x.get('type')=='Ready'),''))")"
-          TRAFFIC="$(gcloud run services describe "${SERVICE_NAME}" \
+          CREATED="$(gcloud run revisions describe "${REVISION}" \
             --project="${PROJECT_ID}" \
             --region="${REGION}" \
-            --format=json | python3 -c "import json,sys; t=json.load(sys.stdin).get('status',{}).get('traffic',[]); print(t[0].get('percent','') if t else '')")"
+            --format='value(metadata.creationTimestamp)')"
+          LIVE_GIT_SHA="$(gcloud run revisions describe "${REVISION}" \
+            --project="${PROJECT_ID}" \
+            --region="${REGION}" \
+            --format=json | python3 -c "
+          import json,sys
+          d=json.load(sys.stdin)
+          envs=((d.get('spec') or {}).get('containers') or [{}])[0].get('env') or []
+          print(next((e.get('value') or '' for e in envs if e.get('name')=='GIT_SHA'), ''))
+          ")"
 
           echo "revision=${REVISION}" >> "$GITHUB_OUTPUT"
           echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "created=${CREATED}" >> "$GITHUB_OUTPUT"
+          echo "traffic_percent=${TRAFFIC_PCT}" >> "$GITHUB_OUTPUT"
 
-          echo "Deployed revision: ${REVISION}"
+          echo "Serving revision: ${REVISION} (${TRAFFIC_PCT}% traffic)"
           echo "Image: ${IMAGE}"
           echo "Ready: ${READY}"
-          echo "Traffic percent (first rule): ${TRAFFIC}"
+          echo "Created: ${CREATED}"
+          echo "GIT_SHA on revision: ${LIVE_GIT_SHA}"
 
           if [ "${READY}" != "True" ]; then
             echo "::error::Revision ${REVISION} is not Ready"
+            exit 1
+          fi
+          if [ "${LIVE_GIT_SHA}" != "${EXPECTED_GIT_SHA}" ]; then
+            echo "::error::Serving revision GIT_SHA (${LIVE_GIT_SHA}) does not match github.sha (${EXPECTED_GIT_SHA})"
             exit 1
           fi
 
@@ -222,6 +268,56 @@ jobs:
           print("FAQ object present.")
           PY
 
+      - name: Write production release record artifact
+        if: ${{ !inputs.dry_run }}
+        working-directory: whatsapp-hello-bot
+        env:
+          RECORD_GIT_SHA: ${{ github.sha }}
+          RECORD_REVISION: ${{ steps.verify.outputs.revision }}
+          RECORD_IMAGE: ${{ steps.verify.outputs.image }}
+          RECORD_CREATED: ${{ steps.verify.outputs.created }}
+          RECORD_URL_VAR: ${{ vars.CLOUD_RUN_SERVICE_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p data/releases
+          SERVICE_URL="${RECORD_URL_VAR:-}"
+          if [ -z "${SERVICE_URL}" ]; then
+            SERVICE_URL="$(gcloud run services describe "${SERVICE_NAME}" \
+              --project="${PROJECT_ID}" \
+              --region="${REGION}" \
+              --format='value(status.url)')"
+          fi
+          export SERVICE_URL
+          python3 - <<'PY'
+          import json, os
+          from datetime import datetime, timezone
+          record = {
+              "git_sha": os.environ["RECORD_GIT_SHA"],
+              "branch": "main",
+              "revision": os.environ.get("RECORD_REVISION") or None,
+              "image": os.environ.get("RECORD_IMAGE") or None,
+              "url": (os.environ.get("SERVICE_URL") or "").strip() or None,
+              "deployed_at": os.environ.get("RECORD_CREATED") or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+              "smoke_ok": True,
+              "service": os.environ["SERVICE_NAME"],
+              "project": os.environ["PROJECT_ID"],
+              "region": os.environ["REGION"],
+          }
+          path = "data/releases/production-latest.json"
+          with open(path, "w", encoding="utf-8") as f:
+              json.dump(record, f, indent=2)
+              f.write("\n")
+          print(f"Wrote {path}: git_sha={record['git_sha'][:7]} revision={record['revision']}")
+          PY
+
+      - name: Upload production release record
+        if: ${{ !inputs.dry_run }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: production-release-record
+          path: whatsapp-hello-bot/data/releases/production-latest.json
+          if-no-files-found: error
+
       - name: Write deployment summary
         if: ${{ !inputs.dry_run }}
         run: |
@@ -232,11 +328,15 @@ jobs:
             echo "|---|---|"
             echo "| Git SHA | \`${{ github.sha }}\` |"
             echo "| Previous revision | \`${{ steps.before.outputs.revision }}\` |"
-            echo "| New revision | \`${{ steps.verify.outputs.revision }}\` |"
+            echo "| Serving revision | \`${{ steps.verify.outputs.revision }}\` |"
+            echo "| Traffic | \`${{ steps.verify.outputs.traffic_percent }}%\` |"
             echo "| Image | \`${{ steps.verify.outputs.image }}\` |"
+            echo "| Created | \`${{ steps.verify.outputs.created }}\` |"
             echo "| Project | \`${{ env.PROJECT_ID }}\` |"
             echo "| Region | \`${{ env.REGION }}\` |"
             echo "| Service | \`${{ env.SERVICE_NAME }}\` |"
+            echo ""
+            echo "Serving revision is chosen from Cloud Run **traffic**, not merely latest created."
             echo ""
             echo "### Rollback"
             echo "If needed, shift traffic back:"
