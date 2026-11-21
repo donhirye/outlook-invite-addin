@@ -81,7 +81,18 @@ def write_faq_csv(path: Path, rows: list[dict[str, str]]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     targets = [path]
     if path.suffix.lower() == ".csv":
-        targets.append(path.with_name(f"{path.stem}_new{path.suffix}"))
+        targets.extend(
+            [
+                path.with_name(f"{path.stem}_new{path.suffix}"),
+                path.with_name(f"{path.stem}_staging{path.suffix}"),
+                path.with_name(f"{path.stem}_{Path.cwd().name}{path.suffix}"),
+            ]
+        )
+        # Unique fallback if Excel still locks common names
+        from datetime import datetime
+
+        stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        targets.append(path.with_name(f"{path.stem}_{stamp}{path.suffix}"))
     last_err: Exception | None = None
     for target in targets:
         try:
