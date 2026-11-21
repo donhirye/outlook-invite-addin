@@ -22,3 +22,7 @@ playground
 data analysis
 learnings.txt
 *.csv
+.secrets/
+newsletter_archive/
+data/newsletter_archive/
+requirements-newsletter.txt

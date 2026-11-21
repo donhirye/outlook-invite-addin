@@ -48,3 +48,9 @@ data/faq_backup.txt
 ~$*
 scripts/
 tests/
+
+# Offline newsletter archive tooling (never part of live WhatsApp runtime)
+.secrets/
+newsletter_archive/
+data/newsletter_archive/
+requirements-newsletter.txt

@@ -1,0 +1,11 @@
+# Optional dependencies for offline newsletter archive tooling only.
+# Not required by the live WhatsApp / Cloud Run app (app.main).
+#
+#   pip install -r requirements-newsletter.txt
+
+google-api-python-client>=2.150.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+reportlab>=4.2.0
