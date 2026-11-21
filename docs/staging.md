@@ -39,6 +39,24 @@ git checkout main; git pull; git checkout -b feature/my-experiment
 
 The script refuses uncommitted tracked changes (it deploys the commit), prints commit/revision/URL, and runs smoke tests (set `$env:STAGING_ADMIN_PASSWORD` to include a real login + chat turn).
 
+### What each Staging deploy records
+
+On Cloud Run (env + labels) and in `gs://vi1234-staging-whatsapp-faq/releases/staging-latest.json`:
+
+| Field | Where to look |
+|---|---|
+| Git branch | Env `DEPLOY_BRANCH`, label `git-branch` |
+| Commit SHA | Env `GIT_SHA` (full), label `git-sha` (short) |
+| Serving revision | Cloud Run **Traffic** (revision with % > 0) — not merely “latest created” |
+| Image digest | That revision’s container image |
+| Deploy time | Release JSON `deployed_at` + revision Ready / create time |
+
+Console: [Staging revisions](https://console.cloud.google.com/run/detail/us-central1/whatsapp-faq-bot-staging/revisions?project=vi1234-staging)
+
+### Experiment decisions (without a custom dashboard)
+
+Use GitHub PR labels: `experiment:testing`, `experiment:accepted`, `experiment:parked`, `experiment:rejected`.
+
 ### Evals from your laptop against staging
 
 ```powershell

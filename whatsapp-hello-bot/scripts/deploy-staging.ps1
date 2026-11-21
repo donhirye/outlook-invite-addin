@@ -7,6 +7,9 @@
 #   GitHub Actions workflow, with approval).
 # - Deploys exactly what is committed (git archive HEAD), never the working folder,
 #   so what you test is what is recorded in Git. Uncommitted tracked changes -> refused.
+# - Records branch, full commit SHA, deploy time, serving revision and image digest on
+#   Cloud Run (env + labels) and in gs://…/releases/staging-latest.json.
+# - "What's live" = the revision with traffic (not merely latest created).
 # - Runs as the staging-only deployer service account (impersonation).
 # - Staging secrets come from Secret Manager in the staging project.
 
@@ -28,6 +31,7 @@ try {
   $branch = (& git rev-parse --abbrev-ref HEAD).Trim()
   $sha = (& git rev-parse HEAD).Trim()
   $shortSha = $sha.Substring(0, 7)
+  $branchLabel = Get-LabelSafeSlug -Value $branch
   $appDir = "whatsapp-hello-bot"
   if (-not (Test-Path (Join-Path $repoRoot "$appDir\Dockerfile"))) {
     throw "Expected $appDir\Dockerfile under $repoRoot."
@@ -37,9 +41,9 @@ try {
   Write-Host "  project : $script:StagingProject"
   Write-Host "  service : $script:StagingService ($script:Region)"
   Write-Host "  runs as : $script:DeployerSa (impersonated)"
-  Write-Host "  commit  : $shortSha on branch $branch"
+  Write-Host "  commit  : $sha"
+  Write-Host "  branch  : $branch"
 
-  # Export the commit (tracked files only) to a temp folder and deploy from there.
   $tmp = Join-Path ([IO.Path]::GetTempPath()) ("staging-deploy-" + $shortSha + "-" + [guid]::NewGuid().ToString("N").Substring(0, 6))
   New-Item -ItemType Directory -Path $tmp | Out-Null
   $zip = "$tmp.zip"
@@ -48,17 +52,20 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "git archive failed." }
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
 
+    # --update-env-vars merges; does not wipe unrelated existing env (e.g. base URLs).
     $envVars = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
-      "GIT_SHA=$shortSha"
+      "GIT_SHA=$sha",
+      "DEPLOY_BRANCH=$branch"
     ) -join ","
     $secrets = @(
       "ADMIN_PASSWORD=$($script:SecretAdminPassword):latest",
       "SECRET_KEY=$($script:SecretSecretKey):latest",
       "OPENAI_API_KEY=$($script:SecretOpenAiKey):latest"
     ) -join ","
+    $labels = "env=staging,git-sha=$shortSha,git-branch=$branchLabel"
 
     # WhatsApp tokens are intentionally never set on staging.
     Invoke-GCloud run deploy $script:StagingService `
@@ -69,9 +76,9 @@ try {
       "--allow-unauthenticated" `
       "--min-instances=0" `
       "--max-instances=2" `
-      "--set-env-vars=$envVars" `
-      "--set-secrets=$secrets" `
-      "--update-labels=env=staging,git-sha=$shortSha" `
+      "--update-env-vars=$envVars" `
+      "--update-secrets=$secrets" `
+      "--update-labels=$labels" `
       "--quiet"
   }
   finally {
@@ -79,17 +86,62 @@ try {
   }
 
   $url = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.url)"
-  $revision = Get-GCloudOutput run services describe $script:StagingService @StagingArgs "--region=$script:Region" "--format=value(status.latestReadyRevisionName)"
+  $revision = Get-ServingRevisionName -Service $script:StagingService -GcloudArgs $StagingArgs
+  $image = ""
+  if ($revision) {
+    $image = Get-GCloudOutput run revisions describe $revision @StagingArgs "--region=$script:Region" "--format=value(spec.containers[0].image)"
+  }
+  $deployedAt = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
   if (-not $url) { throw "Deploy finished but the service URL could not be read." }
+  if (-not $revision) { throw "Deploy finished but the serving revision could not be read." }
+
+  function Write-StagingReleaseRecord([bool]$SmokeOk) {
+    $releasesDir = Join-Path $repoRoot "whatsapp-hello-bot\data\releases"
+    New-Item -ItemType Directory -Path $releasesDir -Force | Out-Null
+    $record = [ordered]@{
+      git_sha     = $sha
+      branch      = $branch
+      revision    = $revision
+      image       = $image
+      url         = $url
+      deployed_at = $deployedAt
+      smoke_ok    = [bool]$SmokeOk
+      service     = $script:StagingService
+      project     = $script:StagingProject
+      region      = $script:Region
+    }
+    $json = ($record | ConvertTo-Json -Depth 4)
+    $outPath = Join-Path $releasesDir "staging-latest.json"
+    $json | Set-Content -Path $outPath -Encoding utf8
+    Write-Host "  record   : $outPath"
+
+    $gcsLatest = "gs://$($script:StagingBucket)/releases/staging-latest.json"
+    $tmpRec = Join-Path ([IO.Path]::GetTempPath()) ("staging-latest-" + [guid]::NewGuid().ToString("N").Substring(0, 8) + ".json")
+    try {
+      $json | Set-Content -Path $tmpRec -Encoding utf8
+      Invoke-GCloud storage cp $tmpRec $gcsLatest @StagingArgs
+      Write-Host "  record   : $gcsLatest"
+      $hist = "gs://$($script:StagingBucket)/releases/history/$shortSha-$([DateTime]::UtcNow.ToString('yyyyMMddHHmmss')).json"
+      Invoke-GCloud storage cp $tmpRec $hist @StagingArgs
+    }
+    finally {
+      Remove-Item -Force $tmpRec -ErrorAction SilentlyContinue
+    }
+  }
 
   Write-Host ""
   Write-Host "Deployed." -ForegroundColor Green
-  Write-Host "  commit   : $shortSha ($branch)"
-  Write-Host "  revision : $revision"
+  Write-Host "  commit   : $sha ($branch)"
+  Write-Host "  serving  : $revision  (traffic-selected)"
+  Write-Host "  image    : $image"
+  Write-Host "  when     : $deployedAt"
   Write-Host "  url      : $url"
   Write-Host "  test chat: $url/admin/test-chat"
 
-  if ($SkipSmokeTests) { return }
+  if ($SkipSmokeTests) {
+    Write-StagingReleaseRecord $false
+    return
+  }
 
   # ---- smoke tests ---------------------------------------------------------------
   Add-Type -AssemblyName System.Net.Http
@@ -124,7 +176,6 @@ try {
   $r = Get-Url "/admin/test-chat/api/personas"
   Check "Test Chat JSON endpoint rejects anonymous (401)" ([int]$r.StatusCode -eq 401) $r.StatusCode
 
-  # Login form is GET /admin (POST /admin/login has no GET page).
   $r = Get-Url "/admin"
   $body = $r.Content.ReadAsStringAsync().GetAwaiter().GetResult()
   Check "Admin page shows the STAGING banner" ($body -match "STAGING") "banner text not found"
@@ -132,7 +183,6 @@ try {
   $r = Get-Url "/metrics"
   Check "/metrics requires login" ([int]$r.StatusCode -in 302, 303, 307, 401) $r.StatusCode
 
-  # Optional: a real Test Chat turn, if you have the staging password in this shell.
   if ($env:STAGING_ADMIN_PASSWORD) {
     $pairs = New-Object 'System.Collections.Generic.Dictionary[string,string]'
     $pairs.Add("password", $env:STAGING_ADMIN_PASSWORD)
@@ -149,8 +199,10 @@ try {
   }
 
   if ($script:failures.Count -gt 0) {
+    Write-StagingReleaseRecord $false
     throw "Smoke tests failed: $($script:failures -join '; ')"
   }
+  Write-StagingReleaseRecord $true
   Write-Host ""
   Write-Host "All smoke tests passed." -ForegroundColor Green
 }

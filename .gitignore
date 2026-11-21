@@ -32,3 +32,6 @@ whatsapp-hello-bot/docs/~$*
 
 # Live evals run against staging (local results)
 whatsapp-hello-bot/evals/reports/staging_*.json
+
+# Local copies of deploy records (canonical copies live in Staging GCS / Actions artifacts)
+whatsapp-hello-bot/data/releases/*.json
