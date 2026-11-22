@@ -64,6 +64,8 @@
     dl { margin:0; display:grid; grid-template-columns: auto 1fr; gap:.25rem .75rem; font-size:.85rem; }
     dt { color:var(--muted); }
     dd { margin:0; word-break:break-word; }
+    .choice-line { color:var(--muted); font-weight:400; }
+    .choice-line .on { color:var(--ink); font-weight:700; }
     .pill { display:inline-block; padding:.05rem .5rem; border-radius:999px; border:1px solid var(--border); font-size:.8rem; }
     .warn { color:#ffd479; }
   </style>
@@ -163,19 +165,54 @@
     if (v instanceof Node) dd.appendChild(v); else dd.textContent = (v === null || v === undefined || v === "") ? "—" : String(v);
     details.appendChild(dt); details.appendChild(dd);
   }
+  function choiceLine(options, activeId) {
+    const span = document.createElement("span");
+    span.className = "choice-line";
+    options.forEach((opt, i) => {
+      if (i) span.appendChild(document.createTextNode(" / "));
+      const bit = document.createElement(opt.id === activeId ? "strong" : "span");
+      if (opt.id === activeId) bit.className = "on";
+      bit.textContent = opt.label;
+      span.appendChild(bit);
+    });
+    return span;
+  }
+  function routeChoice(route) {
+    const key = (route === "privacy_filter") ? "privacy" : (route || "");
+    return choiceLine(
+      [
+        { id: "help", label: "help" },
+        { id: "privacy", label: "privacy" },
+        { id: "calendar", label: "calendar" },
+        { id: "faq", label: "faq" },
+      ],
+      ["help", "privacy", "calendar", "faq"].includes(key) ? key : null
+    );
+  }
+  function retrievalChoice(mode) {
+    const m = (mode || "").toLowerCase();
+    let active = null;
+    if (m === "direct_qa" || m === "direct") active = "qa";
+    else if (m === "rag") active = "rag";
+    return choiceLine(
+      [
+        { id: "qa", label: "Q/A" },
+        { id: "rag", label: "rag" },
+      ],
+      active
+    );
+  }
   function showDetails(r) {
     details.textContent = "";
     row("Latency", r.latency_ms != null ? r.latency_ms + " ms" : "—");
-    row("Route", r.route);
+    row("Route", routeChoice(r.route));
     row("Engine", r.engine_id + " v" + r.engine_version);
-    row("Intent", r.intent);
-    row("Flow / step", (r.flow_id || "—") + " / " + (r.step_id || "—"));
     row("Outcome", r.answer_outcome);
     row("Fallback", r.fallback);
     row("FAQ id", r.faq_id);
     row("FAQ match score", r.faq_match_score);
     row("Confidence", r.answer_confidence);
-    row("Retrieval", r.retrieval_mode);
+    row("Retrieval", retrievalChoice(r.retrieval_mode));
     if (Array.isArray(r.retrieved_chunks) && r.retrieved_chunks.length) {
       const ol = document.createElement("ol");
       ol.className = "chunks";
