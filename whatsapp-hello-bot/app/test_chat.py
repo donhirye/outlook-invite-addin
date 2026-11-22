@@ -142,6 +142,9 @@ def run_chat_turn(persona: str, text: str, message_type: str = "text") -> dict[s
         "faq_match_score": result.faq_match_score,
         "answer_confidence": result.answer_confidence,
         "retrieval_mode": result.retrieval_mode,
+        "retrieved_chunks": [
+            redact(c) for c in (result.retrieved_chunks or []) if str(c or "").strip()
+        ],
         "source_name": result.source_name,
         "source_url": result.source_url,
         "sources": list(result.sources or []),

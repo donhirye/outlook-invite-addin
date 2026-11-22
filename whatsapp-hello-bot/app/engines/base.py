@@ -47,6 +47,8 @@ class AnswerResult:
     faq_match_score: float | None = None
     answer_confidence: float | None = None
     retrieval_mode: str | None = None
+    # FAQ excerpts used for the answer (RAG top-K or direct hit), for Test Chat.
+    retrieved_chunks: list[str] = field(default_factory=list)
     source_name: str | None = None
     source_url: str | None = None
     flow_id: str | None = None

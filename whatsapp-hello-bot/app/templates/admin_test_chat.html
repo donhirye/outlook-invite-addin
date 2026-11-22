@@ -42,6 +42,8 @@
       border:1px solid var(--border); border-radius:.65rem; padding:.55rem .7rem;
     }
     .meta { font-size:.85rem; color:var(--muted); }
+    .chunks { margin:0; padding-left:1.1rem; font-size:.82rem; color:var(--ink); line-height:1.4; }
+    .chunks li { margin:0 0 .55rem; white-space:pre-wrap; }
     .brand { display:flex; gap:.75rem; align-items:center; margin-bottom:1rem; }
     .brand img { width:2.75rem; height:2.75rem; border-radius:999px; background:#000; object-fit:contain; }
     .grid { display:grid; grid-template-columns: minmax(0,3fr) minmax(16rem,2fr); gap:1rem; }
@@ -176,6 +178,18 @@
     row("FAQ match score", r.faq_match_score);
     row("Confidence", r.answer_confidence);
     row("Retrieval", r.retrieval_mode);
+    if (Array.isArray(r.retrieved_chunks) && r.retrieved_chunks.length) {
+      const ol = document.createElement("ol");
+      ol.className = "chunks";
+      r.retrieved_chunks.forEach((c, i) => {
+        const li = document.createElement("li");
+        li.textContent = c;
+        ol.appendChild(li);
+      });
+      row("Retrieved FAQ chunks (" + r.retrieved_chunks.length + ")", ol);
+    } else {
+      row("Retrieved FAQ chunks", "—");
+    }
     row("Model", r.model.model);
     row("LLM calls", r.model.llm_invocations);
     row("Tokens in / out", (r.model.input_tokens ?? "—") + " / " + (r.model.output_tokens ?? "—"));

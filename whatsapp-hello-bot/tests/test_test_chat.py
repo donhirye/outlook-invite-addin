@@ -34,6 +34,7 @@ def _fake_faq(text: str):
         match_score=0.91,
         confidence=0.8,
         retrieval_mode="direct",
+        retrieved_chunks=["Category: Test\nQ: " + text + "\nA: FAQ ANSWER for: " + text],
         input_tokens=321,
         output_tokens=45,
     )
@@ -115,6 +116,7 @@ def test_answer_with_latency_model_tokens_and_trace(client, tmp_path):
     assert data["messages"] and "FAQ ANSWER" in data["messages"][0]
     assert data["route"] == "faq"
     assert data["faq_id"] == "F-1" and data["faq_match_score"] == 0.91
+    assert data["retrieved_chunks"] and "FAQ ANSWER" in data["retrieved_chunks"][0]
     assert data["latency_ms"] is not None and data["latency_ms"] >= 0
     assert data["model"]["llm_invocations"] == 1
     assert data["model"]["input_tokens"] == 321 and data["model"]["output_tokens"] == 45

@@ -223,6 +223,7 @@ class LegacyEngine:
             faq_match_score=faq.match_score,
             answer_confidence=faq.confidence,
             retrieval_mode=faq.retrieval_mode,
+            retrieved_chunks=list(getattr(faq, "retrieved_chunks", None) or []),
             source_name=faq.source_name,
             source_url=faq.source_url,
         )

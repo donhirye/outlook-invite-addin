@@ -2,7 +2,7 @@ import json
 import logging
 import re
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from openai import OpenAI
@@ -64,6 +64,8 @@ class FaqAnswer:
     source_url: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    # FAQ texts sent to the LLM (RAG top-K), or the direct hit for inspection.
+    retrieved_chunks: list[str] = field(default_factory=list)
 
 _STOPWORDS = {
     "a",
@@ -349,6 +351,11 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
             rec, match_score = score_faq_records(cleaned_question)
             if rec:
                 retrieval_mode = "direct_qa"
+                direct_chunk = (
+                    f"Category: {rec.get('category') or ''}\n"
+                    f"Q: {rec.get('question') or ''}\n"
+                    f"A: {rec.get('answer') or ''}"
+                ).strip()
                 result = FaqAnswer(
                     answer=str(rec.get("answer") or ""),
                     confidence=match_score,
@@ -357,6 +364,7 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
                     faq_id=rec.get("faq_id"),
                     source_name=rec.get("source") or None,
                     source_url=rec.get("source_url") or None,
+                    retrieved_chunks=[direct_chunk],
                 )
                 return result
         else:
@@ -368,6 +376,7 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
                     confidence=match_score,
                     match_score=match_score,
                     retrieval_mode=retrieval_mode,
+                    retrieved_chunks=[f"Q: {cleaned_question}\nA: {direct}"],
                 )
                 return result
 
@@ -461,6 +470,7 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
             faq_id=faq_id,
             input_tokens=input_tokens if isinstance(input_tokens, int) else None,
             output_tokens=output_tokens if isinstance(output_tokens, int) else None,
+            retrieved_chunks=list(chunks),
         )
         return result
     except Exception:
