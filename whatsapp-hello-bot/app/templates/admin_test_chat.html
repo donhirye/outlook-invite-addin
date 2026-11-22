@@ -76,7 +76,6 @@
     </div>
     <nav>
       <a href="/admin/link">Group link</a>
-      <a href="/admin/intro">Intro message</a>
       <a href="/admin/faq">FAQs</a>
       <a href="/admin/calendar">School Calendar</a>
       <a href="/admin/analytics">Analytics</a>
@@ -132,8 +131,8 @@
   function persona() { return personaSel.value; }
   function describePersona() {
     const p = personas.find(x => x.id === persona());
-    personaInfo.textContent = "id " + p.phone_hash.slice(0, 8) + " · FAQ admin permission: " + (p.faq_admin ? "yes" : "no");
-    personaInfo.className = "meta" + (p.id === "faq_admin" && !p.faq_admin ? " warn" : "");
+    personaInfo.textContent = "id " + p.phone_hash.slice(0, 8);
+    personaInfo.className = "meta";
   }
   function render() {
     log.textContent = "";

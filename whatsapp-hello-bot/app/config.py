@@ -63,22 +63,13 @@ if OPENAI_REASONING_EFFORT not in {
 }:
     OPENAI_REASONING_EFFORT = "minimal"
 
-# Comma-separated WhatsApp numbers allowed to run /faq (digits with country code, no +)
-# Example: 18122165774,15551234567
-_raw_admin_phones = _env("FAQ_ADMIN_PHONES", "")
-FAQ_ADMIN_PHONES = {
-    "".join(ch for ch in part if ch.isdigit())
-    for part in _raw_admin_phones.split(",")
-    if part.strip()
-}
-
 GREETING_FILE = BASE_DIR / "data" / "greeting.json"
 FAQ_FILE = BASE_DIR / "data" / "science_olympiad_faq.txt"
 METRICS_FILE = BASE_DIR / "data" / "usage_metrics.json"
 TEMPLATES_DIR = Path(__file__).resolve().parent / "templates"
 
 # Durable FAQ on Cloud Run (optional). When set, FAQ text + embedding index
-# live in GCS so admin UI and WhatsApp /faq share one source of truth.
+# live in GCS so the admin FAQ UI shares one source of truth.
 FAQ_GCS_BUCKET = _env("FAQ_GCS_BUCKET", "")
 FAQ_GCS_OBJECT = _env("FAQ_GCS_OBJECT", "science_olympiad_faq.txt")
 FAQ_GCS_INDEX_OBJECT = _env(
@@ -159,7 +150,6 @@ def credential_status() -> dict[str, object]:
         "openai_model": OPENAI_MODEL,
         "openai_reasoning_effort": OPENAI_REASONING_EFFORT or None,
         "faq_file_exists": FAQ_FILE.exists(),
-        "faq_admin_count": len(FAQ_ADMIN_PHONES),
         "faq_gcs_bucket": FAQ_GCS_BUCKET or None,
         "faq_embedding_model": FAQ_EMBEDDING_MODEL,
         "faq_top_k": FAQ_TOP_K,

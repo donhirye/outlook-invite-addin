@@ -11,19 +11,8 @@ from app.calendar_service import answer_calendar_question, looks_like_calendar_q
 from app.config import OPENAI_MODEL
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext, ModelUsage
 from app.engines.registry import register_engine
-from app.faq_admin import (
-    FAQ_USAGE_TEXT,
-    HELP_TEXT,
-    append_faq_entry,
-    format_parent_answer,
-    is_faq_admin,
-    is_faq_command,
-    is_help_command,
-    is_opener_message,
-    parse_faq_command,
-)
+from app.faq_admin import HELP_TEXT, format_parent_answer, is_help_command
 from app.faq_service import answer_faq_detailed
-from app.greeting_store import get_greeting
 from app.privacy_filter import privacy_reply_if_needed
 
 
@@ -41,39 +30,6 @@ class LegacyEngine:
             return AnswerResult(
                 messages=[HELP_TEXT],
                 route="help",
-                engine_id=self.id,
-                engine_version=self.version,
-            )
-
-        if ctx.message_type == "text" and is_opener_message(text):
-            return AnswerResult(
-                messages=[get_greeting()],
-                route="greeting",
-                engine_id=self.id,
-                engine_version=self.version,
-            )
-
-        if is_faq_command(text):
-            if not is_faq_admin(phone):
-                return AnswerResult(
-                    messages=["Only event admins can use /faq."],
-                    route="faq_admin",
-                    engine_id=self.id,
-                    engine_version=self.version,
-                )
-            parsed = parse_faq_command(text)
-            if not parsed:
-                return AnswerResult(
-                    messages=[FAQ_USAGE_TEXT],
-                    route="faq_admin",
-                    engine_id=self.id,
-                    engine_version=self.version,
-                )
-            q_text, a_text, source = parsed
-            confirmation = append_faq_entry(q_text, a_text, source)
-            return AnswerResult(
-                messages=[confirmation],
-                route="faq_admin",
                 engine_id=self.id,
                 engine_version=self.version,
             )

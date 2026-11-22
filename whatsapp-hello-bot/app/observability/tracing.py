@@ -104,12 +104,10 @@ def derive_answer_outcome(result: AnswerResult) -> str:
         return "unanswered"
     if result.route in {
         "faq",
-        "guided_start",
-        "guided_continue",
+        "calendar",
         "human",
         "help",
-        "greeting",
-        "faq_admin",
+        "privacy_filter",
     }:
         return "answered"
     return "unknown"

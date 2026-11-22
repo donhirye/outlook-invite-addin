@@ -29,7 +29,6 @@ from app.config import (
 )
 from app.engine_config import clear_pin
 from app.engines.pipeline import process_message
-from app.faq_admin import is_faq_admin
 from app.guided_state import clear_session, set_session
 from app.observability.privacy import phone_hash
 
@@ -40,11 +39,11 @@ except ValueError:
     MAX_MESSAGES_PER_HOUR = 120
 
 # Fictional numbers (555-01xx is reserved for fiction). Identity = phone number, which
-# is also the key for guided sessions, engine pinning and FAQ-admin permission.
+# is also the key for calendar picker sessions and engine pinning.
 PERSONAS: dict[str, dict[str, str]] = {
     "parent_a": {"label": "Parent A (regular parent)", "phone": "15550100001"},
     "parent_b": {"label": "Parent B (second parent)", "phone": "15550100002"},
-    "faq_admin": {"label": "FAQ admin (can use /faq)", "phone": "15550100003"},
+    "parent_c": {"label": "Parent C (third parent)", "phone": "15550100003"},
 }
 
 _lock = Lock()
@@ -94,7 +93,6 @@ def _persona_view() -> list[dict[str, Any]]:
             "id": pid,
             "label": info["label"],
             "phone_hash": phone_hash(info["phone"]),
-            "faq_admin": is_faq_admin(info["phone"]),
         }
         for pid, info in PERSONAS.items()
     ]

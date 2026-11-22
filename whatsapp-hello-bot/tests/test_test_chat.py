@@ -21,9 +21,6 @@ from app.engines import pipeline
 
 IMPORT_DIR = Path(__file__).resolve().parents[1] / "data" / "imports"
 AUTH = {"x-test-auth": "1"}
-ADMIN_PHONE = "15550100003"
-
-
 def _fake_faq(text: str):
     return SimpleNamespace(
         answer="FAQ ANSWER for: " + text,
@@ -50,7 +47,6 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("app.observability.tracing.FAQ_GCS_BUCKET", "")
     monkeypatch.setattr("app.engine_config.CONFIG_FILE", tmp_path / "engine_config.json")
     monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.faq_admin.FAQ_ADMIN_PHONES", {ADMIN_PHONE})
     monkeypatch.setattr(calendar_store, "CALENDAR_FILE", tmp_path / "calendar.json")
     monkeypatch.setattr(calendar_store, "FAQ_GCS_BUCKET", "")
     calendar_store.clear_calendar_cache()
@@ -107,7 +103,7 @@ def test_page_renders_when_logged_in(client):
     resp = client.get("/admin/test-chat", headers=AUTH)
     assert resp.status_code == 200
     assert "Test Chat" in resp.text and "Reset conversation" in resp.text
-    assert "Parent A" in resp.text and "FAQ admin" in resp.text
+    assert "Parent A" in resp.text and "Parent C" in resp.text
 
 
 def test_answer_with_latency_model_tokens_and_trace(client, tmp_path):
@@ -169,21 +165,6 @@ def test_reset_clears_the_conversation(client):
     assert reset.status_code == 200 and reset.json()["ok"] is True
     after = _say(client, "2")
     assert "Upcoming dates" not in " ".join(after["messages"])
-
-
-def test_admin_identity_has_faq_admin_permission(client):
-    personas = {
-        p["id"]: p
-        for p in client.get("/admin/test-chat/api/personas", headers=AUTH).json()["personas"]
-    }
-    assert personas["faq_admin"]["faq_admin"] is True
-    assert personas["parent_a"]["faq_admin"] is False
-    # A regular parent cannot use /faq; the admin identity reaches the admin handler.
-    denied = _say(client, "/faq help", persona="parent_a")
-    assert denied["route"] != "faq_admin" or "Only event admins" in denied["messages"][0]
-    admin = _say(client, "/faq", persona="faq_admin")
-    assert admin["route"] == "faq_admin"
-    assert "Only event admins" not in admin["messages"][0]
 
 
 def test_validation_and_limits(client, monkeypatch):

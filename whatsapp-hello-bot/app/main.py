@@ -44,7 +44,6 @@ from app.faq_records import (
 )
 from app.faq_rag import rebuild_index
 from app.faq_store import clear_faq_cache, faq_storage_label, get_faq_text, set_faq_text
-from app.greeting_store import get_greeting, set_greeting
 from app.guided_state import already_seen_message
 from app.metrics import get_metrics, record_question
 from app.observability.product_metrics import (
@@ -145,7 +144,6 @@ async def root() -> str:
         "WhatsApp Hello Bot is running.\n"
         "Admin: /admin\n"
         "  Group link: /admin/link\n"
-        "  Intro: /admin/intro\n"
         "  FAQ: /admin/faq\n"
         "Webhook: /webhook\n"
         "Health: /health\n"
@@ -284,36 +282,10 @@ async def admin_link_save(
     return RedirectResponse(url="/admin/link?saved=1", status_code=303)
 
 
-@app.get("/admin/intro", response_class=HTMLResponse)
-async def admin_intro_page(request: Request, saved: int = 0) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    return templates.TemplateResponse(
-        request,
-        "admin_intro.html",
-        {
-            **_branding_context(),
-            "message": get_greeting(),
-            "saved": bool(saved),
-        },
-    )
-
-
-@app.post("/admin/intro")
-async def admin_intro_save(request: Request, message: str = Form(...)) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    set_greeting(message)
-    return RedirectResponse(url="/admin/intro?saved=1", status_code=303)
-
-
-# Keep old greeting save URL working for a bit.
-@app.post("/admin/message")
-async def admin_save_message(request: Request, message: str = Form(...)) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    set_greeting(message)
-    return RedirectResponse(url="/admin/intro?saved=1", status_code=303)
+@app.api_route("/admin/intro", methods=["GET", "POST"], response_class=PlainTextResponse)
+@app.api_route("/admin/message", methods=["GET", "POST"], response_class=PlainTextResponse)
+async def admin_intro_removed() -> PlainTextResponse:
+    return PlainTextResponse("Intro / greeting messages have been removed.", status_code=404)
 
 
 @app.get("/admin/faq", response_class=HTMLResponse)
