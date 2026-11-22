@@ -401,8 +401,13 @@ def rebuild_newsletter_combined_index(
     write_gcs: bool = True,
     csv_bytes: bytes | None = None,
     source_label: str | None = None,
+    sync_faq_records: bool = True,
 ) -> tuple[dict[str, Any], ChunkBuildReport]:
-    """Chunk combined_FAQ_latest.csv and write index (GCS + local mirror)."""
+    """Chunk combined_FAQ_latest.csv, sync live faq_records.json, write index.
+
+    Standard procedure when the combined FAQ CSV changes: replace live FAQ
+    records from the CSV (same source as chunks), then rebuild embeddings.
+    """
     global _index_cache, _index_cache_faq
 
     path = Path(csv_path) if csv_path is not None else Path(NEWSLETTER_COMBINED_FAQ_LOCAL)
@@ -414,9 +419,23 @@ def rebuild_newsletter_combined_index(
     source_sha = _sha256_bytes(csv_bytes)
     text = csv_bytes.decode("utf-8-sig")
     rows = load_faq_csv_text(text)
+
+    records_sync: dict[str, Any] | None = None
+    if sync_faq_records:
+        from app.faq_records import replace_faq_records_from_rows
+
+        records_sync = replace_faq_records_from_rows(rows)
+        logger.info(
+            "Synced live faq_records from combined FAQ (%s rows, mode=%s)",
+            records_sync.get("imported"),
+            records_sync.get("mode"),
+        )
+
     index, report = build_index_from_records(rows, api_key=api_key)
     index["source_sha256"] = source_sha
     index["source_label"] = source_label
+    if records_sync is not None:
+        index["faq_records_synced"] = records_sync.get("imported")
 
     local_mirror = newsletter_local_index_path(path)
     if write_gcs and FAQ_GCS_BUCKET:

@@ -1,5 +1,6 @@
 """Regression: structured FAQ row → one chunk with metadata (eng-rag step 1)."""
 
+import json
 import os
 from pathlib import Path
 
@@ -139,9 +140,11 @@ def test_build_index_embeds_structured_chunks(monkeypatch):
 
 
 def test_ensure_newsletter_rebuilds_when_csv_changes(monkeypatch, tmp_path):
-    from app import faq_rag
+    from app import faq_rag, faq_records
 
     csv_path = tmp_path / "combined_FAQ_latest.csv"
+    records_file = tmp_path / "faq_records.json"
+    faq_txt = tmp_path / "science_olympiad_faq.txt"
     header = (
         "FAQ_ID,Category,Question,Answer,Source,Source_URL,"
         "Published_Date,Event_Date,Status\n"
@@ -161,11 +164,19 @@ def test_ensure_newsletter_rebuilds_when_csv_changes(monkeypatch, tmp_path):
     monkeypatch.setattr(faq_rag, "embed_texts", fake_embed)
     monkeypatch.setattr(faq_rag, "OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(faq_rag, "FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr(faq_records, "FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr(faq_records, "FAQ_RECORDS_FILE", records_file)
+    monkeypatch.setattr(faq_records, "FAQ_IMPORT_SEED", tmp_path / "missing_seed.csv")
+    monkeypatch.setattr("app.faq_store.FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr("app.faq_store.FAQ_FILE", faq_txt)
+    faq_records.clear_faq_records_cache()
     faq_rag.clear_index_cache()
 
     first = faq_rag.ensure_newsletter_combined_index(csv_path=csv_path)
     assert first["source_sha256"]
     assert len(first["chunks"]) == 1
+    assert first.get("faq_records_synced") == 1
+    assert "WEEKLY-1" in (json.loads(records_file.read_text())["records"])
     first_calls = embeds["n"]
 
     # Unchanged CSV → reuse index (no new embed batch for rebuild).
@@ -173,7 +184,7 @@ def test_ensure_newsletter_rebuilds_when_csv_changes(monkeypatch, tmp_path):
     assert second["source_sha256"] == first["source_sha256"]
     assert embeds["n"] == first_calls
 
-    # Update CSV → automatic rebuild.
+    # Update CSV → automatic rebuild + records replace.
     csv_path.write_text(
         header
         + "WEEKLY-1,Cat,Q1?,A1 updated.,Src,,2026-10-30,,Active\n"
@@ -181,12 +192,62 @@ def test_ensure_newsletter_rebuilds_when_csv_changes(monkeypatch, tmp_path):
         encoding="utf-8",
     )
     faq_rag.clear_index_cache()
+    faq_records.clear_faq_records_cache()
     third = faq_rag.ensure_newsletter_combined_index(csv_path=csv_path)
     assert third["source_sha256"] != first["source_sha256"]
     assert len(third["chunks"]) == 2
     assert embeds["n"] > first_calls
     assert "A1 updated" in third["chunks"][0]["text"]
+    stored = json.loads(records_file.read_text())["records"]
+    assert set(stored) == {"WEEKLY-1", "WEEKLY-2"}
 
+
+def test_replace_faq_records_from_csv_is_source_of_truth(tmp_path, monkeypatch):
+    from app import faq_records
+
+    records_file = tmp_path / "faq_records.json"
+    faq_txt = tmp_path / "faq.txt"
+    monkeypatch.setattr(faq_records, "FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr(faq_records, "FAQ_RECORDS_FILE", records_file)
+    monkeypatch.setattr(faq_records, "FAQ_IMPORT_SEED", tmp_path / "nope.csv")
+    monkeypatch.setattr("app.faq_store.FAQ_GCS_BUCKET", "")
+    monkeypatch.setattr("app.faq_store.FAQ_FILE", faq_txt)
+    faq_records.clear_faq_records_cache()
+
+    # Pre-existing record that is NOT in the new CSV should be removed on replace.
+    records_file.write_text(
+        json.dumps(
+            {
+                "records": {
+                    "COUCH-OLD": {
+                        "faq_id": "COUCH-OLD",
+                        "category": "X",
+                        "question": "Old?",
+                        "answer": "Gone.",
+                        "source": "Old",
+                        "source_url": "",
+                        "published_date": "",
+                        "event_date": "",
+                        "status": "Active",
+                    }
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    faq_records.clear_faq_records_cache()
+
+    csv_path = tmp_path / "combined.csv"
+    csv_path.write_text(
+        "FAQ_ID,Category,Question,Answer,Source,Source_URL,Published_Date,Event_Date,Status\n"
+        "WEEKLY-1,Cat,Q1?,A1.,Src,,2026-10-30,,Active\n",
+        encoding="utf-8",
+    )
+    result = faq_records.replace_faq_records_from_csv_file(csv_path)
+    assert result["mode"] == "replace" and result["total"] == 1
+    stored = json.loads(records_file.read_text())["records"]
+    assert set(stored) == {"WEEKLY-1"}
+    assert "COUCH-OLD" not in stored
 
 def test_skip_zero_uses_structured_newsletter_index(monkeypatch):
     from app import faq_rag

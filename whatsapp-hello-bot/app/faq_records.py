@@ -128,6 +128,7 @@ def parse_faq_csv(text: str) -> list[dict[str, Any]]:
 
 
 def import_faq_csv_text(text: str) -> dict[str, Any]:
+    """Upsert CSV rows into the live FAQ store (existing IDs not in CSV are kept)."""
     rows = parse_faq_csv(text)
     with _lock:
         data = _load_raw()
@@ -141,7 +142,36 @@ def import_faq_csv_text(text: str) -> dict[str, Any]:
         "imported": len(rows),
         "total": len(list_records(include_inactive=True)),
         "conflicts": data.get("conflicts") or [],
+        "mode": "upsert",
     }
+
+
+def replace_faq_records_from_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Replace the entire live FAQ store with these rows (CSV becomes source of truth)."""
+    normalized: dict[str, Any] = {}
+    for raw in rows:
+        rec = normalize_record(raw)
+        if rec:
+            normalized[rec["faq_id"]] = rec
+    with _lock:
+        data = _empty()
+        data["records"] = normalized
+        data["conflicts"] = detect_conflicts(list(normalized.values()))
+        _save(data)
+    return {
+        "imported": len(normalized),
+        "total": len(normalized),
+        "conflicts": data.get("conflicts") or [],
+        "mode": "replace",
+    }
+
+
+def replace_faq_records_from_csv_text(text: str) -> dict[str, Any]:
+    return replace_faq_records_from_rows(parse_faq_csv(text))
+
+
+def replace_faq_records_from_csv_file(path: Path) -> dict[str, Any]:
+    return replace_faq_records_from_csv_text(path.read_text(encoding="utf-8-sig"))
 
 
 def import_faq_csv_file(path: Path | None = None) -> dict[str, Any]:

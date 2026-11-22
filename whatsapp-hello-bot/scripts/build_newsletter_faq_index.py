@@ -1,14 +1,21 @@
 #!/usr/bin/env python
-"""Build structured RAG index from combined_FAQ_latest.csv and upload to GCS.
+"""Standard procedure: publish combined_FAQ_latest.csv to live FAQ + RAG index.
 
-Uploads:
-  gs://<FAQ_GCS_BUCKET>/newsletter_archive/combined_FAQ_latest.csv
-  gs://<FAQ_GCS_BUCKET>/newsletter_archive/combined_FAQ_latest.csv.index.json
+From the CSV you provide this script:
+  1. Replaces live faq_records.json (direct-answer DB) with those rows
+  2. Rebuilds structured RAG chunks/index from the same rows
+  3. Uploads CSV + index (+ faq_records via the records save) to GCS when configured
+
+Uploads (when FAQ_GCS_BUCKET is set):
+  gs://<bucket>/newsletter_archive/combined_FAQ_latest.csv
+  gs://<bucket>/newsletter_archive/combined_FAQ_latest.csv.index.json
+  gs://<bucket>/faq_records.json
 
 Usage (from whatsapp-hello-bot/):
   set FAQ_GCS_BUCKET=vi1234-staging-whatsapp-faq
   python scripts/build_newsletter_faq_index.py
   python scripts/build_newsletter_faq_index.py --local-only
+  python scripts/build_newsletter_faq_index.py --skip-records-sync
 """
 
 from __future__ import annotations
@@ -38,7 +45,13 @@ def main() -> int:
     parser.add_argument(
         "--local-only",
         action="store_true",
-        help="Write index next to the CSV only; do not upload to GCS",
+        help="Write local index/records only; do not upload CSV/index to GCS "
+        "(faq_records still uploads if FAQ_GCS_BUCKET is set in env)",
+    )
+    parser.add_argument(
+        "--skip-records-sync",
+        action="store_true",
+        help="Only rebuild the embedding index; do not replace faq_records.json",
     )
     parser.add_argument(
         "--sample",
@@ -55,12 +68,13 @@ def main() -> int:
         NEWSLETTER_COMBINED_FAQ_LOCAL,
     )
     from app.faq_rag import rebuild_newsletter_combined_index
+    from app.faq_records import list_records
 
     csv_path = Path(args.csv) if args.csv else Path(NEWSLETTER_COMBINED_FAQ_LOCAL)
     write_gcs = (not args.local_only) and bool(FAQ_GCS_BUCKET)
     if not args.local_only and not FAQ_GCS_BUCKET:
         print(
-            "FAQ_GCS_BUCKET is empty; writing local index only. "
+            "FAQ_GCS_BUCKET is empty; writing local artifacts only. "
             "Set FAQ_GCS_BUCKET=vi1234-staging-whatsapp-faq to upload.",
             file=sys.stderr,
         )
@@ -69,9 +83,15 @@ def main() -> int:
         csv_path=csv_path,
         upload_csv=write_gcs,
         write_gcs=write_gcs,
+        sync_faq_records=not args.skip_records_sync,
     )
 
-    print(f"CSV rows loaded via rebuild from: {csv_path}")
+    print(f"CSV source: {csv_path}")
+    if not args.skip_records_sync:
+        total = len(list_records(include_inactive=True))
+        print(f"Live faq_records.json replaced from CSV ({total} records)")
+    else:
+        print("Live faq_records.json: left unchanged (--skip-records-sync)")
     print(f"Included chunks: {report.included_count}")
     print(f"Excluded rows:   {report.excluded_count}")
     for ex in report.excluded[:20]:
@@ -81,10 +101,10 @@ def main() -> int:
         print(
             f"GCS index: gs://{FAQ_GCS_BUCKET}/{NEWSLETTER_COMBINED_FAQ_INDEX_GCS_OBJECT}"
         )
+        print(f"GCS records: gs://{FAQ_GCS_BUCKET}/faq_records.json")
     else:
         print(f"Local index: {csv_path}.index.json")
 
-    # Prefer category-boundary sample: last of one category / first of next.
     chunks = index.get("chunks") or []
     samples: list[dict] = []
     for i, ch in enumerate(chunks):
