@@ -86,6 +86,27 @@ FAQ_GCS_INDEX_OBJECT = _env(
     "science_olympiad_faq.txt.index.json",
 )
 
+# Combined newsletter FAQ + structured embedding index (eng-rag).
+# Staging hierarchy mirrors local data/newsletter_archive/.
+NEWSLETTER_COMBINED_FAQ_LOCAL = Path(
+    _env(
+        "NEWSLETTER_COMBINED_FAQ_LOCAL",
+        str(BASE_DIR / "data" / "newsletter_archive" / "combined_FAQ_latest.csv"),
+    )
+)
+NEWSLETTER_COMBINED_FAQ_GCS_OBJECT = _env(
+    "NEWSLETTER_COMBINED_FAQ_GCS_OBJECT",
+    "newsletter_archive/combined_FAQ_latest.csv",
+)
+NEWSLETTER_COMBINED_FAQ_INDEX_GCS_OBJECT = _env(
+    "NEWSLETTER_COMBINED_FAQ_INDEX_GCS_OBJECT",
+    "newsletter_archive/combined_FAQ_latest.csv.index.json",
+)
+# When true and FAQ_GCS_BUCKET is set, RAG loads the newsletter structured index.
+USE_NEWSLETTER_COMBINED_FAQ_INDEX = _env(
+    "USE_NEWSLETTER_COMBINED_FAQ_INDEX", "false"
+).lower() in {"1", "true", "yes", "on"}
+
 # RAG retrieval
 FAQ_EMBEDDING_MODEL = _env("FAQ_EMBEDDING_MODEL", "text-embedding-3-small")
 try:
