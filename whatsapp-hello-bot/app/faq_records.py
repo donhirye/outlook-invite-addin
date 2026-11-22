@@ -159,11 +159,20 @@ def ensure_faq_records_seeded() -> dict[str, Any]:
     return {"seeded": False, "total": 0}
 
 
+# Statuses included when building parent-facing FAQ answers / RAG text.
+# Needs_Review stays answerable on staging experiments; truly retired rows use other statuses.
+ANSWERABLE_STATUSES = frozenset({"active", "needs_review"})
+
+
 def list_records(*, include_inactive: bool = True) -> list[dict[str, Any]]:
     ensure_faq_records_seeded()
     records = list((_load_raw().get("records") or {}).values())
     if not include_inactive:
-        records = [r for r in records if str(r.get("status", "")).lower() == "active"]
+        records = [
+            r
+            for r in records
+            if str(r.get("status", "")).lower() in ANSWERABLE_STATUSES
+        ]
     records.sort(key=lambda r: (r.get("category") or "", r.get("faq_id") or ""))
     return records
 
