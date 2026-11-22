@@ -1,10 +1,14 @@
 import os
 
+import pytest
+
+pytestmark = pytest.mark.skip(reason="Guided multi-step flows removed from the product")
+
 os.environ.setdefault("ADMIN_PASSWORD", "changeme")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
 os.environ["FAQ_GCS_BUCKET"] = ""
-os.environ["GUIDED_ENABLED"] = "true"
+os.environ["GUIDED_ENABLED"] = "false"
 
 from app.guided_engine import advance, looks_like_direct_faq, preview_topic, start_topic
 from app.guided_router import match_guided_topic, needs_human, route_message

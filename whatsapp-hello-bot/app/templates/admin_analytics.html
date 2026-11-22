@@ -64,7 +64,6 @@
       <a href="/admin/intro">Intro message</a>
             <a href="/admin/faq">FAQs</a>
       <a href="/admin/calendar">School Calendar</a>
-      <a href="/admin/guided">Guided Conversations</a>
       <a class="active" href="/admin/analytics">Analytics</a>
       <a href="/admin/logout">Log out</a>
     </nav>
@@ -127,7 +126,7 @@
 
     {% if tab == 'engine' %}
       <h2>Selected engine</h2>
-      <p>Current: <code>{{ selected_engine }}</code>. Parents never see this control. Active guided chats stay pinned to their engine.</p>
+      <p>Current: <code>{{ selected_engine }}</code>. Parents never see this control.</p>
       <form method="post" action="/admin/analytics/engine">
         <select name="engine_id">
           {% for eng in engines %}

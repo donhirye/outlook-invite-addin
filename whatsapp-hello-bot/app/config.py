@@ -137,7 +137,8 @@ STUDENT_PRIVACY_MESSAGE = (
 )
 
 # Guided conversations (Lost & Found, conferences, spiritwear, ...)
-GUIDED_ENABLED = _env("GUIDED_ENABLED", "true").lower() in {
+# Guided multi-step flows removed from the answer path; keep flag false.
+GUIDED_ENABLED = _env("GUIDED_ENABLED", "false").lower() in {
     "1",
     "true",
     "yes",

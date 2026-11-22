@@ -4,8 +4,10 @@ os.environ.setdefault("ADMIN_PASSWORD", "changeme")
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("WHATSAPP_VERIFY_TOKEN", "my-verify-token")
 os.environ["FAQ_GCS_BUCKET"] = ""
-os.environ["GUIDED_ENABLED"] = "true"
+os.environ["GUIDED_ENABLED"] = "false"
 os.environ["OPENAI_API_KEY"] = ""
+
+from types import SimpleNamespace
 
 from app.engine_config import set_selected_engine_id
 from app.engines.base import ENGINE_1, ENGINE_2
@@ -31,6 +33,21 @@ def test_engine1_direct_faq(tmp_path, monkeypatch):
     monkeypatch.setattr("app.observability.analytics_store.FAQ_GCS_BUCKET", "")
     monkeypatch.setattr("app.observability.tracing.TRACES_FILE", tmp_path / "t.jsonl")
     monkeypatch.setattr("app.observability.tracing.FAQ_GCS_BUCKET", "")
+    fake = lambda text: SimpleNamespace(
+        answer="Crone has two Lost & Found locations: cafeteria and gym.",
+        source_name="Test",
+        source_url="",
+        llm_invocations=0,
+        faq_id="FAQ001",
+        match_score=0.99,
+        confidence=0.99,
+        retrieval_mode="direct_qa",
+        retrieved_chunks=[],
+        input_tokens=None,
+        output_tokens=None,
+    )
+    monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
+    monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_1)
     clear_session("15550009999")
     result = process_message(
@@ -43,14 +60,27 @@ def test_engine1_direct_faq(tmp_path, monkeypatch):
     assert "cafeteria" in "\n".join(result.messages).lower()
 
 
-def test_engine2_skips_checked_lost_found(tmp_path, monkeypatch):
+def test_engine2_delegates_to_faq_not_guided(tmp_path, monkeypatch):
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "state.json")
     monkeypatch.setattr("app.guided_state.FAQ_GCS_BUCKET", "")
-    monkeypatch.setattr("app.guided_metrics.METRICS_FILE", tmp_path / "gm.json")
-    monkeypatch.setattr("app.guided_metrics.FAQ_GCS_BUCKET", "")
     monkeypatch.setattr("app.engine_config.CONFIG_FILE", tmp_path / "cfg.json")
     monkeypatch.setattr("app.observability.analytics_store.EVENTS_FILE", tmp_path / "e.jsonl")
     monkeypatch.setattr("app.observability.tracing.TRACES_FILE", tmp_path / "t.jsonl")
+    fake = lambda text: SimpleNamespace(
+        answer="Check Lost & Found in the cafeteria and outside the gym.",
+        source_name="Test",
+        source_url="",
+        llm_invocations=0,
+        faq_id="FAQ001",
+        match_score=0.9,
+        confidence=0.9,
+        retrieval_mode="direct_qa",
+        retrieved_chunks=[],
+        input_tokens=None,
+        output_tokens=None,
+    )
+    monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
+    monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_2)
     clear_session("15550008888")
     result = process_message(
@@ -59,6 +89,5 @@ def test_engine2_skips_checked_lost_found(tmp_path, monkeypatch):
         message_id="m2",
     )
     assert result.engine_id == ENGINE_2
-    assert result.route in {"guided_start", "guided_continue"}
-    joined = "\n".join(result.messages).lower()
-    assert "office" in joined or "did this help" in joined
+    assert result.route == "faq"
+    assert "guided" not in (result.route or "")

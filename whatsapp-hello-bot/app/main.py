@@ -25,7 +25,6 @@ from app.calendar_store import (
 from app.config import (
     ADMIN_PASSWORD,
     BASE_DIR,
-    GUIDED_ENABLED,
     IS_STAGING,
     SECRET_KEY,
     TEMPLATES_DIR,
@@ -46,16 +45,7 @@ from app.faq_records import (
 from app.faq_rag import rebuild_index
 from app.faq_store import clear_faq_cache, faq_storage_label, get_faq_text, set_faq_text
 from app.greeting_store import get_greeting, set_greeting
-from app.guided_engine import preview_topic
-from app.guided_metrics import get_guided_metrics
 from app.guided_state import already_seen_message
-from app.guided_store import (
-    get_topic,
-    guided_storage_label,
-    list_topics,
-    set_topic,
-    set_topic_enabled,
-)
 from app.metrics import get_metrics, record_question
 from app.observability.product_metrics import (
     compute_engine_analytics,
@@ -181,8 +171,7 @@ async def metrics(request: Request) -> Response | dict[str, object]:
     if IS_STAGING and not _is_logged_in(request):
         return JSONResponse({"error": "login required"}, status_code=401)
     data = get_metrics()
-    data["guided"] = get_guided_metrics()
-    data["guided_enabled"] = GUIDED_ENABLED
+    data["guided_enabled"] = False
     return data
 
 
@@ -442,118 +431,11 @@ async def admin_calendar_import(
     return RedirectResponse(url="/admin/calendar?saved=1", status_code=303)
 
 
-@app.get("/admin/guided", response_class=HTMLResponse)
-async def admin_guided_page(request: Request, saved: int = 0) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    topics = list_topics(enabled_only=False)
-    topic_jsons = {
-        t["id"]: json_dumps_topic(t)
-        for t in topics
-    }
-    return templates.TemplateResponse(
-        request,
-        "admin_guided.html",
-        {
-            **_branding_context(),
-            "topics": topics,
-            "topic_jsons": topic_jsons,
-            "metrics": get_guided_metrics(),
-            "storage": guided_storage_label(),
-            "guided_enabled": GUIDED_ENABLED,
-            "saved": bool(saved),
-            "error": None,
-            "selected_id": topics[0]["id"] if topics else "",
-            "preview_lines": None,
-            "preview_path": "",
-        },
-    )
-
-
-def json_dumps_topic(topic: dict[str, Any]) -> str:
-    return json.dumps(topic, indent=2)
-
-
-@app.post("/admin/guided/save", response_class=HTMLResponse)
-async def admin_guided_save(
-    request: Request,
-    topic_id: str = Form(...),
-    topic_json: str = Form(...),
-) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    try:
-        raw = json.loads(topic_json)
-        if isinstance(raw, dict) and not raw.get("id"):
-            raw["id"] = topic_id
-        saved_topic = set_topic(raw)
-        if saved_topic["id"] != topic_id and get_topic(topic_id):
-            # Allow renaming via JSON id; keep explicit.
-            pass
-    except Exception as exc:
-        logger.exception("Failed saving guided topic")
-        topics = list_topics(enabled_only=False)
-        return templates.TemplateResponse(
-            request,
-            "admin_guided.html",
-            {
-                **_branding_context(),
-                "topics": topics,
-                "topic_jsons": {t["id"]: json_dumps_topic(t) for t in topics},
-                "metrics": get_guided_metrics(),
-                "storage": guided_storage_label(),
-                "guided_enabled": GUIDED_ENABLED,
-                "saved": False,
-                "error": f"Could not save topic: {exc}",
-                "selected_id": topic_id,
-                "preview_lines": None,
-                "preview_path": "",
-            },
-            status_code=400,
-        )
-    return RedirectResponse(url="/admin/guided?saved=1", status_code=303)
-
-
-@app.post("/admin/guided/toggle")
-async def admin_guided_toggle(
-    request: Request,
-    topic_id: str = Form(...),
-    enabled: str = Form("off"),
-) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    set_topic_enabled(topic_id, enabled in {"1", "true", "on", "yes"})
-    return RedirectResponse(url="/admin/guided?saved=1", status_code=303)
-
-
-@app.get("/admin/guided/preview", response_class=HTMLResponse)
-async def admin_guided_preview(
-    request: Request,
-    topic_id: str = "",
-    path: str = "",
-) -> Response:
-    if not _is_logged_in(request):
-        return RedirectResponse(url="/admin", status_code=303)
-    choices_path = [p.strip() for p in (path or "").split("|") if p.strip()]
-    lines = preview_topic(topic_id, choices_path or None)
-    topics = list_topics(enabled_only=False)
-    return templates.TemplateResponse(
-        request,
-        "admin_guided.html",
-        {
-            **_branding_context(),
-            "topics": topics,
-            "topic_jsons": {t["id"]: json_dumps_topic(t) for t in topics},
-            "metrics": get_guided_metrics(),
-            "storage": guided_storage_label(),
-            "guided_enabled": GUIDED_ENABLED,
-            "saved": False,
-            "error": None,
-            "selected_id": topic_id or (topics[0]["id"] if topics else ""),
-            "preview_lines": lines,
-            "preview_path": path,
-        },
-    )
+@app.api_route("/admin/guided", methods=["GET", "POST"], response_class=PlainTextResponse)
+@app.api_route("/admin/guided/{rest:path}", methods=["GET", "POST"], response_class=PlainTextResponse)
+async def admin_guided_removed(rest: str = "") -> Response:
+    """Guided multi-step flows were removed; FAQ + calendar remain."""
+    return PlainTextResponse("Guided conversations have been removed.", status_code=404)
 
 
 @app.get("/admin/analytics", response_class=HTMLResponse)

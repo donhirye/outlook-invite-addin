@@ -9,20 +9,17 @@ from app.engine_config import (
     clear_pin,
     get_pinned_engine,
     get_selected_engine_id,
-    pin_engine,
 )
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext
 from app.engines.registry import ensure_registered, get_engine
-from app.guided_state import get_session
 from app.observability.privacy import phone_hash
 from app.observability.tracing import finalize_trace, new_trace
 
 
 def resolve_engine_id(phone: str) -> str:
     ensure_registered()
-    session = get_session(phone)
     pinned = get_pinned_engine(phone)
-    if session and pinned:
+    if pinned:
         return pinned
     selected = get_selected_engine_id()
     engine = get_engine(selected)
@@ -44,12 +41,8 @@ def process_message(
     engine = get_engine(engine_id) or get_engine(ENGINE_1)
     assert engine is not None
 
-    # Pin engine for active guided conversations.
-    session = get_session(phone)
-    if session and not get_pinned_engine(phone):
-        pin_engine(phone, engine.id)
-    if not session and get_pinned_engine(phone):
-        # Clear pin when no active guided session so admin can switch engines.
+    # No guided sessions anymore; drop stale pins so admin engine selection applies.
+    if get_pinned_engine(phone):
         clear_pin(phone)
         engine_id = get_selected_engine_id()
         engine = get_engine(engine_id) or engine
@@ -60,7 +53,7 @@ def process_message(
         message_id=message_id,
         text=text,
         message_type=message_type,
-        guided_session=get_session(phone),
+        guided_session=None,
         pinned_engine_id=get_pinned_engine(phone),
     )
     trace = new_trace(phone, message_id, engine.id, question_text=text, channel=channel)

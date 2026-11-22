@@ -220,18 +220,6 @@ def test_secrets_are_redacted_from_debug_output(monkeypatch):
 # --- Evaluation runner against a staging endpoint -----------------------------------
 
 
-def test_reset_can_seed_a_guided_step(client):
-    reset = client.post(
-        "/admin/test-chat/api/reset",
-        json={"persona": "parent_a", "guided_topic": "conferences", "step": "need_help"},
-        headers=AUTH,
-    )
-    assert reset.status_code == 200
-    reply = _say(client, "No appointments")
-    assert reply["route"] == "guided_continue" and reply["flow_id"] == "conferences"
-    assert "additional appointment times" in " ".join(reply["messages"])
-
-
 def test_remote_eval_runner_scores_cases_through_test_chat(client, monkeypatch, tmp_path):
     from evals import run as eval_run
 
@@ -245,19 +233,13 @@ def test_remote_eval_runner_scores_cases_through_test_chat(client, monkeypatch, 
             "expected_route": "faq", "required_answer_facts": ["FAQ ANSWER"],
         },
         {
-            "id": "c2", "category": "guided", "input": "No appointments",
-            "prior_context": {"guided_topic": "conferences", "step": "need_help"},
-            "expected_route": "guided_continue", "expected_flow": "conferences",
-            "required_answer_facts": ["additional appointment times"],
-        },
-        {
             "id": "c3", "category": "faq", "input": "Where is the cafeteria?",
             "expected_route": "faq", "required_answer_facts": ["a fact that is not there"],
         },
     ]
     row = eval_run.run_remote("https://staging.example", cases, max_llm_calls=100)
-    assert row["cases_run"] == 3
-    assert row["passed"] == 2 and row["failed"] == 1
+    assert row["cases_run"] == 2
+    assert row["passed"] == 1 and row["failed"] == 1
     assert row["llm_calls"] == 2 and row["input_tokens"] == 642
     failed = [r for r in row["results"] if not r["passed"]]
     assert failed[0]["id"] == "c3" and "missing fact" in failed[0]["failures"][0]

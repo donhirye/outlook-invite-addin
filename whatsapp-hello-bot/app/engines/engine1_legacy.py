@@ -1,4 +1,4 @@
-"""Engine 1 — legacy baseline (FAQ + guided + existing routing)."""
+"""Engine 1 — FAQ + calendar + existing non-guided routing."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from app.calendar_picker import (
     start_calendar_picker,
 )
 from app.calendar_service import answer_calendar_question, looks_like_calendar_question
-from app.config import GUIDED_ENABLED, OPENAI_MODEL
+from app.config import OPENAI_MODEL
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext, ModelUsage
 from app.engines.registry import register_engine
 from app.faq_admin import (
@@ -24,9 +24,6 @@ from app.faq_admin import (
 )
 from app.faq_service import answer_faq_detailed
 from app.greeting_store import get_greeting
-from app.guided_engine import advance as advance_guided
-from app.guided_router import begin_guided, route_message
-from app.guided_state import get_session
 from app.privacy_filter import privacy_reply_if_needed
 
 
@@ -40,7 +37,7 @@ class LegacyEngine:
         text = (ctx.text or "").strip()
         phone = ctx.phone
 
-        if is_help_command(text) and not get_session(phone):
+        if is_help_command(text):
             return AnswerResult(
                 messages=[HELP_TEXT],
                 route="help",
@@ -48,11 +45,7 @@ class LegacyEngine:
                 engine_version=self.version,
             )
 
-        if (
-            ctx.message_type == "text"
-            and is_opener_message(text)
-            and not get_session(phone)
-        ):
+        if ctx.message_type == "text" and is_opener_message(text):
             return AnswerResult(
                 messages=[get_greeting()],
                 route="greeting",
@@ -87,7 +80,7 @@ class LegacyEngine:
 
         # PTSA privacy: block asks for student name / ID / phone / email.
         privacy = privacy_reply_if_needed(text)
-        if privacy and not get_session(phone):
+        if privacy:
             return AnswerResult(
                 messages=[privacy],
                 route="privacy_filter",
@@ -96,20 +89,6 @@ class LegacyEngine:
                 intent="privacy",
                 answer_outcome="answered",
                 sources=["ptsa_privacy_policy"],
-            )
-
-        if GUIDED_ENABLED and get_session(phone):
-            result = advance_guided(phone, text)
-            return AnswerResult(
-                messages=list(result.get("messages") or []),
-                choices=result.get("choices"),
-                route="guided_continue",
-                engine_id=self.id,
-                engine_version=self.version,
-                flow_id=(result.get("topic_id") or (get_session(phone) or {}).get("topic_id")),
-                step_id=result.get("step_id") or (get_session(phone) or {}).get("step_id"),
-                state_transition="continue",
-                ended=bool(result.get("ended")),
             )
 
         # "Show me the calendar": ask which calendar, then list its upcoming events.
@@ -140,35 +119,6 @@ class LegacyEngine:
                     retrieval_mode="calendar",
                 )
 
-        if GUIDED_ENABLED:
-            decision = route_message(phone, text)
-            kind = decision.get("kind")
-            if kind == "start_guided":
-                result = begin_guided(phone, decision["topic_id"])
-                return AnswerResult(
-                    messages=list(result.get("messages") or []),
-                    choices=result.get("choices"),
-                    route="guided_start",
-                    engine_id=self.id,
-                    engine_version=self.version,
-                    flow_id=decision["topic_id"],
-                    step_id=result.get("step_id"),
-                    intent="guided",
-                    state_transition="start",
-                    ended=bool(result.get("ended")),
-                )
-            if kind == "human":
-                return AnswerResult(
-                    messages=[
-                        decision.get("reply")
-                        or "Please contact the school office for help with that."
-                    ],
-                    route="human",
-                    engine_id=self.id,
-                    engine_version=self.version,
-                    intent="human",
-                )
-
         # School calendar (deterministic) before FAQ/LLM.
         if looks_like_calendar_question(text):
             cal = answer_calendar_question(text)
@@ -186,7 +136,7 @@ class LegacyEngine:
                     retrieval_mode="calendar",
                 )
 
-        # Mode A FAQ path (may use LLM fallback inside faq_service).
+        # FAQ path (direct records, then RAG + LLM).
         faq = answer_faq_detailed(text)
         raw = faq.answer
         answer = format_parent_answer(
