@@ -53,10 +53,12 @@ try {
     Expand-Archive -Path $zip -DestinationPath $tmp -Force
 
     # --update-env-vars merges; does not wipe unrelated existing env (e.g. base URLs).
+    # OPENAI_MODEL matches production (gpt-5-mini) so staging answers are comparable.
     $envVars = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
+      "OPENAI_MODEL=gpt-5-mini",
       "GIT_SHA=$sha",
       "DEPLOY_BRANCH=$branch"
     ) -join ","
