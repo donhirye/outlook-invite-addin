@@ -542,8 +542,9 @@ def reshape_overview_with_llm(
             "model": OPENAI_MODEL,
             "instructions": _OVERVIEW_RESHAPE_INSTRUCTIONS,
             "input": user_input,
-            "temperature": 0,
         }
+        if not str(OPENAI_MODEL).startswith("gpt-5"):
+            create_kwargs["temperature"] = 0
         if OPENAI_REASONING_EFFORT:
             create_kwargs["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
         try:

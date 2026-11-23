@@ -503,19 +503,21 @@ def answer_faq_detailed(
 
         client = OpenAI(api_key=OPENAI_API_KEY)
         openai_started = time.perf_counter()
-        create_kwargs = {
+        create_kwargs: dict = {
             "model": OPENAI_MODEL,
             "instructions": SYSTEM_INSTRUCTIONS,
             "input": user_input,
-            "temperature": FAQ_LLM_TEMPERATURE,
         }
+        # gpt-5* rejects temperature; older chat models accept it.
+        if not str(OPENAI_MODEL).startswith("gpt-5"):
+            create_kwargs["temperature"] = FAQ_LLM_TEMPERATURE
         if OPENAI_REASONING_EFFORT:
             create_kwargs["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
         try:
             response = client.responses.create(**create_kwargs)
         except Exception as exc:
             msg = str(exc).lower()
-            # gpt-5* often rejects temperature; non-reasoning models may reject reasoning.
+            # Strip unsupported params and retry (once per param).
             retried = False
             if "temperature" in msg and "temperature" in create_kwargs:
                 create_kwargs.pop("temperature", None)

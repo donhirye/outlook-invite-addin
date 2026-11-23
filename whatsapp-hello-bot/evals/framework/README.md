@@ -31,7 +31,11 @@ Strategies are implemented in `app/eval_framework/` so they can run on staging
 Cloud Run. This `evals/framework/` package is the documented entrypoint for
 harness / CSV scripts.
 
-## CSV side-by-side (next)
+## Run eval_set.md → Excel (one tab per strategy)
 
-Drop a prompts CSV → run each strategy → write results CSV. Not wired yet;
-import from this package when you build it.
+```bash
+# from whatsapp-hello-bot/
+python -m evals.framework.run_eval_set
+# → evals/reports/eval_set_strategies.xlsx
+# sheets: Summary | Strategy_A | Strategy_C | Strategy_E | Strategy_Ep
+```
