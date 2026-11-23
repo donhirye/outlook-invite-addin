@@ -126,23 +126,6 @@ def needs_overview_reshape(text: str) -> bool:
 def _is_sports_evidence_line(line: str) -> bool:
     return bool(_SPORTS_LINE_RE.search(line or ""))
 
-_SIBLING_STOP = {
-    "the", "a", "an", "and", "or", "of", "for", "to", "in", "on", "at", "is", "are",
-    "be", "by", "with", "from", "about", "what", "when", "where", "how", "do", "does",
-    "can", "will", "please", "crone", "middle", "school", "ptsa", "parent", "parents",
-    "event", "events", "date", "dates", "faq", "newsletter", "weekly", "upcoming",
-    "scheduled", "against", "grade", "grades", "meeting", "informational",
-    # Hedge / generic answer filler that false-linked Book Fair ↔ orchestra, etc.
-    "should", "confirmed", "confirm", "specify", "location", "latest", "state",
-    "states", "also", "provided", "additional", "through", "open", "refer",
-    # Calendar glue must not count as shared "entity"
-    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
-    "january", "february", "march", "april", "may", "june", "july", "august",
-    "september", "october", "november", "december",
-    "2024", "2025", "2026", "2027", "2028", "2029", "2030",
-}
-
-
 def is_overview_question(text: str) -> bool:
     cleaned = (text or "").strip()
     if not cleaned or is_faq_action_question(cleaned):
@@ -233,56 +216,6 @@ def classify_date_kind(context: str) -> str:
     if _DEADLINE_RE.search(ctx):
         return "deadline"
     return "event"
-
-
-def _stem(tok: str) -> str:
-    if len(tok) > 3 and tok.endswith("s") and not tok.endswith("ss"):
-        return tok[:-1]
-    return tok
-
-
-def _tokens(text: str) -> set[str]:
-    toks = re.findall(r"[a-z0-9]+", (text or "").lower())
-    return {_stem(t) for t in toks if len(t) > 2 and t not in _SIBLING_STOP}
-
-
-def _entity_tokens(rec: dict[str, Any]) -> set[str]:
-    """Distinctive tokens from question (+ light answer boost)."""
-    q = _tokens(rec.get("question") or "")
-    a = _tokens(rec.get("answer") or "")
-    # Prefer question nouns; keep long/digit tokens from answer too
-    strong_a = {t for t in a if t.isdigit() or len(t) >= 6}
-    return q | strong_a
-
-
-def find_sibling_records(
-    primary: dict[str, Any],
-    *,
-    records: list[dict[str, Any]] | None = None,
-) -> list[dict[str, Any]]:
-    """Strict same-item siblings for topic asks (not used for overview related junk)."""
-    pool = records if records is not None else list_records(include_inactive=False)
-    pid = primary.get("faq_id")
-    base = _entity_tokens(primary)
-    strong = {t for t in base if t.isdigit() or len(t) >= 5}
-    if len(strong) < 3:
-        return []
-    siblings: list[dict[str, Any]] = []
-    for rec in pool:
-        if rec.get("faq_id") == pid:
-            continue
-        other = _entity_tokens(rec)
-        overlap = strong & other
-        if len(overlap) < 3:
-            continue
-        # Require a digit (class year / id-ish) or a long shared product token
-        if not any(t.isdigit() or len(t) >= 6 for t in overlap):
-            continue
-        jaccard = len(overlap) / max(1, len(strong | {t for t in other if t in strong or len(t) >= 5}))
-        if jaccard < 0.35 and len(overlap) < 4:
-            continue
-        siblings.append(rec)
-    return siblings
 
 
 def _resolve_yearless(
@@ -736,35 +669,6 @@ def answer_overview(
         "answer_outcome": "answered",
         "fallback": "overview_rule_reshape",
     }
-
-
-def format_sibling_topic_answer(
-    primary: dict[str, Any],
-    siblings: list[dict[str, Any]],
-) -> tuple[str, list[str]]:
-    """Deterministic multi-row FAQ body + evidence for a topic ask."""
-    rows = [primary] + [s for s in siblings if s.get("faq_id") != primary.get("faq_id")]
-    lines: list[str] = []
-    chunks: list[str] = []
-    for rec in rows:
-        text = f"{rec.get('question') or ''}. {rec.get('answer') or ''}"
-        mentions = iter_date_mentions(text)
-        date_bits = []
-        seen: set[date] = set()
-        for ment in mentions:
-            if ment["date"] in seen:
-                continue
-            seen.add(ment["date"])
-            date_bits.append(f"{ment['date'].isoformat()} ({ment['kind']})")
-        date_prefix = (", ".join(date_bits) + " — ") if date_bits else ""
-        ans = (rec.get("answer") or "").strip()
-        lines.append(f"• {date_prefix}{ans}")
-        chunks.append(
-            f"[faq {rec.get('faq_id')}] "
-            + ("; ".join(date_bits) if date_bits else "no-date")
-            + f"\nQ: {rec.get('question')}\nA: {ans}"
-        )
-    return "\n".join(lines), chunks
 
 
 # Back-compat helpers used by older tests / callers

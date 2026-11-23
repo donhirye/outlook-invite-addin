@@ -155,51 +155,31 @@ def test_may_2027_overview_includes_springfield(dual):
     assert "2026-12-15" not in result["messages"][0]
 
 
-def test_sibling_topic_answer_merges_both_dates(dual):
-    primary = get_record("SHIRT-ORDER")
-    siblings = overview.find_sibling_records(primary)
-    assert any(s.get("faq_id") == "SHIRT-PICKUP" for s in siblings)
-    assert not any(s.get("faq_id") == "HALLOWEEN" for s in siblings)
-    body, chunks = overview.format_sibling_topic_answer(primary, siblings)
-    assert "2026-12-15" in body
-    assert "2027-01-13" in body
-
-
-def test_siblings_ignore_shared_year_month_hedge_words(dual):
-    """Orchestra must not glue to Book Fair via '2026'/'october'/'should'/'confirmed'."""
-    upsert_record(
-        {
-            "faq_id": "ORCH-78",
-            "category": "Band and Orchestra",
-            "question": "When are the 7th- and 8th-grade band and orchestra concerts?",
-            "answer": (
-                "The 7th- and 8th-grade band and orchestra concerts are Wednesday, "
-                "October 28, 2026. Location should be confirmed with the school."
-            ),
-            "source": "Crone Weekly",
-            "status": "Active",
-        }
-    )
+def test_timing_status_defers_to_llm(dual):
+    """'Is the book fair over?' must not paste the FAQ; it needs TODAY + LLM."""
     upsert_record(
         {
             "faq_id": "BOOKFAIR",
             "category": "Book Fair",
             "question": "When and where is the Crone Fall Book Fair?",
             "answer": (
-                "Crone's Fall Book Fair is open October 30 through November 9, 2026. "
-                "The school name should be confirmed."
+                "Crone's Fall Book Fair is scheduled to be open from October 30 "
+                "through November 9, 2026."
             ),
             "source": "Crone Weekly",
             "status": "Active",
         }
     )
-    primary = get_record("ORCH-78")
-    siblings = overview.find_sibling_records(primary)
-    assert not any(s.get("faq_id") == "BOOKFAIR" for s in siblings)
+    from app.faq_service import answer_faq_detailed, is_timing_status_question
+
+    assert is_timing_status_question("is the book fair over")
+    detailed = answer_faq_detailed("is the book fair over", allow_rag=False)
+    assert detailed.retrieval_mode == "direct_miss"
+    assert "couldn't find" in detailed.answer.lower()
 
 
-def test_sixth_grade_orchestra_prefers_matching_answer_not_sibling_dump(dual):
-    """Regression: weak 7th/8th hit must not dump unrelated newsletter siblings."""
+def test_sixth_grade_orchestra_prefers_matching_answer(dual):
+    """Grade/answer-aware scoring picks the 6th-grade FAQ, not 7th/8th."""
     upsert_record(
         {
             "faq_id": "ORCH-78",

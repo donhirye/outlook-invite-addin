@@ -197,6 +197,21 @@ def resolve_source(
 
 
 _ORDINAL_TOKEN_RE = re.compile(r"^\d+(st|nd|rd|th)$", re.I)
+# "is the book fair over?" needs TODAY + LLM — not a raw FAQ paste.
+_TIMING_STATUS_RE = re.compile(
+    r"\b("
+    r"over|ended|done|finished|closed|still\s+open|still\s+happen\w*|"
+    r"ongoing|upcoming|has\s+it\s+(started|ended|begun)|"
+    r"is\s+it\s+(over|done|open|closed|ended|happening|upcoming)|"
+    r"did\s+it\s+(end|happen|start)|already\s+(over|ended|done|closed)"
+    r")\b",
+    re.I,
+)
+
+
+def is_timing_status_question(text: str) -> bool:
+    """True when the parent asks whether an event is over / still on."""
+    return bool(_TIMING_STATUS_RE.search(text or ""))
 
 
 def _ordinal_tokens(tokens: set[str]) -> set[str]:
@@ -360,7 +375,7 @@ def answer_faq_detailed(
 ) -> FaqAnswer:
     """Answer with keyword score and/or LLM-reported confidence.
 
-    When allow_rag is False, stop after direct/sibling match (no embeddings/LLM).
+    When allow_rag is False, stop after direct match (no embeddings/LLM).
     """
     started = time.perf_counter()
     faq_load_ms = 0.0
@@ -391,47 +406,47 @@ def answer_faq_detailed(
         faq_text = load_faq_text(faq_path=faq_path)
         faq_load_ms = (time.perf_counter() - faq_started) * 1000
         match_score = 0.0
+        status_seed_chunk: str | None = None
+        status_seed_meta: dict | None = None
 
         if faq_path is None:
-            from app.overview_service import (
-                find_sibling_records,
-                format_sibling_topic_answer,
-            )
-
             rec, match_score = score_faq_records(cleaned_question)
             if rec:
-                retrieval_mode = "direct_qa"
-                # Siblings only on a real direct hit (≥0.6). Never synthesize from a weak near-miss.
-                siblings = find_sibling_records(rec)
-                if siblings:
-                    body, chunks = format_sibling_topic_answer(rec, siblings)
+                direct_chunk = (
+                    f"Category: {rec.get('category') or ''}\n"
+                    f"Q: {rec.get('question') or ''}\n"
+                    f"A: {rec.get('answer') or ''}"
+                ).strip()
+                # "Is it over?" needs TODAY + LLM — not a raw date paste.
+                if is_timing_status_question(cleaned_question):
+                    if not allow_rag:
+                        result = FaqAnswer(
+                            answer=FAQ_NOT_FOUND_MESSAGE,
+                            confidence=0.0,
+                            match_score=match_score,
+                            retrieval_mode="direct_miss",
+                            faq_id=rec.get("faq_id"),
+                            source_name=rec.get("source") or None,
+                            source_url=rec.get("source_url") or None,
+                            retrieved_chunks=[direct_chunk],
+                        )
+                        return result
+                    status_seed_chunk = direct_chunk
+                    status_seed_meta = rec
+                    # Fall through to RAG/LLM with this record seeded into excerpts.
+                else:
+                    retrieval_mode = "direct_qa"
                     result = FaqAnswer(
-                        answer=body,
+                        answer=str(rec.get("answer") or ""),
                         confidence=match_score,
                         match_score=match_score,
                         retrieval_mode=retrieval_mode,
                         faq_id=rec.get("faq_id"),
                         source_name=rec.get("source") or None,
                         source_url=rec.get("source_url") or None,
-                        retrieved_chunks=chunks,
+                        retrieved_chunks=[direct_chunk],
                     )
                     return result
-                direct_chunk = (
-                    f"Category: {rec.get('category') or ''}\n"
-                    f"Q: {rec.get('question') or ''}\n"
-                    f"A: {rec.get('answer') or ''}"
-                ).strip()
-                result = FaqAnswer(
-                    answer=str(rec.get("answer") or ""),
-                    confidence=match_score,
-                    match_score=match_score,
-                    retrieval_mode=retrieval_mode,
-                    faq_id=rec.get("faq_id"),
-                    source_name=rec.get("source") or None,
-                    source_url=rec.get("source_url") or None,
-                    retrieved_chunks=[direct_chunk],
-                )
-                return result
         else:
             direct, match_score = score_faq_qa(cleaned_question, faq_text)
             if direct:
@@ -466,6 +481,10 @@ def answer_faq_detailed(
             faq_text=faq_text,
             faq_path=faq_path,
         )
+        if status_seed_chunk:
+            # Ensure the direct-matched event FAQ is in the LLM excerpts.
+            if status_seed_chunk not in chunks:
+                chunks = [status_seed_chunk, *chunks]
         retrieve_ms = (time.perf_counter() - retrieve_started) * 1000
         retrieval_mode = (
             "full_faq"
@@ -526,11 +545,17 @@ def answer_faq_detailed(
         source_url = None
         faq_id = None
         if answer.strip() != FAQ_NOT_FOUND_MESSAGE:
-            best_rec, _best_score = _best_faq_record(cleaned_question)
-            if best_rec:
-                faq_id = best_rec.get("faq_id")
-                source_name = _clean_source(best_rec.get("source"))
-                source_url = _clean_source(best_rec.get("source_url"))
+            seed = status_seed_meta
+            if seed:
+                faq_id = seed.get("faq_id")
+                source_name = _clean_source(seed.get("source"))
+                source_url = _clean_source(seed.get("source_url"))
+            if not faq_id:
+                best_rec, _best_score = _best_faq_record(cleaned_question)
+                if best_rec:
+                    faq_id = best_rec.get("faq_id")
+                    source_name = source_name or _clean_source(best_rec.get("source"))
+                    source_url = source_url or _clean_source(best_rec.get("source_url"))
             if not source_name:
                 source_name, source_url = resolve_source(faq_text, excerpts)
         result = FaqAnswer(
