@@ -165,6 +165,89 @@ def test_sibling_topic_answer_merges_both_dates(dual):
     assert "2027-01-13" in body
 
 
+def test_siblings_ignore_shared_year_month_hedge_words(dual):
+    """Orchestra must not glue to Book Fair via '2026'/'october'/'should'/'confirmed'."""
+    upsert_record(
+        {
+            "faq_id": "ORCH-78",
+            "category": "Band and Orchestra",
+            "question": "When are the 7th- and 8th-grade band and orchestra concerts?",
+            "answer": (
+                "The 7th- and 8th-grade band and orchestra concerts are Wednesday, "
+                "October 28, 2026. Location should be confirmed with the school."
+            ),
+            "source": "Crone Weekly",
+            "status": "Active",
+        }
+    )
+    upsert_record(
+        {
+            "faq_id": "BOOKFAIR",
+            "category": "Book Fair",
+            "question": "When and where is the Crone Fall Book Fair?",
+            "answer": (
+                "Crone's Fall Book Fair is open October 30 through November 9, 2026. "
+                "The school name should be confirmed."
+            ),
+            "source": "Crone Weekly",
+            "status": "Active",
+        }
+    )
+    primary = get_record("ORCH-78")
+    siblings = overview.find_sibling_records(primary)
+    assert not any(s.get("faq_id") == "BOOKFAIR" for s in siblings)
+
+
+def test_sixth_grade_orchestra_prefers_matching_answer_not_sibling_dump(dual):
+    """Regression: weak 7th/8th hit must not dump unrelated newsletter siblings."""
+    upsert_record(
+        {
+            "faq_id": "ORCH-78",
+            "category": "Band and Orchestra",
+            "question": "When are the 7th- and 8th-grade band and orchestra concerts?",
+            "answer": (
+                "The 7th- and 8th-grade band and orchestra concerts are Wednesday, "
+                "October 28, 2026."
+            ),
+            "source": "Crone Weekly",
+            "status": "Active",
+        }
+    )
+    upsert_record(
+        {
+            "faq_id": "MUSIC-UPCOMING",
+            "category": "Band and Orchestra",
+            "question": "What upcoming Crone music events are scheduled?",
+            "answer": (
+                "The 6th grade band and orchestra concert is scheduled for Wednesday, "
+                "December 2, 2026, at 7:00 PM."
+            ),
+            "source": "Crone Weekly",
+            "status": "Active",
+        }
+    )
+    upsert_record(
+        {
+            "faq_id": "BOOKFAIR",
+            "category": "Book Fair",
+            "question": "When and where is the Crone Fall Book Fair?",
+            "answer": "Book Fair runs October 30 through November 9, 2026.",
+            "source": "Crone Weekly",
+            "status": "Active",
+        }
+    )
+    from app.faq_service import answer_faq_detailed
+
+    detailed = answer_faq_detailed(
+        "When is 6th grade orchestra concert?", allow_rag=False
+    )
+    assert detailed.retrieval_mode == "direct_qa"
+    assert detailed.faq_id == "MUSIC-UPCOMING"
+    assert "December 2, 2026" in detailed.answer
+    assert "Book Fair" not in detailed.answer
+    assert "October 28" not in detailed.answer
+
+
 def test_extract_dated_snippets_splits_multi_game_answer():
     text = (
         "Games: Tuesday, November 10, 2026, against Jefferson; "

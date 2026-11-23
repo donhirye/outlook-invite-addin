@@ -196,6 +196,13 @@ def resolve_source(
     return None, None
 
 
+_ORDINAL_TOKEN_RE = re.compile(r"^\d+(st|nd|rd|th)$", re.I)
+
+
+def _ordinal_tokens(tokens: set[str]) -> set[str]:
+    return {t for t in tokens if _ORDINAL_TOKEN_RE.match(t)}
+
+
 def _best_faq_record(question: str) -> tuple[dict | None, float]:
     """Best structured FAQ record and score (no direct-match threshold)."""
     from datetime import datetime
@@ -208,20 +215,49 @@ def _best_faq_record(question: str) -> tuple[dict | None, float]:
     q_tokens = _normalize_for_match(question)
     if not q_tokens:
         return None, 0.0
+    q_ord = _ordinal_tokens(q_tokens)
     today = chicago_today()
     upcoming = _wants_upcoming(question)
     best_rec = None
     best_score = 0.0
     for rec in records:
-        faq_tokens = _normalize_for_match(rec.get("question") or "")
-        if not faq_tokens:
+        q_text = rec.get("question") or ""
+        a_text = rec.get("answer") or ""
+        faq_q_tokens = _normalize_for_match(q_text)
+        faq_a_tokens = _normalize_for_match(a_text)
+        faq_tokens = faq_q_tokens | faq_a_tokens
+        if not faq_q_tokens and not faq_a_tokens:
             continue
-        overlap = q_tokens & faq_tokens
-        if not overlap:
+        q_overlap = q_tokens & faq_q_tokens
+        a_overlap = q_tokens & faq_a_tokens
+        if not q_overlap and not a_overlap:
             continue
-        score = (len(overlap) / len(q_tokens) + len(overlap) / len(faq_tokens)) / 2.0
-        if len(overlap) == len(faq_tokens) and len(faq_tokens) >= 2:
-            score = max(score, 0.99)
+        # Prefer question match; allow answer coverage so "6th grade orchestra concert"
+        # can hit a FAQ whose Q is "upcoming music events" but A names that concert.
+        q_score = 0.0
+        if faq_q_tokens and q_overlap:
+            q_score = (
+                len(q_overlap) / len(q_tokens) + len(q_overlap) / len(faq_q_tokens)
+            ) / 2.0
+            if len(q_overlap) == len(faq_q_tokens) and len(faq_q_tokens) >= 2:
+                q_score = max(q_score, 0.99)
+        # Single-token answer hits are too noisy ("park" → Commissioner's Park).
+        a_score = (
+            len(a_overlap) / len(q_tokens)
+            if len(a_overlap) >= 2
+            else 0.0
+        )
+        score = max(q_score, 0.85 * a_score if a_score else 0.0)
+        if q_score and a_score:
+            score = max(score, 0.55 * q_score + 0.45 * a_score)
+
+        # "6th grade …" must not prefer a 7th/8th-grade FAQ that never mentions 6th.
+        faq_ord = _ordinal_tokens(faq_tokens)
+        if q_ord and faq_ord and not (q_ord & faq_ord):
+            score *= 0.35
+        elif q_ord and (q_ord & faq_ord):
+            score = min(1.0, score + 0.12)
+
         event_raw = (rec.get("event_date") or "").strip()
         if upcoming and event_raw:
             try:
@@ -365,6 +401,7 @@ def answer_faq_detailed(
             rec, match_score = score_faq_records(cleaned_question)
             if rec:
                 retrieval_mode = "direct_qa"
+                # Siblings only on a real direct hit (≥0.6). Never synthesize from a weak near-miss.
                 siblings = find_sibling_records(rec)
                 if siblings:
                     body, chunks = format_sibling_topic_answer(rec, siblings)
@@ -395,24 +432,6 @@ def answer_faq_detailed(
                     retrieved_chunks=[direct_chunk],
                 )
                 return result
-
-            # Near-miss with siblings: still synthesize instead of RAG-only.
-            best_rec, best_score = _best_faq_record(cleaned_question)
-            if best_rec is not None and best_score >= 0.35:
-                siblings = find_sibling_records(best_rec)
-                if siblings:
-                    body, chunks = format_sibling_topic_answer(best_rec, siblings)
-                    result = FaqAnswer(
-                        answer=body,
-                        confidence=best_score,
-                        match_score=best_score,
-                        retrieval_mode="direct_qa",
-                        faq_id=best_rec.get("faq_id"),
-                        source_name=best_rec.get("source") or None,
-                        source_url=best_rec.get("source_url") or None,
-                        retrieved_chunks=chunks,
-                    )
-                    return result
         else:
             direct, match_score = score_faq_qa(cleaned_question, faq_text)
             if direct:

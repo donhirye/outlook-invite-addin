@@ -132,6 +132,14 @@ _SIBLING_STOP = {
     "can", "will", "please", "crone", "middle", "school", "ptsa", "parent", "parents",
     "event", "events", "date", "dates", "faq", "newsletter", "weekly", "upcoming",
     "scheduled", "against", "grade", "grades", "meeting", "informational",
+    # Hedge / generic answer filler that false-linked Book Fair ↔ orchestra, etc.
+    "should", "confirmed", "confirm", "specify", "location", "latest", "state",
+    "states", "also", "provided", "additional", "through", "open", "refer",
+    # Calendar glue must not count as shared "entity"
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+    "2024", "2025", "2026", "2027", "2028", "2029", "2030",
 }
 
 
