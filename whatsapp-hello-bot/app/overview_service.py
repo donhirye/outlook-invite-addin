@@ -88,23 +88,27 @@ def is_overview_question(text: str) -> bool:
     cleaned = (text or "").strip()
     if not cleaned or is_faq_action_question(cleaned):
         return False
-    if not _OVERVIEW_CUES.search(cleaned):
-        if re.search(
-            r"\b(events?|happening|going\s+on)\b.*\b("
-            + "|".join(_MONTHS)
-            + r")\b",
-            cleaned,
-            re.I,
-        ):
-            return True
-        if re.search(
-            r"\b(" + "|".join(_MONTHS) + r")\b.*\b(events?|happening|going\s+on)\b",
-            cleaned,
-            re.I,
-        ):
-            return True
-        return False
-    return True
+    month_re = r"(" + "|".join(_MONTHS) + r")"
+    has_month = bool(re.search(rf"\b{month_re}\b", cleaned, re.I))
+    if _OVERVIEW_CUES.search(cleaned):
+        return True
+    # "events/happening/going on … December"
+    if re.search(
+        rf"\b(events?|happen\w*|going\s+on)\b.*\b{month_re}\b",
+        cleaned,
+        re.I,
+    ):
+        return True
+    if re.search(
+        rf"\b{month_re}\b.*\b(events?|happen\w*|going\s+on)\b",
+        cleaned,
+        re.I,
+    ):
+        return True
+    # Typo-tolerant: "whats ahppening in december" — what/whats + month
+    if has_month and re.search(r"\b(what|whats|what's|anything)\b", cleaned, re.I):
+        return True
+    return False
 
 
 def _parse_mdy(raw: str) -> date | None:

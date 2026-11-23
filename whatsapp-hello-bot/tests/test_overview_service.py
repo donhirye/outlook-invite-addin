@@ -113,7 +113,10 @@ def dual(tmp_path, monkeypatch):
 def test_overview_question_detection():
     assert overview.is_overview_question("what is going on in december?")
     assert overview.is_overview_question("show me all events in may 2027")
+    assert overview.is_overview_question("whats happening in december?")
+    assert overview.is_overview_question("whats ahppening in december?")  # typo
     assert not overview.is_overview_question("how do I register for band")
+    assert not overview.is_overview_question("Where is Lost & Found?")
 
 
 def test_december_per_date_bullets_no_loose_related(dual):
