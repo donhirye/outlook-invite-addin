@@ -64,7 +64,7 @@ class AnswerResult:
     sources: list[str] = field(default_factory=list)
     ended: bool = False
     skip_outbound: bool = False
-    # A | C | E | Ep — which eval_framework strategy produced this.
+    # Live path id (Ep). Kept for traces / Test Chat.
     answer_strategy: str | None = None
     # Filled in by the shared pipeline (not by engines).
     trace_id: str | None = None

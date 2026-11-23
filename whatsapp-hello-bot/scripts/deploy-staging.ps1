@@ -54,17 +54,12 @@ try {
 
     # --update-env-vars merges; does not wipe unrelated existing env (e.g. base URLs).
     # OPENAI_MODEL matches production (gpt-5-mini) so staging answers are comparable.
-    # Eval framework off by default (live path = Ep). Set EVAL_FRAMEWORK_ENABLED=true
-    # and ANSWER_STRATEGY=A|C|E|Ep for bake-offs.
-    $evalFw = if ($env:EVAL_FRAMEWORK_ENABLED) { $env:EVAL_FRAMEWORK_ENABLED } else { "false" }
-    $answerStrategy = if ($env:ANSWER_STRATEGY) { $env:ANSWER_STRATEGY } else { "Ep" }
+    # Live path is always Ep (no strategy switcher).
     $envVars = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
       "OPENAI_MODEL=gpt-5-mini",
-      "EVAL_FRAMEWORK_ENABLED=$evalFw",
-      "ANSWER_STRATEGY=$answerStrategy",
       "GIT_SHA=$sha",
       "DEPLOY_BRANCH=$branch"
     ) -join ","
@@ -76,6 +71,7 @@ try {
     $labels = "env=staging,git-sha=$shortSha,git-branch=$branchLabel"
 
     # WhatsApp tokens are intentionally never set on staging.
+    # Drop obsolete bake-off env vars if a prior revision set them.
     Invoke-GCloud run deploy $script:StagingService `
       @StagingArgs `
       "--region=$script:Region" `
@@ -85,6 +81,7 @@ try {
       "--min-instances=0" `
       "--max-instances=2" `
       "--update-env-vars=$envVars" `
+      "--remove-env-vars=EVAL_FRAMEWORK_ENABLED,ANSWER_STRATEGY" `
       "--update-secrets=$secrets" `
       "--update-labels=$labels" `
       "--quiet"

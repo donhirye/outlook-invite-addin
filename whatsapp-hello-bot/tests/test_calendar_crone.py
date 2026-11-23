@@ -269,14 +269,9 @@ def test_engine_answers_event_when_from_calendar_and_actions_from_faq(both, monk
     from app.engines import engine1_legacy
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
-    for mod in (
-        "app.eval_framework.strategy_a",
-        "app.eval_framework.strategy_c",
-        "app.eval_framework.strategy_e",
-        "app.eval_framework.strategy_ep",
-    ):
-        monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.config.EVAL_FRAMEWORK_ENABLED", False)
+    monkeypatch.setattr(
+        "app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq
+    )
     engine = engine1_legacy.LegacyEngine()
 
     cal = engine.answer(_engine_ctx("when is the next PTSA meeting"))

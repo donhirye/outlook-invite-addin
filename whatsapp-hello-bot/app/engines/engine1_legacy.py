@@ -1,8 +1,8 @@
-"""Engine 1 — live path Ep; optional eval-framework strategy switch."""
+"""Engine 1 — live Ep answer path."""
 
 from __future__ import annotations
 
-from app.eval_framework import resolve_strategy_id, run_strategy
+from app.eval_framework import LIVE_STRATEGY_ID, answer as answer_ep
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext
 from app.engines.registry import register_engine
 
@@ -14,14 +14,8 @@ class LegacyEngine:
     implemented = True
 
     def answer(self, ctx: ConversationContext) -> AnswerResult:
-        # Eval bake-off override via ctx.extras["answer_strategy"] only honored
-        # when EVAL_FRAMEWORK_ENABLED (see resolve_strategy_id).
-        override = None
-        if isinstance(ctx.extras, dict):
-            override = ctx.extras.get("answer_strategy")
-        sid = resolve_strategy_id(override=override)
-        result = run_strategy(ctx, engine=self, strategy_id=sid)
-        result.answer_strategy = sid
+        result = answer_ep(ctx, engine=self)
+        result.answer_strategy = LIVE_STRATEGY_ID
         return result
 
 

@@ -1,4 +1,4 @@
-"""ANSWER_STRATEGY switch: A / C / E / Ep are separate modules."""
+"""Live Ep answer path (calendar wins unless how-to merge)."""
 
 from __future__ import annotations
 
@@ -15,25 +15,20 @@ os.environ["FAQ_GCS_BUCKET"] = ""
 import pytest
 
 from app import calendar_store, guided_state
-from app.eval_framework import list_strategies, normalize_strategy_id
 from app.engines import engine1_legacy
 from app.engines.base import ConversationContext
 
 IMPORT_DIR = Path(__file__).resolve().parents[1] / "data" / "imports"
 PHONE = "15550001111"
-TODAY = date(2026, 11, 13)
 
 
-def _ctx(text: str, *, strategy: str | None = None) -> ConversationContext:
-    extras = {}
-    if strategy:
-        extras["answer_strategy"] = strategy
+def _ctx(text: str) -> ConversationContext:
     return ConversationContext(
         phone_hash="hash",
         phone=PHONE,
         message_id="m",
         text=text,
-        extras=extras,
+        extras={},
     )
 
 
@@ -63,7 +58,6 @@ def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
         mode = "direct"
         score = 0.9
     else:
-        # Simulate weak PTSA-website FAQ hit on "next meeting" asks.
         if "ptsa meeting" in lowered or "party in the park" in lowered:
             answer = (
                 "The Crone PTSA website is www.CronePTSA.org. It includes meetings."
@@ -94,65 +88,21 @@ def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
 
 @pytest.fixture
 def engine(both, monkeypatch):
-    monkeypatch.setattr("app.config.EVAL_FRAMEWORK_ENABLED", True)
-    monkeypatch.setattr("app.eval_framework.EVAL_FRAMEWORK_ENABLED", True, raising=False)
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.eval_framework.strategy_a.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.eval_framework.strategy_c.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.eval_framework.strategy_e.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr("app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq)
     return engine1_legacy.LegacyEngine()
 
 
-def test_strategy_ids_listed():
-    ids = {s["id"] for s in list_strategies()}
-    assert ids == {"A", "C", "E", "Ep"}
-    assert normalize_strategy_id("Eprime") == "Ep"
-    assert normalize_strategy_id("e") == "E"
-
-
-def test_framework_off_ignores_strategy_override(engine, monkeypatch):
-    monkeypatch.setattr("app.config.EVAL_FRAMEWORK_ENABLED", False)
-    out = engine.answer(
-        _ctx("when is the next crone ptsa meeting", strategy="A")
-    )
-    # Flag off → always Ep (calendar wins), ignore A override.
-    assert out.answer_strategy == "Ep"
-    assert out.route == "calendar"
-
-
-def test_strategy_a_party_without_when_misses_calendar_gate(engine):
-    """Prod gate needs a time cue — Party in the Park without 'when' → FAQ."""
-    out = engine.answer(_ctx("tell me more about the party in the park event", strategy="A"))
-    assert out.answer_strategy == "A"
-    # Fake FAQ returns website-ish hit for party asks → faq route
-    assert out.route == "faq"
-
-
-def test_strategy_e_party_hits_calendar(engine):
-    out = engine.answer(_ctx("tell me more about the party in the park event", strategy="E"))
-    assert out.answer_strategy == "E"
-    # Calendar hit + weak FAQ hit → E merges
-    assert out.route in {"calendar", "calendar_faq"}
-    assert "Party in the Park" in out.messages[0]
-
-
-def test_strategy_e_merges_ptsa_meeting_with_weak_faq(engine):
-    out = engine.answer(_ctx("when is the next crone ptsa meeting", strategy="E"))
-    assert out.route == "calendar_faq"
-    assert "Jan 14, 2027" in out.messages[0]
-    assert "CronePTSA.org" in out.messages[0] or "PTSA website" in out.messages[0]
-
-
-def test_strategy_ep_calendar_wins_on_ptsa_meeting(engine):
-    out = engine.answer(_ctx("when is the next crone ptsa meeting", strategy="Ep"))
+def test_ep_calendar_wins_on_ptsa_meeting(engine):
+    out = engine.answer(_ctx("when is the next crone ptsa meeting"))
     assert out.answer_strategy == "Ep"
     assert out.route == "calendar"
     assert "Jan 14, 2027" in out.messages[0]
     assert "CronePTSA.org" not in out.messages[0]
 
 
-def test_strategy_ep_still_merges_how_to_register(engine):
-    out = engine.answer(_ctx("how do I register for the color run", strategy="Ep"))
+def test_ep_still_merges_how_to_register(engine):
+    out = engine.answer(_ctx("how do I register for the color run"))
+    assert out.answer_strategy == "Ep"
     assert out.route == "calendar_faq"
     assert "FAQ ANSWER" in out.messages[0]

@@ -49,16 +49,6 @@ GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
 
 OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
 OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-4o-mini")
-# Eval framework (validation bake-offs only). See app/eval_framework/ and
-# evals/framework/. When false, Engine 1 always uses Ep and ignores switching.
-EVAL_FRAMEWORK_ENABLED = _env("EVAL_FRAMEWORK_ENABLED", "false").lower() in {
-    "1",
-    "true",
-    "yes",
-    "on",
-}
-# Which design when EVAL_FRAMEWORK_ENABLED: A | C | E | Ep
-ANSWER_STRATEGY = _env("ANSWER_STRATEGY", "Ep")
 # For gpt-5* reasoning models via Responses API. Empty = omit (non-reasoning models).
 # minimal keeps FAQ quality high while cutting default medium-effort latency.
 OPENAI_REASONING_EFFORT = _env("OPENAI_REASONING_EFFORT", "minimal").lower()
@@ -158,8 +148,6 @@ def credential_status() -> dict[str, object]:
         "verify_token_set": bool(WHATSAPP_VERIFY_TOKEN),
         "openai_api_key_set": bool(OPENAI_API_KEY),
         "openai_model": OPENAI_MODEL,
-        "eval_framework_enabled": EVAL_FRAMEWORK_ENABLED,
-        "answer_strategy": ANSWER_STRATEGY,
         "openai_reasoning_effort": OPENAI_REASONING_EFFORT or None,
         "faq_file_exists": FAQ_FILE.exists(),
         "faq_gcs_bucket": FAQ_GCS_BUCKET or None,

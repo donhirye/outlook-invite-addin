@@ -232,15 +232,9 @@ def engine(both, monkeypatch):
     from app.engines import engine1_legacy
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
-    for mod in (
-        "app.eval_framework.strategy_a",
-        "app.eval_framework.strategy_c",
-        "app.eval_framework.strategy_e",
-        "app.eval_framework.strategy_ep",
-    ):
-        monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
-    # Framework off → live path Ep (fine for these calendar checks).
-    monkeypatch.setattr("app.config.EVAL_FRAMEWORK_ENABLED", False)
+    monkeypatch.setattr(
+        "app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq
+    )
     return engine1_legacy.LegacyEngine()
 
 

@@ -86,13 +86,9 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
         )
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
-    for mod in (
-        "app.eval_framework.strategy_a",
-        "app.eval_framework.strategy_c",
-        "app.eval_framework.strategy_e",
-        "app.eval_framework.strategy_ep",
-    ):
-        monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr(
+        "app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq
+    )
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen.json")
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state.json")
