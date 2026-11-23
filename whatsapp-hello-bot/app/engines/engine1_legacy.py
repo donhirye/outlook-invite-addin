@@ -1,18 +1,14 @@
-"""Engine 1 — FAQ + calendar + existing non-guided routing."""
+"""Engine 1 — FAQ + calendar overview + existing non-guided routing."""
 
 from __future__ import annotations
 
-from app.calendar_picker import (
-    is_show_calendar_question,
-    resolve_calendar_pick,
-    start_calendar_picker,
-)
 from app.calendar_service import answer_calendar_question, looks_like_calendar_question
 from app.config import OPENAI_MODEL
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext, ModelUsage
 from app.engines.registry import register_engine
 from app.faq_admin import HELP_TEXT, format_parent_answer, is_help_command
 from app.faq_service import answer_faq_detailed
+from app.overview_service import answer_overview, is_overview_question
 from app.privacy_filter import privacy_reply_if_needed
 
 
@@ -24,7 +20,6 @@ class LegacyEngine:
 
     def answer(self, ctx: ConversationContext) -> AnswerResult:
         text = (ctx.text or "").strip()
-        phone = ctx.phone
 
         if is_help_command(text):
             return AnswerResult(
@@ -47,35 +42,26 @@ class LegacyEngine:
                 sources=["ptsa_privacy_policy"],
             )
 
-        # "Show me the calendar": ask which calendar, then list its upcoming events.
-        picked = resolve_calendar_pick(phone, text)
-        if picked:
-            return AnswerResult(
-                messages=picked["messages"],
-                route="calendar",
-                engine_id=self.id,
-                engine_version=self.version,
-                intent="calendar",
-                sources=["school_calendar"],
-                answer_outcome="answered",
-                retrieval_mode="calendar",
-            )
-        if is_show_calendar_question(text):
-            asked = start_calendar_picker(phone)
-            if asked:
+        # Date-list / "what's going on" — full calendar + dated FAQ scan (not FAQ RAG).
+        if is_overview_question(text):
+            overview = answer_overview(text)
+            if overview:
                 return AnswerResult(
-                    messages=asked["messages"],
-                    choices=asked["choices"],
-                    route="calendar",
+                    messages=overview["messages"],
+                    route="overview",
                     engine_id=self.id,
                     engine_version=self.version,
-                    intent="calendar",
-                    sources=["school_calendar"],
-                    answer_outcome="answered",
-                    retrieval_mode="calendar",
+                    intent="overview",
+                    sources=list(overview.get("sources") or []),
+                    answer_outcome=overview.get("answer_outcome") or "answered",
+                    retrieval_mode="overview",
+                    retrieved_chunks=list(overview.get("retrieved_chunks") or []),
+                    source_name=overview.get("source_name"),
+                    source_url=overview.get("source_url"),
+                    faq_id=overview.get("faq_id"),
                 )
 
-        # School calendar (deterministic) before FAQ/LLM.
+        # School calendar (deterministic holiday / named-event) before FAQ/LLM.
         if looks_like_calendar_question(text):
             cal = answer_calendar_question(text)
             if cal.get("handled") and cal.get("answer"):
@@ -92,7 +78,7 @@ class LegacyEngine:
                     retrieval_mode="calendar",
                 )
 
-        # FAQ path (direct records, then RAG + LLM).
+        # FAQ path (direct records + sibling synth, then RAG + LLM).
         faq = answer_faq_detailed(text)
         raw = faq.answer
         answer = format_parent_answer(

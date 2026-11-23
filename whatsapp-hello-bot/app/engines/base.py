@@ -40,7 +40,7 @@ class ModelUsage:
 class AnswerResult:
     messages: list[str]
     choices: list[dict[str, str]] | None = None
-    route: str = "unknown"  # faq | calendar | human | help | privacy_filter | clarification | unknown
+    route: str = "unknown"  # faq | calendar | overview | human | help | privacy_filter | clarification | unknown
     engine_id: str = ENGINE_1
     engine_version: str = "1.0.0"
     faq_id: str | None = None

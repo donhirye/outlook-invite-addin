@@ -87,8 +87,8 @@
     <h1>Test Chat</h1>
     <p>
       Talks to the same answering pipeline WhatsApp uses, with staging data only.
-      Nothing is sent to WhatsApp. Conversation state is kept per test identity, so
-      calendar picker choices continue across turns until you reset.
+      Nothing is sent to WhatsApp. Month/range asks use the overview scan
+      (calendar + dated FAQ); topic asks use FAQ Q/A or RAG.
     </p>
 
     <div class="toolbar">
@@ -178,15 +178,17 @@
     return span;
   }
   function routeChoice(route) {
-    const key = (route === "privacy_filter") ? "privacy" : (route || "");
+    let key = route || "";
+    if (key === "privacy_filter") key = "privacy";
     return choiceLine(
       [
         { id: "help", label: "help" },
         { id: "privacy", label: "privacy" },
         { id: "calendar", label: "calendar" },
+        { id: "overview", label: "overview" },
         { id: "faq", label: "faq" },
       ],
-      ["help", "privacy", "calendar", "faq"].includes(key) ? key : null
+      ["help", "privacy", "calendar", "overview", "faq"].includes(key) ? key : null
     );
   }
   function retrievalChoice(mode) {
@@ -194,10 +196,12 @@
     let active = null;
     if (m === "direct_qa" || m === "direct") active = "qa";
     else if (m === "rag") active = "rag";
+    else if (m === "overview" || m === "calendar") active = "overview";
     return choiceLine(
       [
         { id: "qa", label: "Q/A" },
         { id: "rag", label: "rag" },
+        { id: "overview", label: "overview" },
       ],
       active
     );

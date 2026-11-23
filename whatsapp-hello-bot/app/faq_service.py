@@ -348,9 +348,28 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
         faq_load_ms = (time.perf_counter() - faq_started) * 1000
 
         if faq_path is None:
+            from app.overview_service import (
+                find_sibling_records,
+                format_sibling_topic_answer,
+            )
+
             rec, match_score = score_faq_records(cleaned_question)
             if rec:
                 retrieval_mode = "direct_qa"
+                siblings = find_sibling_records(rec)
+                if siblings:
+                    body, chunks = format_sibling_topic_answer(rec, siblings)
+                    result = FaqAnswer(
+                        answer=body,
+                        confidence=match_score,
+                        match_score=match_score,
+                        retrieval_mode=retrieval_mode,
+                        faq_id=rec.get("faq_id"),
+                        source_name=rec.get("source") or None,
+                        source_url=rec.get("source_url") or None,
+                        retrieved_chunks=chunks,
+                    )
+                    return result
                 direct_chunk = (
                     f"Category: {rec.get('category') or ''}\n"
                     f"Q: {rec.get('question') or ''}\n"
@@ -367,6 +386,24 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
                     retrieved_chunks=[direct_chunk],
                 )
                 return result
+
+            # Near-miss with siblings: still synthesize instead of RAG-only.
+            best_rec, best_score = _best_faq_record(cleaned_question)
+            if best_rec is not None and best_score >= 0.35:
+                siblings = find_sibling_records(best_rec)
+                if siblings:
+                    body, chunks = format_sibling_topic_answer(best_rec, siblings)
+                    result = FaqAnswer(
+                        answer=body,
+                        confidence=best_score,
+                        match_score=best_score,
+                        retrieval_mode="direct_qa",
+                        faq_id=best_rec.get("faq_id"),
+                        source_name=best_rec.get("source") or None,
+                        source_url=best_rec.get("source_url") or None,
+                        retrieved_chunks=chunks,
+                    )
+                    return result
         else:
             direct, match_score = score_faq_qa(cleaned_question, faq_text)
             if direct:

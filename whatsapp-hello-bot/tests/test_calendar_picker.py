@@ -219,34 +219,24 @@ def engine(both, monkeypatch):
     return engine1_legacy.LegacyEngine()
 
 
-def test_engine_show_calendar_then_button_reply(engine):
+def test_engine_show_calendar_uses_overview(engine):
     asked = engine.answer(_ctx("show me the calendar"))
-    assert asked.route == "calendar"
-    assert [c["label"] for c in asked.choices] == [
-        "SD 204 calendar",
-        "PTSA events calendar",
-        "Both",
-    ]
-    answer = engine.answer(_ctx(asked.choices[1]["id"], "interactive"))
-    assert answer.route == "calendar"
-    assert "Jan 14, 2027" in answer.messages[0]
+    assert asked.route == "overview"
+    assert asked.retrieval_mode == "overview"
+    assert asked.choices is None
+    assert "What's going on" in asked.messages[0]
 
 
-def test_engine_typed_both(engine):
-    engine.answer(_ctx("Show me the calendar"))
-    answer = engine.answer(_ctx("both"))
-    assert len(answer.messages) == 2
+def test_engine_month_overview_not_faq(engine):
+    asked = engine.answer(_ctx("show me all events in may 2027"))
+    assert asked.route == "overview"
+    assert asked.retrieval_mode == "overview"
 
 
-def test_engine_unrelated_followup_answered_normally(engine):
-    engine.answer(_ctx("show me the calendar"))
+def test_engine_named_calendar_question_still_calendar(engine):
     answer = engine.answer(_ctx("when is the next PTSA meeting"))
     assert answer.route == "calendar"
     assert "Jan 14, 2027" in answer.messages[0]
-    assert answer.choices is None
-    # Question was dropped: "ptsa" alone now goes through the normal pipeline.
-    follow = engine.answer(_ctx("ptsa"))
-    assert "Upcoming dates" not in follow.messages[0]
 
 
 def test_engine_how_to_add_calendar_goes_to_faq(engine):

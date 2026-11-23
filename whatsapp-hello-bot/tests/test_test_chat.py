@@ -133,38 +133,12 @@ def test_no_phone_numbers_or_secrets_in_output(client):
     assert "15550100001" not in json.dumps(personas)
 
 
-def test_multi_turn_calendar_question_and_button_reply(client):
+def test_show_calendar_uses_overview_not_picker(client):
     asked = _say(client, "show me the calendar")
-    assert asked["route"] == "calendar"
-    assert [c["label"] for c in asked["choices"]] == [
-        "SD 204 calendar",
-        "PTSA events calendar",
-        "Both",
-    ]
-    # Tapping a button arrives as an interactive reply carrying the choice id.
-    answered = _say(client, asked["choices"][1]["id"], message_type="interactive")
-    assert answered["route"] == "calendar"
-    assert "Jan 14, 2027" in answered["messages"][0]
-
-
-def test_identities_have_separate_conversations(client):
-    _say(client, "show me the calendar", persona="parent_a")
-    # Parent B never asked, so "2" is not a calendar choice for them.
-    other = _say(client, "2", persona="parent_b")
-    assert "Upcoming dates" not in " ".join(other["messages"])
-    # Parent A's pending question is still there.
-    mine = _say(client, "2", persona="parent_a")
-    assert "Upcoming dates" in mine["messages"][0]
-
-
-def test_reset_clears_the_conversation(client):
-    _say(client, "show me the calendar")
-    reset = client.post(
-        "/admin/test-chat/api/reset", json={"persona": "parent_a"}, headers=AUTH
-    )
-    assert reset.status_code == 200 and reset.json()["ok"] is True
-    after = _say(client, "2")
-    assert "Upcoming dates" not in " ".join(after["messages"])
+    assert asked["route"] == "overview"
+    assert asked["retrieval_mode"] == "overview"
+    assert not asked.get("choices")
+    assert "What's going on" in asked["messages"][0]
 
 
 def test_validation_and_limits(client, monkeypatch):
