@@ -119,7 +119,7 @@ def test_overview_question_detection():
     assert not overview.is_overview_question("Where is Lost & Found?")
 
 
-def test_december_per_date_bullets_no_loose_related(dual):
+def test_december_per_date_bullets_no_related_followups(dual):
     result = overview.answer_overview(
         "what is going on in december? tell me all events",
         today=TODAY,
@@ -128,22 +128,19 @@ def test_december_per_date_bullets_no_loose_related(dual):
     body = result["messages"][0]
     assert "2026-12-15" in body
     assert "deadline" in body.lower()
-    # Shirt pickup linked explicitly
-    assert "2027-01-13" in body
-    assert "Related follow-up" in body
-    # Basketball: only December game lines, not November blob as the bullet
+    # Overview is month-only: no Jan pickup / no Related follow-up lines
+    assert "2027-01-13" not in body
+    assert "Related follow-up" not in body
+    # Basketball: only December game lines
     assert "2026-12-01" in body
     assert "2026-12-03" in body
     assert "2026-12-07" in body
-    # November games must not appear as December bullets / past related junk
     assert "2026-11-10" not in body
     assert "2026-10-16" not in body
     assert "Halloween" not in body
-    # One bullet per date style (shirt line is its own bullet)
     assert body.count("2026-12-15") == 1
     evidence = "\n".join(result["retrieved_chunks"])
     assert "SHIRT-ORDER" in evidence
-    assert "SHIRT-PICKUP" in evidence or "2027-01-13" in evidence
 
 
 def test_may_2027_overview_includes_springfield(dual):

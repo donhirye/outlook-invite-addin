@@ -360,8 +360,8 @@ def faq_date_bullets_in_window(
     records: list[dict[str, Any]] | None = None,
     today: date | None = None,
 ) -> list[dict[str, Any]]:
-    """Strict per-date FAQ bullets inside [start, end] (+ explicit linked notes)."""
-    today = today or chicago_today()
+    """Strict per-date FAQ bullets inside [start, end] only (no related follow-ups)."""
+    del today  # kept for call-site compat; overview no longer uses as-of filtering here
     pool = records if records is not None else list_records(include_inactive=False)
     bullets: list[dict[str, Any]] = []
 
@@ -387,80 +387,17 @@ def faq_date_bullets_in_window(
             snippets.sort(key=lambda s: s["date"])
 
         for snip in snippets:
-            blurb = _short_blurb(snip["clause"], snip["date"])
             bullets.append(
                 {
                     "date": snip["date"],
                     "kind": snip["kind"],
-                    "blurb": blurb,
+                    "blurb": _short_blurb(snip["clause"], snip["date"]),
                     "record": rec,
-                    "linked_notes": [],
                 }
             )
 
-    # Explicit same-item continuations (e.g. shirt Dec 15 → Jan 13 pickup).
-    # Only for deadline/order bullets; only high-precision entity overlap.
-    for bullet in bullets:
-        if bullet["kind"] not in {"deadline", "event"}:
-            continue
-        rec = bullet["record"]
-        if not _DEADLINE_RE.search(
-            f"{rec.get('question') or ''} {rec.get('answer') or ''}"
-        ) and bullet["kind"] != "deadline":
-            continue
-        for other in pool:
-            if other.get("faq_id") == rec.get("faq_id"):
-                continue
-            if not _explicitly_same_item(rec, other):
-                continue
-            other_text = f"{other.get('question') or ''}. {other.get('answer') or ''}"
-            for ment in iter_date_mentions(other_text, default_year=end.year):
-                d = ment["date"]
-                if start <= d <= end:
-                    continue
-                if d < today:
-                    continue
-                # Prefer pickup / later follow-through
-                if ment["kind"] not in {"pickup", "event", "deadline"}:
-                    continue
-                note = (
-                    f"{d.isoformat()} ({ment['kind']}) — "
-                    f"{_short_blurb(ment['clause'], d)}"
-                )
-                if note not in bullet["linked_notes"]:
-                    bullet["linked_notes"].append(note)
-
-        # Same-answer out-of-window dates (Jan mentioned in same FAQ as Dec deadline)
-        same_text = f"{rec.get('question') or ''}. {rec.get('answer') or ''}"
-        for ment in iter_date_mentions(same_text, default_year=end.year):
-            d = ment["date"]
-            if start <= d <= end or d < today:
-                continue
-            note = (
-                f"{d.isoformat()} ({ment['kind']}) — "
-                f"{_short_blurb(ment['clause'], d)}"
-            )
-            if note not in bullet["linked_notes"]:
-                bullet["linked_notes"].append(note)
-
     bullets.sort(key=lambda b: (b["date"], b["record"].get("faq_id") or ""))
     return bullets
-
-
-def _explicitly_same_item(a: dict[str, Any], b: dict[str, Any]) -> bool:
-    """High-precision same-item link (no generic similarity)."""
-    ta = _entity_tokens(a)
-    tb = _entity_tokens(b)
-    strong_a = {t for t in ta if t.isdigit() or len(t) >= 5}
-    strong_b = {t for t in tb if t.isdigit() or len(t) >= 5}
-    overlap = strong_a & strong_b
-    if len(overlap) < 3:
-        return False
-    if not any(t.isdigit() for t in overlap):
-        # Without a year/id digit, require 4+ long shared tokens
-        if len([t for t in overlap if len(t) >= 6]) < 2:
-            return False
-    return True
 
 
 def _short_blurb(clause: str, d: date) -> str:
@@ -496,10 +433,7 @@ def _fmt_cal_line(ev: dict[str, Any]) -> str:
 
 def _fmt_faq_bullet(b: dict[str, Any]) -> str:
     kind = b.get("kind") or "event"
-    line = f"• {b['date'].isoformat()} ({kind}) — {b['blurb']}"
-    for note in (b.get("linked_notes") or [])[:1]:
-        line += f"\n  Related follow-up: {note}"
-    return line
+    return f"• {b['date'].isoformat()} ({kind}) — {b['blurb']}"
 
 
 def answer_overview(
@@ -537,10 +471,6 @@ def answer_overview(
             chunks.append(
                 f"[faq {rec.get('faq_id')}] {b['date']} ({b['kind']})\n{b['blurb']}"
             )
-            for note in b.get("linked_notes") or []:
-                chunks.append(
-                    f"[faq-linked {rec.get('faq_id')}] {note}"
-                )
 
     if not cal and not faq_bullets:
         sections.append(
