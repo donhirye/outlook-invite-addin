@@ -54,11 +54,14 @@ try {
 
     # --update-env-vars merges; does not wipe unrelated existing env (e.g. base URLs).
     # OPENAI_MODEL matches production (gpt-5-mini) so staging answers are comparable.
+    # ANSWER_STRATEGY default E (dual-retrieve). Override with A|C|E|Ep for bake-offs.
+    $answerStrategy = if ($env:ANSWER_STRATEGY) { $env:ANSWER_STRATEGY } else { "E" }
     $envVars = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
       "OPENAI_MODEL=gpt-5-mini",
+      "ANSWER_STRATEGY=$answerStrategy",
       "GIT_SHA=$sha",
       "DEPLOY_BRANCH=$branch"
     ) -join ","

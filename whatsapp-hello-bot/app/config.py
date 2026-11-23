@@ -49,6 +49,9 @@ GRAPH_API_VERSION = _env("GRAPH_API_VERSION", "v21.0")
 
 OPENAI_API_KEY = _env("OPENAI_API_KEY", "")
 OPENAI_MODEL = _env("OPENAI_MODEL", "gpt-4o-mini")
+# Answering design for Engine 1: A | C | E | Ep  (see app/answer_strategies/)
+# Default E = dual-retrieve (current staging). Ep = calendar-prefer merge.
+ANSWER_STRATEGY = _env("ANSWER_STRATEGY", "E")
 # For gpt-5* reasoning models via Responses API. Empty = omit (non-reasoning models).
 # minimal keeps FAQ quality high while cutting default medium-effort latency.
 OPENAI_REASONING_EFFORT = _env("OPENAI_REASONING_EFFORT", "minimal").lower()
@@ -148,6 +151,7 @@ def credential_status() -> dict[str, object]:
         "verify_token_set": bool(WHATSAPP_VERIFY_TOKEN),
         "openai_api_key_set": bool(OPENAI_API_KEY),
         "openai_model": OPENAI_MODEL,
+        "answer_strategy": ANSWER_STRATEGY,
         "openai_reasoning_effort": OPENAI_REASONING_EFFORT or None,
         "faq_file_exists": FAQ_FILE.exists(),
         "faq_gcs_bucket": FAQ_GCS_BUCKET or None,

@@ -85,8 +85,14 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
             llm_invocations=1,
         )
 
-    monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
+    for mod in (
+        "app.answer_strategies.strategy_a",
+        "app.answer_strategies.strategy_c",
+        "app.answer_strategies.strategy_e",
+        "app.answer_strategies.strategy_ep",
+    ):
+        monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen.json")
     monkeypatch.setattr("app.guided_state.STATE_FILE", tmp_path / "guided_state.json")

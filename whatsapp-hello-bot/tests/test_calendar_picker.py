@@ -231,7 +231,16 @@ def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
 def engine(both, monkeypatch):
     from app.engines import engine1_legacy
 
-    monkeypatch.setattr(engine1_legacy, "answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
+    for mod in (
+        "app.answer_strategies.strategy_a",
+        "app.answer_strategies.strategy_c",
+        "app.answer_strategies.strategy_e",
+        "app.answer_strategies.strategy_ep",
+    ):
+        monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
+    monkeypatch.setenv("ANSWER_STRATEGY", "E")
+    monkeypatch.setattr("app.config.ANSWER_STRATEGY", "E")
     return engine1_legacy.LegacyEngine()
 
 

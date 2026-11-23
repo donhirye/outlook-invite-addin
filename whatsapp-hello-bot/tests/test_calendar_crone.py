@@ -268,7 +268,15 @@ def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
 def test_engine_answers_event_when_from_calendar_and_actions_from_faq(both, monkeypatch):
     from app.engines import engine1_legacy
 
-    monkeypatch.setattr(engine1_legacy, "answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
+    for mod in (
+        "app.answer_strategies.strategy_a",
+        "app.answer_strategies.strategy_c",
+        "app.answer_strategies.strategy_e",
+        "app.answer_strategies.strategy_ep",
+    ):
+        monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.config.ANSWER_STRATEGY", "Ep")
     engine = engine1_legacy.LegacyEngine()
 
     cal = engine.answer(_engine_ctx("when is the next PTSA meeting"))
@@ -276,7 +284,7 @@ def test_engine_answers_event_when_from_calendar_and_actions_from_faq(both, monk
     assert "Jan 14, 2027" in cal.messages[0]
 
     merged = engine.answer(_engine_ctx("how do I register for the color run"))
-    # Named event + FAQ how-to → calendar date/time + FAQ details.
+    # Named event + FAQ how-to → calendar date/time + FAQ details (Ep merges actions).
     assert merged.route == "calendar_faq"
     assert "FAQ ANSWER" in merged.messages[0]
     assert "Color" in merged.messages[0] or "color" in merged.messages[0].lower()
