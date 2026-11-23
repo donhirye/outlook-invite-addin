@@ -87,7 +87,7 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr(
-        "app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq
+        "app.engines.answer_path.answer_faq_detailed", _fake_faq
     )
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)
     monkeypatch.setattr("app.guided_state.SEEN_FILE", tmp_path / "seen.json")

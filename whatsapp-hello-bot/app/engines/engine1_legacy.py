@@ -1,8 +1,8 @@
-"""Engine 1 — live Ep answer path."""
+"""Engine 1 — live dual-retrieve answer path (Ep)."""
 
 from __future__ import annotations
 
-from app.eval_framework import LIVE_STRATEGY_ID, answer as answer_ep
+from app.engines.answer_path import LIVE_PATH_ID, answer as answer_live
 from app.engines.base import ENGINE_1, AnswerResult, ConversationContext
 from app.engines.registry import register_engine
 
@@ -14,8 +14,8 @@ class LegacyEngine:
     implemented = True
 
     def answer(self, ctx: ConversationContext) -> AnswerResult:
-        result = answer_ep(ctx, engine=self)
-        result.answer_strategy = LIVE_STRATEGY_ID
+        result = answer_live(ctx, engine=self)
+        result.answer_strategy = LIVE_PATH_ID
         return result
 
 

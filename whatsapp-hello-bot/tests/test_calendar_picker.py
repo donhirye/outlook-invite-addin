@@ -233,7 +233,7 @@ def engine(both, monkeypatch):
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr(
-        "app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq
+        "app.engines.answer_path.answer_faq_detailed", _fake_faq
     )
     return engine1_legacy.LegacyEngine()
 

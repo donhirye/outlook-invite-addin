@@ -48,7 +48,7 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setattr("app.engine_config.CONFIG_FILE", tmp_path / "engine_config.json")
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr(
-        "app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq
+        "app.engines.answer_path.answer_faq_detailed", _fake_faq
     )
     monkeypatch.setattr(calendar_store, "CALENDAR_FILE", tmp_path / "calendar.json")
     monkeypatch.setattr(calendar_store, "FAQ_GCS_BUCKET", "")

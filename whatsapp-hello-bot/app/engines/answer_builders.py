@@ -1,4 +1,4 @@
-"""Shared helpers for answer strategies (help / privacy / FAQ / calendar builders)."""
+"""Shared builders for the live Engine 1 answer path (help / FAQ / calendar)."""
 
 from __future__ import annotations
 

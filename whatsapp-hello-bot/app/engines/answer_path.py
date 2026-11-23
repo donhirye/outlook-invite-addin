@@ -1,27 +1,26 @@
-"""Strategy Ep (E′) — dual-retrieve; merge only for how-to / action asks.
+"""Live Engine 1 answer path (former Ep).
 
-Same retrieve as E, but when both calendar and FAQ hit:
+Dual-retrieve calendar + FAQ. When both hit:
   - action/how-to/cost/register → merge
-  - otherwise calendar wins (avoids website FAQ dumping under 'next PTSA meeting')
+  - otherwise calendar wins
 """
 
 from __future__ import annotations
 
-from . import common
 from app.calendar_service import is_faq_action_question, lookup_calendar_for_topic
+from app.engines import answer_builders as builders
 from app.engines.base import AnswerResult, ConversationContext
 from app.faq_service import answer_faq_detailed
 
-STRATEGY_ID = "Ep"
-STRATEGY_TITLE = "Dual-retrieve; calendar wins unless how-to merge"
+LIVE_PATH_ID = "Ep"
 
 
 def answer(ctx: ConversationContext, *, engine) -> AnswerResult:
-    early = common.help_or_privacy(ctx, engine=engine)
+    early = builders.help_or_privacy(ctx, engine=engine)
     if early:
         return early
 
-    overview = common.overview_result(ctx, engine=engine)
+    overview = builders.overview_result(ctx, engine=engine)
     if overview:
         return overview
 
@@ -29,16 +28,16 @@ def answer(ctx: ConversationContext, *, engine) -> AnswerResult:
     cal = lookup_calendar_for_topic(text)
     faq_direct = answer_faq_detailed(text, allow_rag=False)
     cal_hit = bool(cal.get("hit") and cal.get("answer"))
-    faq_hit = common.faq_is_hit(faq_direct.answer)
+    faq_hit = builders.faq_is_hit(faq_direct.answer)
 
     if cal_hit and not faq_hit:
-        return common.calendar_result(cal, engine=engine)
+        return builders.calendar_result(cal, engine=engine)
     if faq_hit and not cal_hit:
-        return common.faq_result(faq_direct, engine=engine)
+        return builders.faq_result(faq_direct, engine=engine)
     if cal_hit and faq_hit:
         if is_faq_action_question(text):
-            return common.merge_calendar_faq(cal, faq_direct, engine=engine)
-        return common.calendar_result(cal, engine=engine)
+            return builders.merge_calendar_faq(cal, faq_direct, engine=engine)
+        return builders.calendar_result(cal, engine=engine)
 
     faq = answer_faq_detailed(text, allow_rag=True)
-    return common.faq_result(faq, engine=engine)
+    return builders.faq_result(faq, engine=engine)

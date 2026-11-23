@@ -49,7 +49,7 @@ def test_engine1_direct_faq(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
-    monkeypatch.setattr("app.eval_framework.strategy_ep.answer_faq_detailed", fake)
+    monkeypatch.setattr("app.engines.answer_path.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_1)
     clear_session("15550009999")
     result = process_message(
@@ -84,7 +84,7 @@ def test_engine2_delegates_to_faq_not_guided(tmp_path, monkeypatch):
         )
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
-    monkeypatch.setattr("app.eval_framework.strategy_ep.answer_faq_detailed", fake)
+    monkeypatch.setattr("app.engines.answer_path.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_2)
     clear_session("15550008888")
     result = process_message(
