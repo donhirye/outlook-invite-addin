@@ -15,7 +15,7 @@ os.environ["FAQ_GCS_BUCKET"] = ""
 import pytest
 
 from app import calendar_store, guided_state
-from app.answer_strategies import list_strategies, normalize_strategy_id
+from app.eval_framework import list_strategies, normalize_strategy_id
 from app.engines import engine1_legacy
 from app.engines.base import ConversationContext
 
@@ -94,11 +94,13 @@ def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
 
 @pytest.fixture
 def engine(both, monkeypatch):
+    monkeypatch.setattr("app.config.EVAL_FRAMEWORK_ENABLED", True)
+    monkeypatch.setattr("app.eval_framework.EVAL_FRAMEWORK_ENABLED", True, raising=False)
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.answer_strategies.strategy_a.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.answer_strategies.strategy_c.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.answer_strategies.strategy_e.answer_faq_detailed", _fake_faq)
-    monkeypatch.setattr("app.answer_strategies.strategy_ep.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.eval_framework.strategy_a.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.eval_framework.strategy_c.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.eval_framework.strategy_e.answer_faq_detailed", _fake_faq)
+    monkeypatch.setattr("app.eval_framework.strategy_ep.answer_faq_detailed", _fake_faq)
     return engine1_legacy.LegacyEngine()
 
 
@@ -107,6 +109,16 @@ def test_strategy_ids_listed():
     assert ids == {"A", "C", "E", "Ep"}
     assert normalize_strategy_id("Eprime") == "Ep"
     assert normalize_strategy_id("e") == "E"
+
+
+def test_framework_off_ignores_strategy_override(engine, monkeypatch):
+    monkeypatch.setattr("app.config.EVAL_FRAMEWORK_ENABLED", False)
+    out = engine.answer(
+        _ctx("when is the next crone ptsa meeting", strategy="A")
+    )
+    # Flag off → always Ep (calendar wins), ignore A override.
+    assert out.answer_strategy == "Ep"
+    assert out.route == "calendar"
 
 
 def test_strategy_a_party_without_when_misses_calendar_gate(engine):

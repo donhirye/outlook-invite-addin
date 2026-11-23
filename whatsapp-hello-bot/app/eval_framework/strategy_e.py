@@ -6,7 +6,7 @@ faq_service. Weak FAQ hits can still merge onto a good calendar answer.
 
 from __future__ import annotations
 
-from app.answer_strategies import common
+from . import common
 from app.calendar_service import lookup_calendar_for_topic
 from app.engines.base import AnswerResult, ConversationContext
 from app.faq_service import answer_faq_detailed

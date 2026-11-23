@@ -50,10 +50,10 @@ def test_engine1_direct_faq(tmp_path, monkeypatch):
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
     for mod in (
-        "app.answer_strategies.strategy_a",
-        "app.answer_strategies.strategy_c",
-        "app.answer_strategies.strategy_e",
-        "app.answer_strategies.strategy_ep",
+        "app.eval_framework.strategy_a",
+        "app.eval_framework.strategy_c",
+        "app.eval_framework.strategy_e",
+        "app.eval_framework.strategy_ep",
     ):
         monkeypatch.setattr(f"{mod}.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_1)
@@ -91,10 +91,10 @@ def test_engine2_delegates_to_faq_not_guided(tmp_path, monkeypatch):
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
     for mod in (
-        "app.answer_strategies.strategy_a",
-        "app.answer_strategies.strategy_c",
-        "app.answer_strategies.strategy_e",
-        "app.answer_strategies.strategy_ep",
+        "app.eval_framework.strategy_a",
+        "app.eval_framework.strategy_c",
+        "app.eval_framework.strategy_e",
+        "app.eval_framework.strategy_ep",
     ):
         monkeypatch.setattr(f"{mod}.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_2)

@@ -7,7 +7,7 @@ Same retrieve as E, but when both calendar and FAQ hit:
 
 from __future__ import annotations
 
-from app.answer_strategies import common
+from . import common
 from app.calendar_service import is_faq_action_question, lookup_calendar_for_topic
 from app.engines.base import AnswerResult, ConversationContext
 from app.faq_service import answer_faq_detailed

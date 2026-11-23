@@ -5,7 +5,7 @@ No overview dual-source path. Named events without a time cue miss calendar.
 
 from __future__ import annotations
 
-from app.answer_strategies import common
+from . import common
 from app.calendar_service import answer_calendar_question, looks_like_calendar_question
 from app.engines.base import AnswerResult, ConversationContext
 from app.faq_service import answer_faq_detailed

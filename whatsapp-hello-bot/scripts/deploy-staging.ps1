@@ -54,13 +54,16 @@ try {
 
     # --update-env-vars merges; does not wipe unrelated existing env (e.g. base URLs).
     # OPENAI_MODEL matches production (gpt-5-mini) so staging answers are comparable.
-    # ANSWER_STRATEGY default E (dual-retrieve). Override with A|C|E|Ep for bake-offs.
-    $answerStrategy = if ($env:ANSWER_STRATEGY) { $env:ANSWER_STRATEGY } else { "E" }
+    # Eval framework off by default (live path = Ep). Set EVAL_FRAMEWORK_ENABLED=true
+    # and ANSWER_STRATEGY=A|C|E|Ep for bake-offs.
+    $evalFw = if ($env:EVAL_FRAMEWORK_ENABLED) { $env:EVAL_FRAMEWORK_ENABLED } else { "false" }
+    $answerStrategy = if ($env:ANSWER_STRATEGY) { $env:ANSWER_STRATEGY } else { "Ep" }
     $envVars = @(
       "APP_ENV=staging",
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
       "OPENAI_MODEL=gpt-5-mini",
+      "EVAL_FRAMEWORK_ENABLED=$evalFw",
       "ANSWER_STRATEGY=$answerStrategy",
       "GIT_SHA=$sha",
       "DEPLOY_BRANCH=$branch"

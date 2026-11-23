@@ -87,10 +87,10 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
 
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", _fake_faq)
     for mod in (
-        "app.answer_strategies.strategy_a",
-        "app.answer_strategies.strategy_c",
-        "app.answer_strategies.strategy_e",
-        "app.answer_strategies.strategy_ep",
+        "app.eval_framework.strategy_a",
+        "app.eval_framework.strategy_c",
+        "app.eval_framework.strategy_e",
+        "app.eval_framework.strategy_ep",
     ):
         monkeypatch.setattr(f"{mod}.answer_faq_detailed", _fake_faq)
     monkeypatch.setattr("app.metrics.METRICS_FILE", metrics_file)

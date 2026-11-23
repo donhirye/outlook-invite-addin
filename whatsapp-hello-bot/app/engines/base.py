@@ -64,7 +64,7 @@ class AnswerResult:
     sources: list[str] = field(default_factory=list)
     ended: bool = False
     skip_outbound: bool = False
-    # A | C | E | Ep — which answer_strategies module produced this.
+    # A | C | E | Ep — which eval_framework strategy produced this.
     answer_strategy: str | None = None
     # Filled in by the shared pipeline (not by engines).
     trace_id: str | None = None
