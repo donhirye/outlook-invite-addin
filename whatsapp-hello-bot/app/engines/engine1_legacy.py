@@ -42,10 +42,11 @@ class LegacyEngine:
                 sources=["ptsa_privacy_policy"],
             )
 
-        # Date-list / "what's going on" — full calendar + dated FAQ scan (not FAQ RAG).
+        # Date-list / "what's going on" — retrieve all in window; LLM reshape if filtered.
         if is_overview_question(text):
             overview = answer_overview(text)
             if overview:
+                llm_n = int(overview.get("llm_invocations") or 0)
                 return AnswerResult(
                     messages=overview["messages"],
                     route="overview",
@@ -54,11 +55,22 @@ class LegacyEngine:
                     intent="overview",
                     sources=list(overview.get("sources") or []),
                     answer_outcome=overview.get("answer_outcome") or "answered",
-                    retrieval_mode="overview",
+                    retrieval_mode=overview.get("retrieval_mode") or "overview",
                     retrieved_chunks=list(overview.get("retrieved_chunks") or []),
                     source_name=overview.get("source_name"),
                     source_url=overview.get("source_url"),
                     faq_id=overview.get("faq_id"),
+                    fallback=overview.get("fallback"),
+                    model_usage=ModelUsage(
+                        model=overview.get("model") if llm_n else None,
+                        invocations=llm_n,
+                        input_tokens=overview.get("input_tokens")
+                        if isinstance(overview.get("input_tokens"), int)
+                        else None,
+                        output_tokens=overview.get("output_tokens")
+                        if isinstance(overview.get("output_tokens"), int)
+                        else None,
+                    ),
                 )
 
         # School calendar (deterministic holiday / named-event) before FAQ/LLM.

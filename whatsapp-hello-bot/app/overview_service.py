@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import date, datetime, timedelta
 from typing import Any
 
 from app.calendar_service import is_faq_action_question
 from app.calendar_store import list_events, parse_iso_date
+from app.config import OPENAI_API_KEY, OPENAI_MODEL, OPENAI_REASONING_EFFORT
 from app.faq_records import chicago_today, list_records
+
+logger = logging.getLogger(__name__)
 
 _MONTHS = {
     "january": 1,
@@ -74,6 +78,53 @@ _DEADLINE_RE = re.compile(
     re.I,
 )
 _PICKUP_RE = re.compile(r"\b(pick\s*up|pickup|available\s+for\s+pickup)\b", re.I)
+
+# Parent asks that need LLM (or rule) reshape of the retrieved month list.
+_RESHAPE_RE = re.compile(
+    r"\b("
+    r"deadlines?|due\s+dates?|"
+    r"skip\b.{0,40}\bsports?\b|"
+    r"\bsports?\b.{0,40}\b(skip|without|off)|"
+    r"without\s+sports?|except\s+sports?|excluding\s+sports?|no\s+sports?|"
+    r"non[\s-]?sports?|"
+    r"only\s+(deadlines?|sports?|concerts?|music|trips?)|"
+    r"just\s+(the\s+)?(deadlines?|sports?|concerts?)|"
+    r"sports?\s+events?|athletics?|"
+    r"basketball|wrestling|soccer|volleyball|football|cross\s*country|"
+    r"concerts?\s+only|music\s+only|field\s+trips?"
+    r")\b",
+    re.I,
+)
+_SPORTS_LINE_RE = re.compile(
+    r"\b("
+    r"basketball|wrestling|soccer|volleyball|football|athletics?|"
+    r"cross\s*country|vs\.?|against|7[ah]|8[ah]|meet|meets|game|games"
+    r")\b",
+    re.I,
+)
+_DEADLINE_ASK_RE = re.compile(r"\b(deadlines?|due\s+dates?)\b", re.I)
+
+_OVERVIEW_RESHAPE_INSTRUCTIONS = """You filter and rewrite a parent-facing monthly events list.
+You are given ONLY the EVIDENCE bullets (already retrieved for the date window).
+RULES:
+1. Use ONLY facts from EVIDENCE. Do not invent dates, events, opponents, or deadlines.
+2. Follow the parent's instructions (e.g. deadlines only, skip sports).
+3. Keep a short bullet list. One line per kept item with the date when known.
+4. If nothing in EVIDENCE matches the filter, say so briefly and suggest asking without the filter.
+5. Do not add a Source: line.
+6. Reply with plain text only (bullets OK)."""
+
+
+def needs_overview_reshape(text: str) -> bool:
+    """True when the ask filters/reshapes the month list (not a plain dump)."""
+    cleaned = (text or "").strip()
+    if not cleaned:
+        return False
+    return bool(_RESHAPE_RE.search(cleaned))
+
+
+def _is_sports_evidence_line(line: str) -> bool:
+    return bool(_SPORTS_LINE_RE.search(line or ""))
 
 _SIBLING_STOP = {
     "the", "a", "an", "and", "or", "of", "for", "to", "in", "on", "at", "is", "are",
@@ -436,23 +487,17 @@ def _fmt_faq_bullet(b: dict[str, Any]) -> str:
     return f"• {b['date'].isoformat()} ({kind}) — {b['blurb']}"
 
 
-def answer_overview(
-    text: str,
+def _build_overview_evidence(
+    start: date,
+    end: date,
     *,
     today: date | None = None,
-) -> dict[str, Any] | None:
-    """Dual-source overview: calendar rows + per-date FAQ bullets only."""
-    if not is_overview_question(text):
-        return None
-    today = today or chicago_today()
-    start, end = parse_date_window(text, today=today)
+) -> tuple[list[str], list[str], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Return (display_sections_without_header, chunks, cal_events, faq_bullets)."""
     cal = calendar_events_in_window(start, end)
     faq_bullets = faq_date_bullets_in_window(start, end, today=today)
-
     chunks: list[str] = []
-    sections: list[str] = [
-        f"*What's going on ({start.isoformat()} → {end.isoformat()})*"
-    ]
+    sections: list[str] = []
 
     if cal:
         sections.append("*School / PTSA calendar*")
@@ -472,11 +517,141 @@ def answer_overview(
                 f"[faq {rec.get('faq_id')}] {b['date']} ({b['kind']})\n{b['blurb']}"
             )
 
-    if not cal and not faq_bullets:
-        sections.append(
-            "I couldn't find calendar events or dated FAQ items in that window. "
-            "Please check the school calendar or ask PTSA Administrators."
+    return sections, chunks, cal, faq_bullets
+
+
+def _rule_reshape_overview(
+    question: str,
+    *,
+    cal: list[dict[str, Any]],
+    faq_bullets: list[dict[str, Any]],
+    start: date,
+    end: date,
+) -> str:
+    """Deterministic filter when LLM reshape is unavailable."""
+    want_deadlines = bool(_DEADLINE_ASK_RE.search(question or ""))
+    skip_sports = bool(
+        re.search(r"\b(skip|without|except|excluding|no)\b.*\bsports?\b", question or "", re.I)
+        or re.search(r"\bsports?\b.*\b(skip|without|off|out)\b", question or "", re.I)
+    )
+    # "what deadlines" implies deadlines focus even without "skip sports"
+    lines = [f"*What's going on ({start.isoformat()} → {end.isoformat()})*"]
+    kept_cal: list[str] = []
+    if not want_deadlines:
+        for ev in cal:
+            line = _fmt_cal_line(ev)
+            if skip_sports and _is_sports_evidence_line(line):
+                continue
+            kept_cal.append(line)
+    kept_faq: list[str] = []
+    for b in faq_bullets:
+        if want_deadlines and b.get("kind") != "deadline":
+            continue
+        line = _fmt_faq_bullet(b)
+        if skip_sports and _is_sports_evidence_line(line):
+            continue
+        kept_faq.append(line)
+    if kept_cal:
+        lines.append("*School / PTSA calendar*")
+        lines.extend(kept_cal)
+    if kept_faq:
+        lines.append("*PTSA announcements & deadlines (from FAQ)*")
+        lines.extend(kept_faq)
+    if not kept_cal and not kept_faq:
+        lines.append(
+            "Nothing in this date window matched that filter. "
+            "Try asking without the filter, or ask about a specific event."
         )
+    return "\n".join(lines)
+
+
+def reshape_overview_with_llm(
+    question: str,
+    evidence_lines: list[str],
+    *,
+    start: date,
+    end: date,
+) -> tuple[str | None, dict[str, Any]]:
+    """LLM reshapes retrieved bullets only. Returns (answer, usage_meta)."""
+    usage: dict[str, Any] = {
+        "llm_invocations": 0,
+        "model": None,
+        "input_tokens": None,
+        "output_tokens": None,
+    }
+    if not OPENAI_API_KEY:
+        return None, usage
+    if not evidence_lines:
+        return (
+            "I couldn't find calendar events or dated FAQ items in that window.",
+            usage,
+        )
+    numbered = "\n".join(f"{i+1}. {line}" for i, line in enumerate(evidence_lines))
+    user_input = (
+        f"DATE WINDOW: {start.isoformat()} → {end.isoformat()}\n"
+        f"TODAY (America/Chicago): {chicago_today().isoformat()}\n\n"
+        f"EVIDENCE:\n{numbered}\n\n"
+        f"PARENT QUESTION:\n{question.strip()}"
+    )
+    try:
+        from openai import OpenAI
+
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        create_kwargs: dict[str, Any] = {
+            "model": OPENAI_MODEL,
+            "instructions": _OVERVIEW_RESHAPE_INSTRUCTIONS,
+            "input": user_input,
+            "temperature": 0,
+        }
+        if OPENAI_REASONING_EFFORT:
+            create_kwargs["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
+        try:
+            response = client.responses.create(**create_kwargs)
+        except Exception as exc:
+            msg = str(exc).lower()
+            retried = False
+            if "temperature" in msg and "temperature" in create_kwargs:
+                create_kwargs.pop("temperature", None)
+                retried = True
+            if "reasoning" in msg and "reasoning" in create_kwargs:
+                create_kwargs.pop("reasoning", None)
+                retried = True
+            if not retried:
+                raise
+            response = client.responses.create(**create_kwargs)
+        usage["llm_invocations"] = 1
+        usage["model"] = OPENAI_MODEL
+        u = getattr(response, "usage", None)
+        usage["input_tokens"] = getattr(u, "input_tokens", None)
+        usage["output_tokens"] = getattr(u, "output_tokens", None)
+        text = (getattr(response, "output_text", None) or "").strip()
+        if not text:
+            # Fallback extract
+            for item in getattr(response, "output", None) or []:
+                for part in getattr(item, "content", None) or []:
+                    t = getattr(part, "text", None)
+                    if t:
+                        text = str(t).strip()
+                        break
+        return (text or None), usage
+    except Exception:
+        logger.exception("Overview LLM reshape failed")
+        return None, usage
+
+
+def answer_overview(
+    text: str,
+    *,
+    today: date | None = None,
+) -> dict[str, Any] | None:
+    """Retrieve month evidence; dump directly, or LLM/rule-reshape when filtered."""
+    if not is_overview_question(text):
+        return None
+    today = today or chicago_today()
+    start, end = parse_date_window(text, today=today)
+    sections, chunks, cal, faq_bullets = _build_overview_evidence(
+        start, end, today=today
+    )
 
     source_names: list[str] = []
     for ev in cal[:5]:
@@ -488,12 +663,9 @@ def answer_overview(
         if n and n not in source_names:
             source_names.append(n)
 
-    return {
-        "messages": ["\n".join(sections)],
+    base = {
         "route": "overview",
         "intent": "overview",
-        "retrieval_mode": "overview",
-        "answer_outcome": "answered" if (cal or faq_bullets) else "unanswered",
         "sources": ["school_calendar", "faq_records"],
         "source_name": "; ".join(source_names) if source_names else None,
         "source_url": None,
@@ -501,6 +673,60 @@ def answer_overview(
         "faq_id": None,
         "window_start": start.isoformat(),
         "window_end": end.isoformat(),
+        "llm_invocations": 0,
+        "model": None,
+        "input_tokens": None,
+        "output_tokens": None,
+    }
+
+    if not cal and not faq_bullets:
+        return {
+            **base,
+            "messages": [
+                "I couldn't find calendar events or dated FAQ items in that window. "
+                "Please check the school calendar or ask PTSA Administrators."
+            ],
+            "retrieval_mode": "overview",
+            "answer_outcome": "unanswered",
+        }
+
+    header = f"*What's going on ({start.isoformat()} → {end.isoformat()})*"
+    dump = "\n".join([header, *sections])
+
+    if not needs_overview_reshape(text):
+        return {
+            **base,
+            "messages": [dump],
+            "retrieval_mode": "overview",
+            "answer_outcome": "answered",
+        }
+
+    # Filtered ask: reshape from retrieved evidence only (LLM, else rules).
+    evidence_for_llm = [ln for ln in sections if ln.startswith("• ")]
+    reshaped, usage = reshape_overview_with_llm(
+        text, evidence_for_llm, start=start, end=end
+    )
+    if reshaped:
+        return {
+            **base,
+            "messages": [reshaped],
+            "retrieval_mode": "overview_llm",
+            "answer_outcome": "answered",
+            "llm_invocations": usage.get("llm_invocations") or 1,
+            "model": usage.get("model"),
+            "input_tokens": usage.get("input_tokens"),
+            "output_tokens": usage.get("output_tokens"),
+        }
+
+    rule_text = _rule_reshape_overview(
+        text, cal=cal, faq_bullets=faq_bullets, start=start, end=end
+    )
+    return {
+        **base,
+        "messages": [rule_text],
+        "retrieval_mode": "overview",
+        "answer_outcome": "answered",
+        "fallback": "overview_rule_reshape",
     }
 
 

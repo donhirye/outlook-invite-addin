@@ -196,7 +196,7 @@
     let active = null;
     if (m === "direct_qa" || m === "direct") active = "qa";
     else if (m === "rag") active = "rag";
-    else if (m === "overview" || m === "calendar") active = "overview";
+    else if (m === "overview" || m === "overview_llm" || m === "calendar") active = "overview";
     return choiceLine(
       [
         { id: "qa", label: "Q/A" },

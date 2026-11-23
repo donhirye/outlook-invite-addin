@@ -181,3 +181,34 @@ def test_extract_dated_snippets_splits_multi_game_answer():
     assert date(2026, 12, 3) in dates
     assert date(2026, 11, 10) not in dates
     assert "Still" in snips[0]["clause"] or "Still" in snips[1]["clause"]
+
+
+def test_needs_reshape_for_deadline_and_skip_sports():
+    assert overview.needs_overview_reshape(
+        "what deadlines exist for december? skip the sports ones"
+    )
+    assert overview.needs_overview_reshape("deadlines in december")
+    assert not overview.needs_overview_reshape("what is going on in december?")
+
+
+def test_rule_reshape_deadlines_skips_sports(dual, monkeypatch):
+    monkeypatch.setattr(
+        overview,
+        "reshape_overview_with_llm",
+        lambda *a, **k: (None, {"llm_invocations": 0}),
+    )
+    result = overview.answer_overview(
+        "what deadlines exist for december? skip the sports ones",
+        today=TODAY,
+    )
+    assert result is not None
+    body = result["messages"][0]
+    assert "2026-12-15" in body  # shirt deadline kept
+    assert "deadline" in body.lower()
+    assert "against Still" not in body  # sports filtered
+    assert "band and orchestra" not in body  # non-deadline event dropped
+    assert "Related follow-up" not in body
+    # Full evidence still retrieved for coverage / LLM input
+    evidence = "\n".join(result["retrieved_chunks"])
+    assert "SHIRT-ORDER" in evidence
+    assert "BASKETBALL" in evidence  # retrieved, just not in filtered answer
