@@ -237,16 +237,31 @@ def _engine_ctx(text: str):
     )
 
 
-def _fake_faq(text: str):
+def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
+    lowered = (text or "").lower()
+    if "register" in lowered or "color run" in lowered or "how do i" in lowered:
+        answer = "FAQ ANSWER"
+        mode = "direct"
+        score = 0.9
+    else:
+        answer = (
+            "I couldn't find that information in the event FAQ. "
+            "Please contact the PTSA Administrators."
+        )
+        mode = "direct_miss"
+        score = 0.1
     return SimpleNamespace(
-        answer="FAQ ANSWER",
+        answer=answer,
         source_name="faq",
         source_url="https://example.com/faq",
         llm_invocations=0,
         faq_id="F1",
-        match_score=0.9,
-        confidence="high",
-        retrieval_mode="direct",
+        match_score=score,
+        confidence=score,
+        retrieval_mode=mode,
+        retrieved_chunks=[],
+        input_tokens=None,
+        output_tokens=None,
     )
 
 
@@ -260,5 +275,8 @@ def test_engine_answers_event_when_from_calendar_and_actions_from_faq(both, monk
     assert cal.route == "calendar"
     assert "Jan 14, 2027" in cal.messages[0]
 
-    faq = engine.answer(_engine_ctx("how do I register for the color run"))
-    assert faq.route == "faq"
+    merged = engine.answer(_engine_ctx("how do I register for the color run"))
+    # Named event + FAQ how-to → calendar date/time + FAQ details.
+    assert merged.route == "calendar_faq"
+    assert "FAQ ANSWER" in merged.messages[0]
+    assert "Color" in merged.messages[0] or "color" in merged.messages[0].lower()

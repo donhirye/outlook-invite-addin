@@ -76,7 +76,7 @@ def test_inbound_message_triggers_faq_reply(monkeypatch, tmp_path):
     monkeypatch.setattr("app.main.mark_as_read_with_typing", fake_typing)
     from app.faq_service import FaqAnswer
 
-    def _fake_faq(question, faq_path=None):
+    def _fake_faq(question, faq_path=None, allow_rag=True, **kwargs):
         return FaqAnswer(
             answer="Parents should park in Lot C.",
             confidence=0.95,

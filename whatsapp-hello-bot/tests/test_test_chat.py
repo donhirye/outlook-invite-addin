@@ -21,7 +21,7 @@ from app.engines import pipeline
 
 IMPORT_DIR = Path(__file__).resolve().parents[1] / "data" / "imports"
 AUTH = {"x-test-auth": "1"}
-def _fake_faq(text: str):
+def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
     return SimpleNamespace(
         answer="FAQ ANSWER for: " + text,
         source_name="Test FAQ",

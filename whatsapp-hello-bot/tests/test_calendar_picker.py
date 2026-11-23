@@ -198,16 +198,32 @@ def _ctx(text: str, message_type: str = "text"):
     )
 
 
-def _fake_faq(text: str):
+def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
+    lowered = (text or "").lower()
+    # Let calendar win for named events; FAQ hit only for non-calendar how-to asks.
+    if "add the calendar" in lowered or "to my phone" in lowered:
+        answer = "FAQ ANSWER"
+        mode = "direct"
+        score = 0.9
+    else:
+        answer = (
+            "I couldn't find that information in the event FAQ. "
+            "Please contact the PTSA Administrators."
+        )
+        mode = "direct_miss"
+        score = 0.1
     return SimpleNamespace(
-        answer="FAQ ANSWER",
+        answer=answer,
         source_name="faq",
         source_url="https://example.com/faq",
         llm_invocations=0,
         faq_id="F1",
-        match_score=0.9,
-        confidence="high",
-        retrieval_mode="direct",
+        match_score=score,
+        confidence=score,
+        retrieval_mode=mode,
+        retrieved_chunks=[],
+        input_tokens=None,
+        output_tokens=None,
     )
 
 
@@ -237,6 +253,15 @@ def test_engine_named_calendar_question_still_calendar(engine):
     answer = engine.answer(_ctx("when is the next PTSA meeting"))
     assert answer.route == "calendar"
     assert "Jan 14, 2027" in answer.messages[0]
+
+
+def test_engine_party_in_the_park_without_when(engine):
+    """Named calendar event must hit without a time-cue word."""
+    answer = engine.answer(_ctx("tell me more about the party in the park event"))
+    assert answer.route == "calendar"
+    assert "Party in the Park" in answer.messages[0]
+    assert "2027" in answer.messages[0]
+    assert "couldn't find" not in answer.messages[0].lower()
 
 
 def test_engine_how_to_add_calendar_goes_to_faq(engine):

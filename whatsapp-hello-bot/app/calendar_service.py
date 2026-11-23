@@ -709,3 +709,35 @@ def answer_calendar_question(text: str, *, today: date | None = None) -> dict[st
         return _lookup_result(matched, cleaned, today)
 
     return {"handled": False, "answer": None}
+
+
+_CALENDAR_SOFT_MISS_RE = re.compile(
+    r"(could not find|no upcoming holiday|no confirmed|"
+    r"does not include a confirmed|no matching no-school|"
+    r"no \w[\w\s]{0,40} (are|is) listed)",
+    re.I,
+)
+
+
+def lookup_calendar_for_topic(text: str, *, today: date | None = None) -> dict[str, Any]:
+    """Always try calendar for topic asks. hit=True only with a real usable answer.
+
+    Name match runs even without time-cue words (e.g. \"tell me more about Party
+    in the Park\"). Soft misses (\"could not find…\") are hit=False so FAQ can run.
+    """
+    today = today or chicago_today()
+    cleaned = (text or "").lower()
+    matched = find_events_by_name(cleaned)
+    if matched:
+        result = _lookup_result(matched, cleaned, today)
+        result["hit"] = True
+        return result
+
+    if looks_like_calendar_question(text):
+        result = answer_calendar_question(text, today=today)
+        ans = result.get("answer") or ""
+        soft = bool(_CALENDAR_SOFT_MISS_RE.search(ans))
+        result["hit"] = bool(result.get("handled") and ans and not soft)
+        return result
+
+    return {"handled": False, "hit": False, "answer": None}

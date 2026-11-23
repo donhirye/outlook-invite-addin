@@ -33,19 +33,21 @@ def test_engine1_direct_faq(tmp_path, monkeypatch):
     monkeypatch.setattr("app.observability.analytics_store.FAQ_GCS_BUCKET", "")
     monkeypatch.setattr("app.observability.tracing.TRACES_FILE", tmp_path / "t.jsonl")
     monkeypatch.setattr("app.observability.tracing.FAQ_GCS_BUCKET", "")
-    fake = lambda text: SimpleNamespace(
-        answer="Crone has two Lost & Found locations: cafeteria and gym.",
-        source_name="Test",
-        source_url="",
-        llm_invocations=0,
-        faq_id="FAQ001",
-        match_score=0.99,
-        confidence=0.99,
-        retrieval_mode="direct_qa",
-        retrieved_chunks=[],
-        input_tokens=None,
-        output_tokens=None,
-    )
+    def fake(text, *args, allow_rag=True, **kwargs):
+        return SimpleNamespace(
+            answer="Crone has two Lost & Found locations: cafeteria and gym.",
+            source_name="Test",
+            source_url="",
+            llm_invocations=0,
+            faq_id="FAQ001",
+            match_score=0.99,
+            confidence=0.99,
+            retrieval_mode="direct_qa",
+            retrieved_chunks=[],
+            input_tokens=None,
+            output_tokens=None,
+        )
+
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
     monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_1)
@@ -66,19 +68,21 @@ def test_engine2_delegates_to_faq_not_guided(tmp_path, monkeypatch):
     monkeypatch.setattr("app.engine_config.CONFIG_FILE", tmp_path / "cfg.json")
     monkeypatch.setattr("app.observability.analytics_store.EVENTS_FILE", tmp_path / "e.jsonl")
     monkeypatch.setattr("app.observability.tracing.TRACES_FILE", tmp_path / "t.jsonl")
-    fake = lambda text: SimpleNamespace(
-        answer="Check Lost & Found in the cafeteria and outside the gym.",
-        source_name="Test",
-        source_url="",
-        llm_invocations=0,
-        faq_id="FAQ001",
-        match_score=0.9,
-        confidence=0.9,
-        retrieval_mode="direct_qa",
-        retrieved_chunks=[],
-        input_tokens=None,
-        output_tokens=None,
-    )
+    def fake(text, *args, allow_rag=True, **kwargs):
+        return SimpleNamespace(
+            answer="Check Lost & Found in the cafeteria and outside the gym.",
+            source_name="Test",
+            source_url="",
+            llm_invocations=0,
+            faq_id="FAQ001",
+            match_score=0.9,
+            confidence=0.9,
+            retrieval_mode="direct_qa",
+            retrieved_chunks=[],
+            input_tokens=None,
+            output_tokens=None,
+        )
+
     monkeypatch.setattr("app.faq_service.answer_faq_detailed", fake)
     monkeypatch.setattr("app.engines.engine1_legacy.answer_faq_detailed", fake)
     set_selected_engine_id(ENGINE_2)

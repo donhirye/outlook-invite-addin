@@ -105,6 +105,7 @@ def derive_answer_outcome(result: AnswerResult) -> str:
     if result.route in {
         "faq",
         "calendar",
+        "calendar_faq",
         "overview",
         "human",
         "help",

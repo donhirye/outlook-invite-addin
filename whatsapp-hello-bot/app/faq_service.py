@@ -316,8 +316,16 @@ def _parse_llm_faq_payload(raw: str) -> tuple[str, float | None]:
     return text, None
 
 
-def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAnswer:
-    """Answer with keyword score and/or LLM-reported confidence."""
+def answer_faq_detailed(
+    question: str,
+    *,
+    faq_path: Path | None = None,
+    allow_rag: bool = True,
+) -> FaqAnswer:
+    """Answer with keyword score and/or LLM-reported confidence.
+
+    When allow_rag is False, stop after direct/sibling match (no embeddings/LLM).
+    """
     started = time.perf_counter()
     faq_load_ms = 0.0
     retrieve_ms = 0.0
@@ -346,6 +354,7 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
             logger.exception("FAQ records seed check failed")
         faq_text = load_faq_text(faq_path=faq_path)
         faq_load_ms = (time.perf_counter() - faq_started) * 1000
+        match_score = 0.0
 
         if faq_path is None:
             from app.overview_service import (
@@ -416,6 +425,15 @@ def answer_faq_detailed(question: str, *, faq_path: Path | None = None) -> FaqAn
                     retrieved_chunks=[f"Q: {cleaned_question}\nA: {direct}"],
                 )
                 return result
+
+        if not allow_rag:
+            result = FaqAnswer(
+                answer=FAQ_NOT_FOUND_MESSAGE,
+                confidence=0.0,
+                match_score=match_score,
+                retrieval_mode="direct_miss",
+            )
+            return result
 
         if not OPENAI_API_KEY:
             raise RuntimeError(

@@ -180,6 +180,7 @@
   function routeChoice(route) {
     let key = route || "";
     if (key === "privacy_filter") key = "privacy";
+    if (key === "calendar_faq") key = "calendar";
     return choiceLine(
       [
         { id: "help", label: "help" },
