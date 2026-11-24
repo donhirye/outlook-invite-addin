@@ -759,10 +759,13 @@ def answer_faq_detailed(
     *,
     faq_path: Path | None = None,
     allow_rag: bool = True,
+    force_rag: bool = False,
 ) -> FaqAnswer:
     """Answer with keyword score and/or LLM-reported confidence.
 
     When allow_rag is False, stop after direct match (no embeddings/LLM).
+    When force_rag is True, skip direct Q/A early-return and run embedding RAG
+    (used when cascading past a weak pointer hit such as Fall Fest for clubs).
     """
     started = time.perf_counter()
     faq_load_ms = 0.0
@@ -818,6 +821,13 @@ def answer_faq_detailed(
                     status_seed_chunk = direct_chunk
                     status_seed_meta = rec
                     # Fall through to RAG/LLM with this record seeded into excerpts.
+                elif force_rag:
+                    # Cascade past a weak direct hit — do not early-return Q/A.
+                    logger.info(
+                        "force_rag skips direct FAQ id=%s score=%.2f",
+                        rec.get("faq_id"),
+                        match_score,
+                    )
                 else:
                     raw_answer = str(rec.get("answer") or "")
                     answer, retrieval_mode, reshape_llms, in_tok, out_tok = (
@@ -843,7 +853,7 @@ def answer_faq_detailed(
                     return result
         else:
             direct, match_score = score_faq_qa(cleaned_question, faq_text)
-            if direct:
+            if direct and not force_rag:
                 answer, retrieval_mode, reshape_llms, in_tok, out_tok = (
                     _apply_direct_qa_reshape(
                         cleaned_question,

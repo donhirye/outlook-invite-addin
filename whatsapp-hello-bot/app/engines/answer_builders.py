@@ -40,6 +40,21 @@ def faq_is_hit(raw: str | None) -> bool:
     return True
 
 
+def _asks_club_list(question: str) -> bool:
+    q = (question or "").lower()
+    if not re.search(r"\bclubs?\b", q):
+        return False
+    if re.search(r"\bfall\s*fest\b", q):
+        return False
+    return bool(
+        re.search(
+            r"\b(what|which|list|about|tell\s+me|any)\b.{0,40}\bclubs?\b|"
+            r"\bclubs?\b.{0,40}\b(exist|available|offered|are there|at\s+crone)\b",
+            q,
+        )
+    )
+
+
 def faq_fully_answers(question: str, answer: str | None) -> bool:
     """False when FAQ hit is only a weak pointer (e.g. Fall Fest → learn about clubs)."""
     if not faq_is_hit(answer):
@@ -51,12 +66,21 @@ def faq_fully_answers(question: str, answer: str | None) -> bool:
     )
     if not asks_clubs:
         return True
-    if _CLUB_NAME_RE.search(a):
-        return True
-    # Event promo that only points parents to "learn about clubs" — keep searching.
-    if _CLUB_POINTER_RE.search(a):
+
+    names = {m.group(0).lower() for m in _CLUB_NAME_RE.finditer(a)}
+    pointer = bool(_CLUB_POINTER_RE.search(a)) or (
+        "fall fest" in a.lower() and bool(re.search(r"\bclubs?\b", a, re.I))
+    )
+
+    # Broad "what/about clubs" needs a real list, not Fall Fest or a single club fee.
+    if _asks_club_list(question):
+        if len(names) >= 2:
+            return True
         return False
-    if "fall fest" in a.lower() and re.search(r"\bclubs?\b", a, re.I):
+
+    if names:
+        return True
+    if pointer:
         return False
     return True
 

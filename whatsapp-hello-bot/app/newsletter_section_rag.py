@@ -9,6 +9,7 @@ import hashlib
 import json
 import logging
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +33,18 @@ logger = logging.getLogger(__name__)
 
 SECTION_INDEX_VERSION = 1
 
+_CLUB_LIST_Q_RE = re.compile(
+    r"\b(what|which|list|about|tell\s+me|any)\b.{0,40}\bclubs?\b|"
+    r"\bclubs?\b.{0,40}\b(exist|available|offered|are there|at\s+crone)\b",
+    re.I,
+)
+_CLUB_ANCHOR_RE = re.compile(
+    r"teachers of tomorrow|computer science|asl(?:\s+club)?|robotics|"
+    r"chess(?:\s+club)?|fishing(?:\s+club)?|panther blog|art club|"
+    r"science fair club|student clubs",
+    re.I,
+)
+
 _SECTION_ANSWER_INSTRUCTIONS = """You are the Crone PTSA parent assistant answering from newsletter section excerpts only.
 RULES:
 1. Use ONLY the NEWSLETTER EXCERPTS plus TODAY'S DATE when comparing timing.
@@ -43,6 +56,36 @@ RULES:
 6. Keep answers concise (1–4 sentences). Do NOT add a Source: line.
 7. Respond with JSON only, no markdown fences:
 {"answer":"<parent-facing answer>","confidence":<number from 0 to 1>}"""
+
+
+def _asks_club_list(question: str) -> bool:
+    q = (question or "").strip()
+    if not re.search(r"\bclubs?\b", q, re.I):
+        return False
+    if re.search(r"\bfall\s*fest\b", q, re.I):
+        return False
+    return bool(_CLUB_LIST_Q_RE.search(q))
+
+
+def _club_anchor_count(text: str) -> int:
+    return len({m.group(0).lower() for m in _CLUB_ANCHOR_RE.finditer(text or "")})
+
+
+def _trim_section_excerpt(text: str, *, max_chars: int = 1800) -> str:
+    """Keep club-list windows from mega Newsletter dumps so the LLM sees names."""
+    t = (text or "").strip()
+    if len(t) <= max_chars:
+        return t
+    matches = list(_CLUB_ANCHOR_RE.finditer(t))
+    if not matches:
+        return t[:max_chars]
+    start = max(0, matches[0].start() - 220)
+    end = min(len(t), matches[-1].end() + 500)
+    if end - start < max_chars // 2:
+        end = min(len(t), start + max_chars)
+    elif end - start > max_chars:
+        end = start + max_chars
+    return t[start:end]
 
 _index_cache: dict[str, Any] | None = None
 _index_cache_key: str | None = None
@@ -240,7 +283,9 @@ def retrieve_section_chunks(
     chunks = idx.get("chunks") or []
     if not chunks:
         return []
-    k = max(1, int(top_k if top_k is not None else FAQ_TOP_K))
+    club_list = _asks_club_list(question)
+    default_k = FAQ_TOP_K + 2 if club_list else FAQ_TOP_K
+    k = max(1, int(top_k if top_k is not None else default_k))
     query_emb = embed_texts([(question or "").strip() or " "])[0]
     scored: list[tuple[float, dict[str, Any]]] = []
     for item in chunks:
@@ -248,7 +293,15 @@ def retrieve_section_chunks(
         body = (item.get("text") or "").strip()
         if not body or not emb:
             continue
-        scored.append((_cosine(query_emb, emb), item))
+        score = _cosine(query_emb, emb)
+        # Mega Newsletter dumps bury club lists; keyword-boost so they surface.
+        if club_list:
+            anchors = _club_anchor_count(body)
+            if anchors >= 2:
+                score += 0.15 + 0.03 * min(anchors, 5)
+            elif anchors == 1:
+                score += 0.05
+        scored.append((score, item))
     scored.sort(key=lambda pair: pair[0], reverse=True)
     return [item for score, item in scored[:k] if score > 0]
 
@@ -275,7 +328,9 @@ def answer_from_newsletter_sections(question: str) -> FaqAnswer | None:
     from app.faq_records import chicago_today
 
     excerpts = "\n\n---\n\n".join(
-        (h.get("text") or "").strip() for h in hits if (h.get("text") or "").strip()
+        _trim_section_excerpt((h.get("text") or "").strip())
+        for h in hits
+        if (h.get("text") or "").strip()
     )
     today = chicago_today()
     user_input = (

@@ -76,7 +76,7 @@ def test_answer_path_skips_sections_when_flag_off(monkeypatch):
 
     calls = {"section": 0}
 
-    def fake_faq(text, allow_rag=True):
+    def fake_faq(text, allow_rag=True, force_rag=False):
         return FaqAnswer(
             answer="I couldn't find that information in the event FAQ. "
             "Please contact the PTSA Administrators.",
@@ -136,7 +136,7 @@ def test_answer_path_uses_sections_after_faq_miss_when_enabled(monkeypatch):
         id = "engine1_legacy"
         version = "test"
 
-    def fake_faq(text, allow_rag=True):
+    def fake_faq(text, allow_rag=True, force_rag=False):
         return FaqAnswer(
             answer="I couldn't find that information in the event FAQ. "
             "Please contact the PTSA Administrators.",
@@ -201,6 +201,25 @@ def test_faq_fully_answers_rejects_fall_fest_club_pointer():
         "Robotics, Chess, and ASL."
     )
     assert faq_fully_answers("tell me about clubs at crone", named) is True
+    fee_only = (
+        "The previously announced $10 club participation fee is on hold, "
+        "and there is currently no request to pay for joining clubs."
+    )
+    assert faq_fully_answers("tell me about clubs at crone", fee_only) is False
+    assert faq_fully_answers("is there a club fee?", fee_only) is True
+
+
+def test_trim_section_excerpt_keeps_club_window():
+    from app.newsletter_section_rag import _trim_section_excerpt
+
+    huge = ("x" * 5000) + (
+        "The clubs features in this episode are Teachers of Tomorrow, "
+        "Computer Science, Robotics, Chess, and ASL club. A $10 fee is charged."
+    ) + ("y" * 5000)
+    out = _trim_section_excerpt(huge, max_chars=1800)
+    assert "Teachers of Tomorrow" in out
+    assert "ASL club" in out
+    assert len(out) <= 1800
 
 
 def test_weak_faq_opportunity_then_section_rag(monkeypatch):
@@ -219,7 +238,7 @@ def test_weak_faq_opportunity_then_section_rag(monkeypatch):
     )
     calls = {"faq": 0}
 
-    def fake_faq(text, allow_rag=True):
+    def fake_faq(text, allow_rag=True, force_rag=False):
         calls["faq"] += 1
         if not allow_rag:
             return FaqAnswer(
@@ -231,6 +250,7 @@ def test_weak_faq_opportunity_then_section_rag(monkeypatch):
                 source_name="Crone's Weekly Newsletter - 2026-08-07",
                 llm_invocations=0,
             )
+        assert force_rag is True
         return FaqAnswer(
             answer="I couldn't find that information in the event FAQ. "
             "Please contact the PTSA Administrators.",

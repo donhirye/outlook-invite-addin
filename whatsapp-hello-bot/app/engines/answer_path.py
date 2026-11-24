@@ -86,7 +86,10 @@ def answer(ctx: ConversationContext, *, engine) -> AnswerResult:
     if faq_direct_hit and not faq_direct_full:
         opportunity = faq_direct
 
-    faq = answer_faq_detailed(text, allow_rag=True)
+    # force_rag skips the same direct Q/A early-return so we actually scan FAQ RAG.
+    faq = answer_faq_detailed(
+        text, allow_rag=True, force_rag=opportunity is not None
+    )
     if builders.faq_fully_answers(text, faq.answer):
         return builders.faq_result(_with_opportunity(opportunity, faq), engine=engine)
 
@@ -100,7 +103,7 @@ def answer(ctx: ConversationContext, *, engine) -> AnswerResult:
             section = answer_from_newsletter_sections(text)
         except Exception:
             section = None
-        if section is not None and builders.faq_is_hit(section.answer):
+        if section is not None and builders.faq_fully_answers(text, section.answer):
             return builders.faq_result(
                 _with_opportunity(opportunity, section), engine=engine
             )
