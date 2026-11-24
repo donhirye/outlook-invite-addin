@@ -274,23 +274,31 @@ Human gold: I couldn't find that information in the event FAQ. Please contact th
 
 ---
 
-## EV-014 — 6th grade orchestra concert
+## EV-014 — 6th grade orchestra concert (answer only, no multi-event dump)
 
 **Status:** pinned / answer-focused  
-**Priority:** calendar / FAQ correctness
+**Priority:** calendar / FAQ precision (RAG / FAQ match)
 
 ### Prompt
-When is 6th grade orchestra concert
+When is 6th grade orchestra concert?
+
+### Observed bad behavior
+Matched multi-event FAQ `WEEKLY-20261113-005` (“What upcoming Crone music events are scheduled?”) and returned the **entire** answer, including the unrelated Dec 8 holiday / BCO Honors concert.
 
 ### Expected answer facts
 - `December 2, 2026` (or equivalent: Dec 2, 2026 / 2026-12-02)
 - `7:00 PM` (or `7pm` / equivalent)
 - 6th grade (band and/or orchestra concert naming ok)
 
+### Forbidden
+- first-semester holiday concert / `December 8` / `BCO Honors` (sibling events from the same FAQ row)
+- Dumping the full multi-event FAQ answer when the ask is for one concert only
+
 (Full phrasing may vary; do **not** score Source / Link.)
 
 ### Notes
-Human gold: The 6th grade band and orchestra concert is scheduled for Wednesday, December 2, 2026, at 7:00 PM.
+Human gold: The 6th grade band and orchestra concert is scheduled for Wednesday, December 2, 2026, at 7:00 PM.  
+Root cause pin: curated FAQ bundles multiple music events; bot must answer only the asked event.
 
 ---
 
@@ -344,3 +352,32 @@ what deadlines exist for december? skip the sports ones
 
 ### Notes
 Not an exact-string gold answer. Score: December coverage from calendars + FAQ, minus sports.
+
+---
+
+## EV-017 — How do I order PE shirts? (Boomer Tees only)
+
+**Status:** pinned / answer-focused  
+**Priority:** FAQ / RAG coverage + precision
+
+### Prompt
+how do I order PE shirts?
+
+### Observed bad behavior
+Missed Crone newsletter **2026-08-14** (Boomer Tees ordering link + limited $8 prior-style supply at Back to School Days). Instead answered from stale/related FAQs: replacement PE uniforms via school office ($15) and chorus/band/orchestra performance polos via activity director — and dumped both.
+
+### Expected answer facts
+- Boomer Tees (new PE shirt vendor / ordering process)
+- Order / pick up at Boomer Tees (link ok if present)
+- Optional: limited previous-style supply at Crone during 7th/8th Back to School Days for `$8` / exact change
+
+### Forbidden
+- performance polos / chorus / band / orchestra polo ordering
+- PushCoin / activity director (polo path)
+- Treating this as only “replacement PE uniform via school office for $15” when Boomer Tees ordering guidance exists
+
+(Full phrasing may vary; Source should be the Aug 14 weekly / real newsletter, not a dummy label.)
+
+### Notes
+Human gold (from Crone newsletter 2026-08-14): PE shirts now ordered through Boomer Tees; use the Boomer Tees link to order and pick up. Limited prior-style supply at Crone during 7th/8th Back to School Days for $8 (exact change).  
+Root cause pin: (1) Aug 14 PE shirt content not in FAQ corpus → wrong near-miss FAQs; (2) answer path blends related shirt/polo rows instead of PE-only.

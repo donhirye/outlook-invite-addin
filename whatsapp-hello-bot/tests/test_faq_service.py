@@ -118,6 +118,80 @@ def test_direct_qa_short_circuits_answer(monkeypatch):
     assert answer == "tomato"
 
 
+def test_needs_direct_qa_reshape_multi_date_dump():
+    question = "When is 6th grade orchestra concert?"
+    answer = (
+        "The 6th grade band and orchestra concert is scheduled for Wednesday, "
+        "December 2, 2026, at 7:00 PM. The first-semester holiday concert is "
+        "scheduled for Tuesday, December 8, 2026; the evening BCO Honors Holiday "
+        "Concert is at 7:00 PM."
+    )
+    assert faq_service.needs_direct_qa_reshape(question, answer) is True
+
+
+def test_needs_direct_qa_reshape_skips_single_topic():
+    question = "how do I order PE shirts?"
+    answer = (
+        "Beginning with the 2026-2027 school year, PE shirts are ordered from "
+        "Boomer Tees and picked up directly from Boomer Tees."
+    )
+    assert faq_service.needs_direct_qa_reshape(question, answer) is False
+
+
+def test_direct_qa_reshape_runs_when_gated(monkeypatch):
+    multi = (
+        "The 6th grade band and orchestra concert is scheduled for Wednesday, "
+        "December 2, 2026, at 7:00 PM. The first-semester holiday concert is "
+        "scheduled for Tuesday, December 8, 2026."
+    )
+
+    class FakeResponse:
+        output_text = (
+            "The 6th grade band and orchestra concert is scheduled for "
+            "Wednesday, December 2, 2026, at 7:00 PM."
+        )
+        usage = type("U", (), {"input_tokens": 40, "output_tokens": 20})()
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            assert "trim a matched FAQ answer" in kwargs["instructions"]
+            assert "December 8" in kwargs["input"]
+            assert "6th grade orchestra" in kwargs["input"].lower()
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, api_key: str):
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(faq_service, "OPENAI_MODEL", "gpt-4o-mini")
+    monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: "x")
+    monkeypatch.setattr(
+        faq_service,
+        "score_faq_records",
+        lambda question: (
+            {
+                "faq_id": "MUSIC-1",
+                "question": "What upcoming Crone music events are scheduled?",
+                "answer": multi,
+                "source": "Crone's Weekly Newsletter - 2026-11-13",
+                "source_url": "",
+            },
+            0.9,
+        ),
+    )
+
+    detailed = faq_service.answer_faq_detailed(
+        "When is 6th grade orchestra concert?"
+    )
+    assert detailed.retrieval_mode == "direct_qa_reshaped"
+    assert detailed.llm_invocations == 1
+    assert "December 2, 2026" in detailed.answer
+    assert "December 8" not in detailed.answer
+    assert detailed.faq_id == "MUSIC-1"
+
+
 def test_llm_answer_strips_invented_source_and_uses_file_source(monkeypatch):
     faq = (
         "Q: When is the Springfield trip?\n"

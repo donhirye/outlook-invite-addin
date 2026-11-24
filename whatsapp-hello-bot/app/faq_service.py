@@ -153,6 +153,166 @@ def strip_source_lines(answer: str) -> str:
     return re.sub(r"\n{3,}", "\n\n", without).strip()
 
 
+_MONTH_NAME_DATE_RE = re.compile(
+    r"\b(?:"
+    r"January|February|March|April|May|June|July|August|September|October|"
+    r"November|December|Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
+    r")\s+\d{1,2}(?:st|nd|rd|th)?(?:,?\s*\d{4})?\b",
+    re.I,
+)
+_ISO_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+|\s*;\s+")
+
+_DIRECT_QA_RESHAPE_INSTRUCTIONS = """You trim a matched FAQ answer so it only answers the parent's question.
+You are given the PARENT QUESTION and one FAQ ANSWER (already matched).
+RULES:
+1. Use ONLY facts from the FAQ ANSWER. Do not invent dates, fees, links, or details.
+2. Keep only the part that answers the question. Drop sibling events, other topics, or extra dump.
+3. If several sentences answer the same asked event/topic, keep them. Drop unrelated ones.
+4. Keep the answer concise and parent-friendly (1–3 sentences).
+5. Do NOT add a Source: line.
+6. Reply with plain text only (no JSON, no markdown fences)."""
+
+
+def _distinct_date_keys(text: str) -> set[str]:
+    """Normalize month/day(/year) and ISO dates for uniqueness checks."""
+    keys: set[str] = set()
+    for m in _ISO_DATE_RE.finditer(text or ""):
+        keys.add(m.group(0))
+    for m in _MONTH_NAME_DATE_RE.finditer(text or ""):
+        raw = re.sub(r"\s+", " ", m.group(0)).strip().lower()
+        raw = re.sub(r"(st|nd|rd|th)\b", "", raw)
+        raw = raw.replace(",", "")
+        keys.add(raw)
+    return keys
+
+
+def _split_answer_sentences(answer: str) -> list[str]:
+    parts = [
+        p.strip()
+        for p in _SENTENCE_SPLIT_RE.split((answer or "").strip())
+        if p and p.strip()
+    ]
+    return parts
+
+
+def needs_direct_qa_reshape(question: str, answer: str) -> bool:
+    """True when a pasted FAQ Q/A answer looks broader than the ask (dump risk).
+
+    Cheap code gate — not an LLM. Triggers when the answer has multiple distinct
+    dates, or later sentences look like sibling topics vs the question.
+    """
+    q = (question or "").strip()
+    a = (answer or "").strip()
+    if not q or not a:
+        return False
+    if len(_distinct_date_keys(a)) >= 2:
+        return True
+    sentences = _split_answer_sentences(a)
+    if len(sentences) < 2:
+        return False
+    q_tokens = _normalize_for_match(q)
+    if len(q_tokens) < 2:
+        return False
+    first_tokens = _normalize_for_match(sentences[0])
+    if len(q_tokens & first_tokens) < 2:
+        return False
+    later_tokens = _normalize_for_match(" ".join(sentences[1:]))
+    if not later_tokens:
+        return False
+    # Later sentences barely mention the ask → likely multi-topic dump.
+    return len(q_tokens & later_tokens) <= 1
+
+
+def reshape_direct_qa_with_llm(
+    question: str,
+    answer: str,
+) -> tuple[str | None, dict]:
+    """LLM trims a direct FAQ Q/A answer to the asked topic. Returns (text, usage)."""
+    usage: dict = {
+        "llm_invocations": 0,
+        "input_tokens": None,
+        "output_tokens": None,
+    }
+    if not OPENAI_API_KEY:
+        return None, usage
+    q = (question or "").strip()
+    a = (answer or "").strip()
+    if not q or not a:
+        return None, usage
+    user_input = f"PARENT QUESTION:\n{q}\n\nFAQ ANSWER:\n{a}"
+    try:
+        client = OpenAI(api_key=OPENAI_API_KEY)
+        create_kwargs: dict = {
+            "model": OPENAI_MODEL,
+            "instructions": _DIRECT_QA_RESHAPE_INSTRUCTIONS,
+            "input": user_input,
+        }
+        if not str(OPENAI_MODEL).startswith("gpt-5"):
+            create_kwargs["temperature"] = 0
+        if OPENAI_REASONING_EFFORT:
+            create_kwargs["reasoning"] = {"effort": OPENAI_REASONING_EFFORT}
+        try:
+            response = client.responses.create(**create_kwargs)
+        except Exception as exc:
+            msg = str(exc).lower()
+            retried = False
+            if "temperature" in msg and "temperature" in create_kwargs:
+                create_kwargs.pop("temperature", None)
+                retried = True
+            if "reasoning" in msg and "reasoning" in create_kwargs:
+                create_kwargs.pop("reasoning", None)
+                retried = True
+            if not retried:
+                raise
+            response = client.responses.create(**create_kwargs)
+        usage["llm_invocations"] = 1
+        u = getattr(response, "usage", None)
+        usage["input_tokens"] = getattr(u, "input_tokens", None)
+        usage["output_tokens"] = getattr(u, "output_tokens", None)
+        text = (getattr(response, "output_text", None) or "").strip()
+        if not text:
+            for item in getattr(response, "output", None) or []:
+                for part in getattr(item, "content", None) or []:
+                    t = getattr(part, "text", None)
+                    if t:
+                        text = str(t).strip()
+                        break
+                if text:
+                    break
+        text = strip_source_lines(text)
+        return (text or None), usage
+    except Exception:
+        logger.exception("Direct FAQ Q/A reshape failed")
+        return None, usage
+
+
+def _apply_direct_qa_reshape(
+    question: str,
+    answer: str,
+    *,
+    allow_rag: bool,
+) -> tuple[str, str, int, int | None, int | None]:
+    """Maybe trim a direct Q/A paste. Returns answer, mode, llm_n, in_tok, out_tok."""
+    mode = "direct_qa"
+    if not allow_rag or not needs_direct_qa_reshape(question, answer):
+        return answer, mode, 0, None, None
+    reshaped, usage = reshape_direct_qa_with_llm(question, answer)
+    if not reshaped:
+        return answer, mode, int(usage.get("llm_invocations") or 0), usage.get(
+            "input_tokens"
+        ), usage.get("output_tokens")
+    return (
+        reshaped,
+        "direct_qa_reshaped",
+        int(usage.get("llm_invocations") or 1),
+        usage.get("input_tokens") if isinstance(usage.get("input_tokens"), int) else None,
+        usage.get("output_tokens")
+        if isinstance(usage.get("output_tokens"), int)
+        else None,
+    )
+
+
 def _clean_source(value: str | None) -> str | None:
     cleaned = " ".join((value or "").split()).strip()
     return cleaned or None
@@ -435,27 +595,46 @@ def answer_faq_detailed(
                     status_seed_meta = rec
                     # Fall through to RAG/LLM with this record seeded into excerpts.
                 else:
-                    retrieval_mode = "direct_qa"
+                    raw_answer = str(rec.get("answer") or "")
+                    answer, retrieval_mode, reshape_llms, in_tok, out_tok = (
+                        _apply_direct_qa_reshape(
+                            cleaned_question,
+                            raw_answer,
+                            allow_rag=allow_rag,
+                        )
+                    )
                     result = FaqAnswer(
-                        answer=str(rec.get("answer") or ""),
+                        answer=answer,
                         confidence=match_score,
                         match_score=match_score,
                         retrieval_mode=retrieval_mode,
+                        llm_invocations=reshape_llms,
                         faq_id=rec.get("faq_id"),
                         source_name=rec.get("source") or None,
                         source_url=rec.get("source_url") or None,
+                        input_tokens=in_tok,
+                        output_tokens=out_tok,
                         retrieved_chunks=[direct_chunk],
                     )
                     return result
         else:
             direct, match_score = score_faq_qa(cleaned_question, faq_text)
             if direct:
-                retrieval_mode = "direct_qa"
+                answer, retrieval_mode, reshape_llms, in_tok, out_tok = (
+                    _apply_direct_qa_reshape(
+                        cleaned_question,
+                        direct,
+                        allow_rag=allow_rag,
+                    )
+                )
                 result = FaqAnswer(
-                    answer=direct,
+                    answer=answer,
                     confidence=match_score,
                     match_score=match_score,
                     retrieval_mode=retrieval_mode,
+                    llm_invocations=reshape_llms,
+                    input_tokens=in_tok,
+                    output_tokens=out_tok,
                     retrieved_chunks=[f"Q: {cleaned_question}\nA: {direct}"],
                 )
                 return result
