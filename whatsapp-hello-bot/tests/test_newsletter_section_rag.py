@@ -187,6 +187,102 @@ def test_answer_path_uses_sections_after_faq_miss_when_enabled(monkeypatch):
     assert out.sources == ["newsletter_sections"]
 
 
+def test_faq_fully_answers_rejects_fall_fest_club_pointer():
+    from app.engines.answer_builders import faq_fully_answers
+
+    fall_fest = (
+        "Fall Fest is Tuesday, September 1, 2026, from 3:10 PM to 4:00 PM at Crone. "
+        "Students and parents can learn about Crone clubs, activities, and athletics."
+    )
+    assert faq_fully_answers("tell me about clubs at crone", fall_fest) is False
+    assert faq_fully_answers("what was the fall fest event about?", fall_fest) is True
+    named = (
+        "Featured clubs include Teachers of Tomorrow, Computer Science, "
+        "Robotics, Chess, and ASL."
+    )
+    assert faq_fully_answers("tell me about clubs at crone", named) is True
+
+
+def test_weak_faq_opportunity_then_section_rag(monkeypatch):
+    """Fall Fest pointer → keep searching sections; lead with the opportunity."""
+    import app.config as config
+
+    monkeypatch.setattr(config, "USE_NEWSLETTER_SECTION_RAG", True)
+
+    class Eng:
+        id = "engine1_legacy"
+        version = "test"
+
+    fall_fest = (
+        "Fall Fest is Tuesday, September 1, 2026, from 3:10 PM to 4:00 PM at Crone. "
+        "Students and parents can learn about Crone clubs, activities, and athletics."
+    )
+    calls = {"faq": 0}
+
+    def fake_faq(text, allow_rag=True):
+        calls["faq"] += 1
+        if not allow_rag:
+            return FaqAnswer(
+                answer=fall_fest,
+                retrieval_mode="direct_qa",
+                match_score=0.68,
+                confidence=0.68,
+                faq_id="WEEKLY-20260807-006",
+                source_name="Crone's Weekly Newsletter - 2026-08-07",
+                llm_invocations=0,
+            )
+        return FaqAnswer(
+            answer="I couldn't find that information in the event FAQ. "
+            "Please contact the PTSA Administrators.",
+            retrieval_mode="rag",
+            llm_invocations=1,
+        )
+
+    def fake_section(text):
+        return FaqAnswer(
+            answer=(
+                "Featured clubs include Teachers of Tomorrow, Computer Science, "
+                "Robotics, Chess, and ASL."
+            ),
+            retrieval_mode="newsletter_sections",
+            llm_invocations=1,
+            source_name="Crone's Weekly Newsletter - 2026-09-11",
+            retrieved_chunks=["Section: Clubs\nASL club"],
+        )
+
+    monkeypatch.setattr(answer_path, "answer_faq_detailed", fake_faq)
+    monkeypatch.setattr(
+        answer_path,
+        "lookup_calendar_for_topic",
+        lambda text: {"hit": False},
+    )
+    monkeypatch.setattr(
+        "app.engines.answer_builders.overview_result",
+        lambda ctx, engine=None: None,
+    )
+    monkeypatch.setattr(
+        "app.engines.answer_builders.help_or_privacy",
+        lambda ctx, engine=None: None,
+    )
+    monkeypatch.setattr(
+        "app.newsletter_section_rag.answer_from_newsletter_sections",
+        fake_section,
+    )
+
+    ctx = ConversationContext(
+        phone_hash="h",
+        phone="15550100001",
+        message_id="m3",
+        text="tell me about clubs at crone",
+    )
+    out = answer_path.answer(ctx, engine=Eng())
+    assert calls["faq"] == 2
+    assert "One opportunity:" in out.messages[0]
+    assert "Fall Fest" in out.messages[0]
+    assert "ASL" in out.messages[0]
+    assert "Teachers of Tomorrow" in out.messages[0]
+
+
 def test_build_section_index_uses_injected_embeddings(monkeypatch, tmp_path):
     issues = tmp_path / "issues"
     folder = issues / "Crones_Weekly_Newsletter_2026-09-11"

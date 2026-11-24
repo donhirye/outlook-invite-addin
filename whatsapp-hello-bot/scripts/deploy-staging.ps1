@@ -60,6 +60,7 @@ try {
       "FAQ_GCS_BUCKET=$script:StagingBucket",
       "FAQ_ADMIN_PHONES=$script:StagingAdminPhones",
       "OPENAI_MODEL=gpt-5-mini",
+      "USE_NEWSLETTER_SECTION_RAG=true",
       "GIT_SHA=$sha",
       "DEPLOY_BRANCH=$branch"
     ) -join ","

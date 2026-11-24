@@ -2,11 +2,26 @@
 
 from __future__ import annotations
 
+import re
+
 from app.config import FAQ_NOT_FOUND_MESSAGE, OPENAI_MODEL, PARENT_FALLBACK_MESSAGE
 from app.engines.base import AnswerResult, ConversationContext, ModelUsage
 from app.faq_admin import HELP_TEXT, format_parent_answer, is_help_command
 from app.overview_service import answer_overview, is_overview_question
 from app.privacy_filter import privacy_reply_if_needed
+
+_CLUB_NAME_RE = re.compile(
+    r"\b("
+    r"asl|robotics|chess|teachers of tomorrow|computer science|"
+    r"fishing(?:\s+club)?|art club|science fair|panther blog"
+    r")\b",
+    re.I,
+)
+_CLUB_POINTER_RE = re.compile(
+    r"(learn about|showcase|hear about).{0,80}\bclubs?\b|"
+    r"\bclubs?,?\s+activities,?\s+and\s+athletics\b",
+    re.I,
+)
 
 
 def faq_is_hit(raw: str | None) -> bool:
@@ -23,6 +38,40 @@ def faq_is_hit(raw: str | None) -> bool:
     if text.strip() == PARENT_FALLBACK_MESSAGE.strip():
         return False
     return True
+
+
+def faq_fully_answers(question: str, answer: str | None) -> bool:
+    """False when FAQ hit is only a weak pointer (e.g. Fall Fest → learn about clubs)."""
+    if not faq_is_hit(answer):
+        return False
+    q = (question or "").lower()
+    a = (answer or "").strip()
+    asks_clubs = bool(re.search(r"\bclubs?\b", q)) and not bool(
+        re.search(r"\bfall\s*fest\b", q)
+    )
+    if not asks_clubs:
+        return True
+    if _CLUB_NAME_RE.search(a):
+        return True
+    # Event promo that only points parents to "learn about clubs" — keep searching.
+    if _CLUB_POINTER_RE.search(a):
+        return False
+    if "fall fest" in a.lower() and re.search(r"\bclubs?\b", a, re.I):
+        return False
+    return True
+
+
+def combine_opportunity_with_detail(opportunity: str, detail: str) -> str:
+    """Lead with an event opportunity, then the real answer from FAQ/sections."""
+    opp = (opportunity or "").strip()
+    det = (detail or "").strip()
+    if not opp:
+        return det
+    if not det:
+        return opp
+    if det.lower() in opp.lower() or opp.lower() in det.lower():
+        return det
+    return f"One opportunity: {opp}\n\n{det}"
 
 
 def help_or_privacy(ctx: ConversationContext, *, engine) -> AnswerResult | None:
