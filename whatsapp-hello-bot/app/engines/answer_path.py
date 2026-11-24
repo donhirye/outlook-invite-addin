@@ -1,13 +1,13 @@
 """Live Engine 1 answer path (former Ep).
 
 Dual-retrieve calendar + FAQ. When both hit:
-  - action/how-to/cost/register → merge
+  - action/how-to/cost/register OR descriptive what-is/about → merge
   - otherwise calendar wins
 """
 
 from __future__ import annotations
 
-from app.calendar_service import is_faq_action_question, lookup_calendar_for_topic
+from app.calendar_service import lookup_calendar_for_topic, should_merge_calendar_faq
 from app.engines import answer_builders as builders
 from app.engines.base import AnswerResult, ConversationContext
 from app.faq_service import answer_faq_detailed
@@ -35,7 +35,7 @@ def answer(ctx: ConversationContext, *, engine) -> AnswerResult:
     if faq_hit and not cal_hit:
         return builders.faq_result(faq_direct, engine=engine)
     if cal_hit and faq_hit:
-        if is_faq_action_question(text):
+        if should_merge_calendar_faq(text):
             return builders.merge_calendar_faq(cal, faq_direct, engine=engine)
         return builders.calendar_result(cal, engine=engine)
 

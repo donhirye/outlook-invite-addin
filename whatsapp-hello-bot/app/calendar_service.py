@@ -52,6 +52,20 @@ _FAQ_ACTION_RE = re.compile(
     r"how (?:do|can|should|would) (?:i|we)|how to|"
     r"what (?:to bring|should (?:i|we) bring)|permission slips?)\b"
 )
+# Descriptive asks need FAQ body (what the event is about), not calendar-only.
+# Keep this tighter than bare "what is …" so "what is the next PTSA meeting?"
+# still stays calendar-wins.
+_FAQ_DESCRIPTIVE_RE = re.compile(
+    r"("
+    r"\b(?:tell\s+(?:me\s+)?about|describe)\b|"
+    r"\bwhat(?:'s|s)?\s+(?:it|this|that)\s+about\b|"
+    r"\bwhat\s+(?:is|was|are|were)\b[\w\s']{0,48}\babout\b|"
+    r"\babout\s+(?:the\s+)?(?:event|fest|festival|program|activity)\b|"
+    r"\bwhat\s+(?:is|was)\s+(?:the\s+)?[\w\s']{0,40}\b"
+    r"(?:fest|festival|event|program|activity)\b"
+    r")",
+    re.I,
+)
 # Name-lookup path only: "where is …" is a location question for the FAQ.
 _WHERE_RE = re.compile(r"\bwhere\b")
 # A date/time cue is required before a bare event name is treated as a calendar question.
@@ -143,6 +157,16 @@ def find_events_by_name(text: str) -> list[dict[str, Any]]:
 def is_faq_action_question(text: str) -> bool:
     """True for register / sign up / cost / "how do I…" style questions (FAQ's job)."""
     return bool(_FAQ_ACTION_RE.search((text or "").lower()))
+
+
+def is_faq_descriptive_question(text: str) -> bool:
+    """True for what-is/about/describe asks that need FAQ detail, not date-only."""
+    return bool(_FAQ_DESCRIPTIVE_RE.search((text or "").lower()))
+
+
+def should_merge_calendar_faq(text: str) -> bool:
+    """When calendar and FAQ both hit, merge for action or descriptive asks."""
+    return is_faq_action_question(text) or is_faq_descriptive_question(text)
 
 
 def looks_like_calendar_question(text: str) -> bool:

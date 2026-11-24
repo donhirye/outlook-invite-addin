@@ -1,4 +1,4 @@
-"""Live Engine 1 answer path (Ep: calendar wins unless how-to merge)."""
+"""Live Engine 1 answer path (Ep: calendar wins unless how-to/descriptive merge)."""
 
 from __future__ import annotations
 
@@ -57,20 +57,27 @@ def _fake_faq(text: str, *args, allow_rag: bool = True, **kwargs):
         answer = "FAQ ANSWER"
         mode = "direct"
         score = 0.9
+    elif "fall fest" in lowered:
+        answer = (
+            "Fall Fest is Tuesday, September 1, 2026, from 3:10 PM to 4:00 PM at "
+            "Crone. Students and parents can learn about Crone clubs, activities, "
+            "and athletics."
+        )
+        mode = "direct"
+        score = 0.9
+    elif "ptsa meeting" in lowered or "party in the park" in lowered:
+        answer = (
+            "The Crone PTSA website is www.CronePTSA.org. It includes meetings."
+        )
+        mode = "direct"
+        score = 0.64
     else:
-        if "ptsa meeting" in lowered or "party in the park" in lowered:
-            answer = (
-                "The Crone PTSA website is www.CronePTSA.org. It includes meetings."
-            )
-            mode = "direct"
-            score = 0.64
-        else:
-            answer = (
-                "I couldn't find that information in the event FAQ. "
-                "Please contact the PTSA Administrators."
-            )
-            mode = "direct_miss"
-            score = 0.1
+        answer = (
+            "I couldn't find that information in the event FAQ. "
+            "Please contact the PTSA Administrators."
+        )
+        mode = "direct_miss"
+        score = 0.1
     return SimpleNamespace(
         answer=answer,
         source_name="faq",
@@ -106,3 +113,51 @@ def test_ep_still_merges_how_to_register(engine):
     assert out.answer_strategy == "Ep"
     assert out.route == "calendar_faq"
     assert "FAQ ANSWER" in out.messages[0]
+
+
+def test_ep_merges_descriptive_fall_fest_about(engine, monkeypatch):
+    monkeypatch.setattr(
+        "app.engines.answer_path.lookup_calendar_for_topic",
+        lambda text, today=None: {
+            "hit": True,
+            "answer": (
+                "Fall Fest: Tuesday, Sep 1, 2026 (3:10pm-4pm). "
+                "That date has already passed."
+            ),
+            "source_name": "Crone calendar",
+            "source_url": "https://example.com/cal",
+        },
+    )
+    out = engine.answer(_ctx("what was the fall fest event about?"))
+    assert out.answer_strategy == "Ep"
+    assert out.route == "calendar_faq"
+    assert "already passed" in out.messages[0]
+    assert "clubs, activities" in out.messages[0]
+
+
+def test_ep_calendar_wins_when_fall_fest_is_date_ask(engine, monkeypatch):
+    monkeypatch.setattr(
+        "app.engines.answer_path.lookup_calendar_for_topic",
+        lambda text, today=None: {
+            "hit": True,
+            "answer": "Fall Fest: Tuesday, Sep 1, 2026 (3:10pm-4pm).",
+            "source_name": "Crone calendar",
+            "source_url": "https://example.com/cal",
+        },
+    )
+    out = engine.answer(_ctx("when is fall fest"))
+    assert out.route == "calendar"
+    assert "clubs, activities" not in out.messages[0]
+
+
+def test_should_merge_calendar_faq_descriptive_helpers():
+    from app.calendar_service import (
+        is_faq_descriptive_question,
+        should_merge_calendar_faq,
+    )
+
+    assert is_faq_descriptive_question("what was the fall fest event about?")
+    assert should_merge_calendar_faq("what was the fall fest event about?")
+    assert should_merge_calendar_faq("how do I register for fall fest")
+    assert not is_faq_descriptive_question("when is fall fest")
+    assert not should_merge_calendar_faq("when is the next crone ptsa meeting")
