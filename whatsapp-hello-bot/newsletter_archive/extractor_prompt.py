@@ -16,9 +16,26 @@ Extract parent-useful information stated in this issue, including:
 - Registration, ordering, donation and volunteer actions
 - PTSA information, school activities and official staff contacts
 - Team-level sports results when they are reported; never include individual student names, scores or statistics
-- Useful links and the destination of links labelled "here," "flyer," "document," or similar
+- Useful links and the destination of links labelled "here," "flyer," "document," "this link," "click here," or similar
+- Embedded/markdown links where the URL is hidden in the anchor, e.g.
+  [please use this link to order … at Boomer Tees.](https://out.smore.com/…)
+  or HTML <a href="…">order and pick up your shirt…</a>
 
-For HTML, capture both the visible link text and its href. Preserve the destination URL exactly. If a Smore tracking link hides the destination or a linked document cannot be accessed, do not guess; flag that limitation.
+LINK CAPTURE (required for actionable answers)
+- Always capture BOTH the visible link text AND the destination href.
+- Put the destination URL as plain text inside the Answer (not only the soft words
+  "this link" / "here" / "use this link"). Parents must be able to act from the Answer alone.
+- Do not rely on Source_URL for order/register/buy/pickup links — Source_URL is for
+  newsletter issue provenance. Action URLs belong in the Answer body.
+- Prefer one FAQ row per distinct action when links differ (e.g. PE shirt order link vs
+  PE lock PushCoin link vs leftover in-school stock).
+- Preserve the destination URL exactly. If a Smore tracking link hides the final shop URL
+  or a linked document cannot be accessed, do not guess; keep the exact href you have and
+  flag that limitation under missing_or_inaccessible / Needs_Review when uncertain.
+- Prefer a stable merchant/portal URL (Boomer Tees, PushCoin, yearbookordercenter, etc.)
+  when the source clearly shows it; otherwise keep the exact href from the newsletter.
+
+For HTML and markdown, never drop an actionable href when writing the Answer.
 
 Create one FAQ for each distinct parent question or retrieval need. Keep separate questions for distinct actions or facts, such as eligibility, deadline, submission requirements, prize, ordering, pickup and contact details. Combine related details in one answer when they answer the same question. Do not create paraphrased duplicates.
 

@@ -25,6 +25,10 @@ Also apply:
 - Student privacy: no individual student names, scores, or identifying details; staff/official contacts OK.
 - Plain ASCII punctuation in Category/Question/Answer (straight quotes, plain hyphen; no curly quotes or en/em dashes).
 - Prefer blank Source_URL over a rotating Smore "latest issue" URL.
+- Actionable embedded links: if the candidate answer says "this link" / "here" / "use this link" for
+  order/register/buy/pickup, the Answer must include the destination URL as plain text. Do not leave
+  the URL only in Source_URL. Prefer separate FAQs when shirt-order vs lock-purchase (etc.) use
+  different hrefs.
 
 Return (conceptual):
 A. The updated combined FAQ (via per-candidate decisions below; the caller writes the CSV).
