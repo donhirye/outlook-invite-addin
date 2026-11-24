@@ -1070,6 +1070,27 @@
         "eval_set_id": "EV-017",
         "note": "Must use Aug 14 Boomer Tees PE shirt ordering; do not blend replacement PE uniform or performance polo FAQs."
       }
+    },
+    {
+      "category": "faq",
+      "input": "is the reflections competition over?",
+      "expected_route": "faq",
+      "required_answer_facts": [
+        "over",
+        "October 9"
+      ],
+      "forbidden_claims": [
+        "screening process",
+        "underway",
+        "results are awaited"
+      ],
+      "demo_marker_required": false,
+      "dataset_version": "v1",
+      "id": "case_080",
+      "meta": {
+        "eval_set_id": "EV-018",
+        "note": "Timing ask must use Reflections dates vs today; do not treat stale 'screening underway' status as current."
+      }
     }
   ]
 }

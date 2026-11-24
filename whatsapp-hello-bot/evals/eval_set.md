@@ -381,3 +381,33 @@ Missed Crone newsletter **2026-08-14** (Boomer Tees ordering link + limited $8 p
 ### Notes
 Human gold (from Crone newsletter 2026-08-14): PE shirts now ordered through Boomer Tees; use the Boomer Tees link to order and pick up. Limited prior-style supply at Crone during 7th/8th Back to School Days for $8 (exact change).  
 Root cause pin: (1) Aug 14 PE shirt content not in FAQ corpus → wrong near-miss FAQs; (2) answer path blends related shirt/polo rows instead of PE-only.
+
+---
+
+## EV-018 — Is the Reflections competition over? (use dates vs today)
+
+**Status:** pinned / answer-focused  
+**Priority:** FAQ timing / stale status rows
+
+### Prompt
+is the reflections competition over?
+
+### Observed bad behavior
+Treated a stale status FAQ (“screening process … underway … results are awaited,” Oct 14) as current, and answered that the FAQ does not say the competition is finished — instead of comparing known Reflections dates to today and saying the school-level phase is over.
+
+### Expected answer facts
+- Yes / over / finished for the Crone school-level Reflections phase (phrasing may vary)
+- Grounding in dated FAQ facts vs today, e.g.:
+  - submission deadline `October 9, 2026` has passed, and/or
+  - judging `November 12, 2026` has passed, and/or
+  - Crone entries already advanced to district (Oct 28 newsletter)
+
+### Forbidden
+- Saying screening is still underway / results still awaited as if that were current status
+- Claiming the FAQ has no way to tell whether the school-level competition is over when dated FAQs exist
+
+(Full phrasing may vary; do **not** score Source / Link.)
+
+### Notes
+Human gold (as of late Nov 2026): Yes — Crone Reflections submission/judging is over (deadline Oct 9; judging Nov 12); entries advanced to district. District-level may continue.  
+Root cause pin: timing asks skip raw Q/A paste and go RAG+LLM; a dateless “status underway” chunk outranks / confuses use of submission & judging dates vs TODAY.

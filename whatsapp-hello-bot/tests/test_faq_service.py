@@ -138,6 +138,140 @@ def test_needs_direct_qa_reshape_skips_single_topic():
     assert faq_service.needs_direct_qa_reshape(question, answer) is False
 
 
+def test_merge_timing_evidence_prefers_dated_over_undated_status(
+    monkeypatch, tmp_path
+):
+    from app.faq_records import clear_faq_records_cache, upsert_record
+
+    monkeypatch.setattr("app.faq_records.FAQ_RECORDS_FILE", tmp_path / "faq_records.json")
+    monkeypatch.setattr("app.faq_records.FAQ_GCS_BUCKET", "")
+    clear_faq_records_cache()
+    upsert_record(
+        {
+            "faq_id": "REF-STATUS",
+            "category": "Reflections art program",
+            "question": "What is the current status of Crone's Reflections Art Program?",
+            "answer": (
+                "The screening process for entries in Crone's Reflections Art "
+                "Program is underway. Results are awaited."
+            ),
+            "source": "Crone PTSA Newsletter - 2026-10-14",
+            "status": "Active",
+        }
+    )
+    upsert_record(
+        {
+            "faq_id": "REF-DEADLINE",
+            "category": "Reflections submission",
+            "question": "When and where must Reflections artwork be submitted?",
+            "answer": (
+                "Reflections artwork must be submitted to the Crone main office "
+                "by Friday, October 9, 2026."
+            ),
+            "source": "Crone PTSA Newsletter - 2026-09-16",
+            "event_date": "2026-10-09",
+            "status": "Active",
+        }
+    )
+    stale = (
+        "Q: What is the current status of Crone's Reflections Art Program?\n"
+        "A: The screening process is underway. Results are awaited."
+    )
+    chunks, best = faq_service.merge_timing_evidence_chunks(
+        "is the reflections competition over?",
+        [stale],
+    )
+    assert best is not None
+    assert best.get("faq_id") == "REF-DEADLINE"
+    assert "October 9, 2026" in chunks[0]
+    assert faq_service._chunk_looks_undated_status(stale)
+    assert all(not faq_service._chunk_looks_undated_status(c) for c in chunks)
+
+
+def test_timing_ask_seeds_dated_evidence_into_llm(monkeypatch, tmp_path):
+    from app.faq_records import clear_faq_records_cache, upsert_record
+
+    monkeypatch.setattr("app.faq_records.FAQ_RECORDS_FILE", tmp_path / "faq_records.json")
+    monkeypatch.setattr("app.faq_records.FAQ_GCS_BUCKET", "")
+    clear_faq_records_cache()
+    upsert_record(
+        {
+            "faq_id": "REF-STATUS",
+            "category": "Reflections",
+            "question": "What is the current status of Crone's Reflections Art Program?",
+            "answer": (
+                "The screening process for entries is underway. "
+                "The newsletter says results are awaited."
+            ),
+            "source": "Crone PTSA – Frequently Asked Questions",
+            "status": "Active",
+        }
+    )
+    upsert_record(
+        {
+            "faq_id": "REF-DEADLINE",
+            "category": "Reflections",
+            "question": "When and where must Reflections artwork be submitted?",
+            "answer": (
+                "Reflections artwork must be submitted by Friday, October 9, 2026."
+            ),
+            "source": "Crone PTSA Newsletter - 2026-09-16",
+            "event_date": "2026-10-09",
+            "status": "Active",
+        }
+    )
+
+    class FakeResponse:
+        output_text = (
+            '{"answer":"Yes — Reflections submissions were due October 9, 2026, '
+            'so that phase is over.","confidence":0.92}'
+        )
+        usage = type("U", (), {"input_tokens": 80, "output_tokens": 30})()
+
+    seen: dict = {}
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            seen["input"] = kwargs["input"]
+            seen["instructions"] = kwargs["instructions"]
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, api_key: str):
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(faq_service, "OPENAI_MODEL", "gpt-4o-mini")
+    monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: "faq")
+    monkeypatch.setattr(
+        faq_service,
+        "retrieve_chunks",
+        lambda question, faq_text=None, faq_path=None: [
+            "Q: What is the current status of Crone's Reflections Art Program?\n"
+            "A: The screening process is underway. Results are awaited."
+        ],
+    )
+    monkeypatch.setattr(
+        faq_service,
+        "chicago_today",
+        lambda: __import__("datetime").date(2026, 11, 24),
+    )
+
+    detailed = faq_service.answer_faq_detailed(
+        "is the reflections competition over?"
+    )
+    assert "October 9, 2026" in seen["input"]
+    assert "Prefer FAQ excerpts with concrete dates" in seen["instructions"]
+    # Undated status blurb must not lead the excerpts when dated evidence exists.
+    first_excerpt = seen["input"].split("FAQ EXCERPTS:\n", 1)[1].split("\n\n---\n\n")[0]
+    assert "October 9, 2026" in first_excerpt
+    assert "underway" not in first_excerpt.lower()
+    assert "over" in detailed.answer.lower()
+    assert detailed.faq_id == "REF-DEADLINE"
+    assert detailed.source_name == "Crone PTSA Newsletter - 2026-09-16"
+
+
 def test_direct_qa_reshape_runs_when_gated(monkeypatch):
     multi = (
         "The 6th grade band and orchestra concert is scheduled for Wednesday, "

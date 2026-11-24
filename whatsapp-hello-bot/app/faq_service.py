@@ -31,7 +31,11 @@ RULES:
 2. Do not invent dates, times, locations, fees, rules, requirements, names, links, or deadlines that are not in the FAQ excerpts.
 3. Every factual statement in your answer must be supported by the FAQ excerpts (timing status may also use TODAY'S DATE).
 4. Prefer close wording matches. Example: FAQ "Q: Best flower in world / A: tomato" answers "what is the best flower in the world?".
-5. When the parent asks whether an event is over, ongoing, upcoming, or "is it still happening", compare FAQ start/end dates to TODAY'S DATE and state that clearly (e.g. "Yes — it ended on November 9, 2026.").
+5. When the parent asks whether an event is over, ongoing, upcoming, or "is it still happening":
+   - Prefer FAQ excerpts with concrete dates or deadlines over undated status blurbs (e.g. "underway", "results awaited", "in progress").
+   - Compare those dates/deadlines to TODAY'S DATE and answer clearly yes/no when the dates decide it (e.g. "Yes — the submission deadline was October 9, 2026, so that phase is over.").
+   - If a later FAQ says the event advanced, completed, or finished, treat that as stronger than an older undated "underway" note.
+   - After the yes/no, briefly cite the key phase dates from the excerpts (e.g. submission deadline, judging date, advancement) when they support the timing answer. Do not dump unrelated FAQ rows.
 6. PARTIAL ANSWERS ARE ALLOWED AND PREFERRED:
    - If the FAQ supports part of the question, answer that part clearly.
    - For any part the FAQ does not support (for example a missing deadline or order link), say that the FAQ does not include that detail and suggest contacting the school office, activity director, or PTSA Administrators as appropriate.
@@ -374,8 +378,167 @@ def is_timing_status_question(text: str) -> bool:
     return bool(_TIMING_STATUS_RE.search(text or ""))
 
 
+_TIMING_TOPIC_STOP = frozenset(
+    {
+        "over",
+        "ended",
+        "done",
+        "finished",
+        "closed",
+        "open",
+        "still",
+        "happening",
+        "ongoing",
+        "upcoming",
+        "started",
+        "begun",
+        "already",
+        "yet",
+        "past",
+        "passed",
+        "competition",
+        "event",
+        "program",
+        "status",
+    }
+)
+_UNDATED_STATUS_RE = re.compile(
+    r"\b("
+    r"underway|in\s+progress|awaited|awaiting|pending|still\s+being|"
+    r"results?\s+are\s+awaited|screening\s+process"
+    r")\b",
+    re.I,
+)
+_ADVANCEMENT_RE = re.compile(
+    r"\b("
+    r"advance(?:d|s|ment)?|selected\s+to\s+advance|moved\s+on|"
+    r"district\s+level|completed|finished|concluded"
+    r")\b",
+    re.I,
+)
+
+
 def _ordinal_tokens(tokens: set[str]) -> set[str]:
     return {t for t in tokens if _ORDINAL_TOKEN_RE.match(t)}
+
+
+def _format_record_chunk(rec: dict) -> str:
+    return (
+        f"Category: {rec.get('category') or ''}\n"
+        f"Q: {rec.get('question') or ''}\n"
+        f"A: {rec.get('answer') or ''}"
+    ).strip()
+
+
+def _record_has_usable_date(rec: dict) -> bool:
+    if str(rec.get("event_date") or "").strip():
+        return True
+    blob = f"{rec.get('question') or ''} {rec.get('answer') or ''}"
+    return bool(_distinct_date_keys(blob))
+
+
+def _chunk_looks_undated_status(chunk: str) -> bool:
+    """True for dateless 'underway/awaited' blurbs that mislead timing asks."""
+    text = (chunk or "").strip()
+    if not text:
+        return False
+    if _distinct_date_keys(text):
+        return False
+    return bool(_UNDATED_STATUS_RE.search(text))
+
+
+def _timing_topic_tokens(question: str) -> set[str]:
+    tokens = _normalize_for_match(question)
+    return {t for t in tokens if t not in _TIMING_TOPIC_STOP and t not in _STOPWORDS}
+
+
+def find_timing_evidence_records(
+    question: str,
+    *,
+    limit: int = 4,
+) -> list[dict]:
+    """Topic-related FAQ rows with dates — preferred evidence for timing asks."""
+    from app.faq_records import list_records
+
+    topic = _timing_topic_tokens(question)
+    if len(topic) < 1:
+        return []
+    scored: list[tuple[float, dict]] = []
+    for rec in list_records(include_inactive=False):
+        if not _record_has_usable_date(rec):
+            continue
+        faq_tokens = _normalize_for_match(
+            f"{rec.get('question') or ''} {rec.get('answer') or ''} "
+            f"{rec.get('category') or ''}"
+        )
+        overlap = topic & faq_tokens
+        if not overlap:
+            continue
+        score = len(overlap) / max(len(topic), 1)
+        # Prefer rows whose question/category also mention the topic.
+        q_overlap = topic & _normalize_for_match(
+            f"{rec.get('question') or ''} {rec.get('category') or ''}"
+        )
+        if q_overlap:
+            score += 0.25 * (len(q_overlap) / max(len(topic), 1))
+        if score >= 0.34:
+            scored.append((score, rec))
+    scored.sort(
+        key=lambda pair: (
+            pair[0],
+            1 if str(pair[1].get("event_date") or "").strip() else 0,
+            str(pair[1].get("published_date") or ""),
+        ),
+        reverse=True,
+    )
+    return [rec for _, rec in scored[: max(1, limit)]]
+
+
+def merge_timing_evidence_chunks(
+    question: str,
+    chunks: list[str],
+    *,
+    seed_chunk: str | None = None,
+) -> tuple[list[str], dict | None]:
+    """Prepend dated topic FAQs; demote undated status blurbs for timing asks.
+
+    Returns (ordered_chunks, best_dated_record_or_none).
+    """
+    dated_recs = find_timing_evidence_records(question)
+    dated_chunks = [_format_record_chunk(r) for r in dated_recs]
+    best_dated = dated_recs[0] if dated_recs else None
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def _add(chunk: str) -> None:
+        key = (chunk or "").strip()
+        if not key or key in seen:
+            return
+        seen.add(key)
+        ordered.append(key)
+
+    for chunk in dated_chunks:
+        _add(chunk)
+    if seed_chunk and not _chunk_looks_undated_status(seed_chunk):
+        _add(seed_chunk)
+
+    undated_status: list[str] = []
+    for chunk in chunks or []:
+        if _chunk_looks_undated_status(chunk) and dated_chunks:
+            undated_status.append(chunk)
+            continue
+        _add(chunk)
+    # Keep undated status only at the end (and only if nothing dated was found,
+    # we already skipped demotion above when dated_chunks is empty).
+    if not dated_chunks:
+        for chunk in undated_status:
+            _add(chunk)
+    elif seed_chunk and _chunk_looks_undated_status(seed_chunk):
+        # Explicit seed that is undated status: keep last, never first.
+        _add(seed_chunk)
+
+    return ordered, best_dated
 
 
 def _best_faq_record(question: str) -> tuple[dict | None, float]:
@@ -568,17 +731,14 @@ def answer_faq_detailed(
         match_score = 0.0
         status_seed_chunk: str | None = None
         status_seed_meta: dict | None = None
+        timing_ask = is_timing_status_question(cleaned_question)
 
         if faq_path is None:
             rec, match_score = score_faq_records(cleaned_question)
             if rec:
-                direct_chunk = (
-                    f"Category: {rec.get('category') or ''}\n"
-                    f"Q: {rec.get('question') or ''}\n"
-                    f"A: {rec.get('answer') or ''}"
-                ).strip()
+                direct_chunk = _format_record_chunk(rec)
                 # "Is it over?" needs TODAY + LLM — not a raw date paste.
-                if is_timing_status_question(cleaned_question):
+                if timing_ask:
                     if not allow_rag:
                         result = FaqAnswer(
                             answer=FAQ_NOT_FOUND_MESSAGE,
@@ -660,7 +820,18 @@ def answer_faq_detailed(
             faq_text=faq_text,
             faq_path=faq_path,
         )
-        if status_seed_chunk:
+        if timing_ask and faq_path is None:
+            # Prefer dated topic FAQs; demote undated "underway/awaited" blurbs.
+            chunks, best_dated = merge_timing_evidence_chunks(
+                cleaned_question,
+                chunks,
+                seed_chunk=status_seed_chunk,
+            )
+            if best_dated:
+                status_seed_meta = best_dated
+                if not match_score:
+                    match_score = 0.0
+        elif status_seed_chunk:
             # Ensure the direct-matched event FAQ is in the LLM excerpts.
             if status_seed_chunk not in chunks:
                 chunks = [status_seed_chunk, *chunks]
