@@ -100,13 +100,19 @@ def faq_result(faq, *, engine) -> AnswerResult:
     else:
         fallback = None
         outcome = "answered"
+    mode = getattr(faq, "retrieval_mode", None) or ""
+    sources = (
+        ["newsletter_sections"]
+        if mode == "newsletter_sections"
+        else ["faq_records"]
+    )
     return AnswerResult(
         messages=[answer],
         route="faq",
         engine_id=engine.id,
         engine_version=engine.version,
         intent="faq",
-        sources=["faq_records"],
+        sources=sources,
         model_usage=ModelUsage(
             model=OPENAI_MODEL if faq.llm_invocations else None,
             invocations=faq.llm_invocations,

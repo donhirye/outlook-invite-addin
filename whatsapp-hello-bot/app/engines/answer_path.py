@@ -40,4 +40,20 @@ def answer(ctx: ConversationContext, *, engine) -> AnswerResult:
         return builders.calendar_result(cal, engine=engine)
 
     faq = answer_faq_detailed(text, allow_rag=True)
+    if builders.faq_is_hit(faq.answer):
+        return builders.faq_result(faq, engine=engine)
+
+    # Optional safety net (off by default): newsletter HTML/section RAG after FAQ miss.
+    from app.config import USE_NEWSLETTER_SECTION_RAG
+
+    if USE_NEWSLETTER_SECTION_RAG:
+        try:
+            from app.newsletter_section_rag import answer_from_newsletter_sections
+
+            section = answer_from_newsletter_sections(text)
+        except Exception:
+            section = None
+        if section is not None and builders.faq_is_hit(section.answer):
+            return builders.faq_result(section, engine=engine)
+
     return builders.faq_result(faq, engine=engine)

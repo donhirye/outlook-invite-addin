@@ -196,11 +196,14 @@
     const m = (mode || "").toLowerCase();
     let active = null;
     if (m === "direct_qa" || m === "direct" || m === "direct_qa_reshaped") active = "qa";
-    else if (m === "rag") active = "rag";
+    else if (m === "rag" || m === "newsletter_sections") active = "rag";
     else if (m === "overview" || m === "overview_llm" || m === "calendar") active = "overview";
     const labels = [
       { id: "qa", label: m === "direct_qa_reshaped" ? "Q/A (reshaped)" : "Q/A" },
-      { id: "rag", label: "rag" },
+      {
+        id: "rag",
+        label: m === "newsletter_sections" ? "rag (sections)" : "rag",
+      },
       { id: "overview", label: "overview" },
     ];
     return choiceLine(labels, active);

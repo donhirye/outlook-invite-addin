@@ -98,6 +98,28 @@ USE_NEWSLETTER_COMBINED_FAQ_INDEX = _env(
     "USE_NEWSLETTER_COMBINED_FAQ_INDEX", "false"
 ).lower() in {"1", "true", "yes", "on"}
 
+# Optional FAQ-miss safety net: retrieve archived newsletter HTML/section chunks.
+# Default OFF — FAQ Q/A + structured FAQ RAG remain the only live path until enabled.
+USE_NEWSLETTER_SECTION_RAG = _env(
+    "USE_NEWSLETTER_SECTION_RAG", "false"
+).lower() in {"1", "true", "yes", "on"}
+NEWSLETTER_ISSUES_LOCAL = Path(
+    _env(
+        "NEWSLETTER_ISSUES_LOCAL",
+        str(BASE_DIR / "data" / "newsletter_archive" / "issues"),
+    )
+)
+NEWSLETTER_SECTIONS_INDEX_LOCAL = Path(
+    _env(
+        "NEWSLETTER_SECTIONS_INDEX_LOCAL",
+        str(BASE_DIR / "data" / "newsletter_archive" / "sections_index.json"),
+    )
+)
+NEWSLETTER_SECTIONS_INDEX_GCS_OBJECT = _env(
+    "NEWSLETTER_SECTIONS_INDEX_GCS_OBJECT",
+    "newsletter_archive/sections_index.json",
+)
+
 # RAG retrieval
 FAQ_EMBEDDING_MODEL = _env("FAQ_EMBEDDING_MODEL", "text-embedding-3-small")
 try:
