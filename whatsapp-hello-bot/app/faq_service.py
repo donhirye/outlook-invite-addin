@@ -452,6 +452,30 @@ def _timing_topic_tokens(question: str) -> set[str]:
     return {t for t in tokens if t not in _TIMING_TOPIC_STOP and t not in _STOPWORDS}
 
 
+def _topic_overlap_score(question_topic: set[str], rec: dict) -> float:
+    faq_tokens = _normalize_for_match(
+        f"{rec.get('question') or ''} {rec.get('answer') or ''} "
+        f"{rec.get('category') or ''}"
+    )
+    overlap = question_topic & faq_tokens
+    if not overlap:
+        return 0.0
+    score = len(overlap) / max(len(question_topic), 1)
+    q_overlap = question_topic & _normalize_for_match(
+        f"{rec.get('question') or ''} {rec.get('category') or ''}"
+    )
+    if q_overlap:
+        score += 0.25 * (len(q_overlap) / max(len(question_topic), 1))
+    return score
+
+
+def _record_looks_advancement(rec: dict) -> bool:
+    blob = f"{rec.get('question') or ''} {rec.get('answer') or ''}"
+    if _chunk_looks_undated_status(blob):
+        return False
+    return bool(_ADVANCEMENT_RE.search(blob))
+
+
 def find_timing_evidence_records(
     question: str,
     *,
@@ -467,26 +491,41 @@ def find_timing_evidence_records(
     for rec in list_records(include_inactive=False):
         if not _record_has_usable_date(rec):
             continue
-        faq_tokens = _normalize_for_match(
-            f"{rec.get('question') or ''} {rec.get('answer') or ''} "
-            f"{rec.get('category') or ''}"
-        )
-        overlap = topic & faq_tokens
-        if not overlap:
-            continue
-        score = len(overlap) / max(len(topic), 1)
-        # Prefer rows whose question/category also mention the topic.
-        q_overlap = topic & _normalize_for_match(
-            f"{rec.get('question') or ''} {rec.get('category') or ''}"
-        )
-        if q_overlap:
-            score += 0.25 * (len(q_overlap) / max(len(topic), 1))
+        score = _topic_overlap_score(topic, rec)
         if score >= 0.34:
             scored.append((score, rec))
     scored.sort(
         key=lambda pair: (
             pair[0],
             1 if str(pair[1].get("event_date") or "").strip() else 0,
+            str(pair[1].get("published_date") or ""),
+        ),
+        reverse=True,
+    )
+    return [rec for _, rec in scored[: max(1, limit)]]
+
+
+def find_timing_advancement_records(
+    question: str,
+    *,
+    limit: int = 2,
+) -> list[dict]:
+    """Topic FAQs that say the event advanced/finished (even without a date)."""
+    from app.faq_records import list_records
+
+    topic = _timing_topic_tokens(question)
+    if len(topic) < 1:
+        return []
+    scored: list[tuple[float, dict]] = []
+    for rec in list_records(include_inactive=False):
+        if not _record_looks_advancement(rec):
+            continue
+        score = _topic_overlap_score(topic, rec)
+        if score >= 0.34:
+            scored.append((score, rec))
+    scored.sort(
+        key=lambda pair: (
+            pair[0],
             str(pair[1].get("published_date") or ""),
         ),
         reverse=True,
@@ -505,8 +544,24 @@ def merge_timing_evidence_chunks(
     Returns (ordered_chunks, best_dated_record_or_none).
     """
     dated_recs = find_timing_evidence_records(question)
-    dated_chunks = [_format_record_chunk(r) for r in dated_recs]
-    best_dated = dated_recs[0] if dated_recs else None
+    advance_recs = find_timing_advancement_records(question)
+    preferred_recs = list(dated_recs)
+    seen_ids = {
+        str(r.get("faq_id") or "").strip()
+        for r in preferred_recs
+        if str(r.get("faq_id") or "").strip()
+    }
+    for rec in advance_recs:
+        fid = str(rec.get("faq_id") or "").strip()
+        if fid and fid in seen_ids:
+            continue
+        preferred_recs.append(rec)
+        if fid:
+            seen_ids.add(fid)
+    preferred_chunks = [_format_record_chunk(r) for r in preferred_recs]
+    best_dated = dated_recs[0] if dated_recs else (
+        advance_recs[0] if advance_recs else None
+    )
 
     ordered: list[str] = []
     seen: set[str] = set()
@@ -518,20 +573,20 @@ def merge_timing_evidence_chunks(
         seen.add(key)
         ordered.append(key)
 
-    for chunk in dated_chunks:
+    for chunk in preferred_chunks:
         _add(chunk)
     if seed_chunk and not _chunk_looks_undated_status(seed_chunk):
         _add(seed_chunk)
 
     undated_status: list[str] = []
     for chunk in chunks or []:
-        if _chunk_looks_undated_status(chunk) and dated_chunks:
+        if _chunk_looks_undated_status(chunk) and preferred_chunks:
             undated_status.append(chunk)
             continue
         _add(chunk)
-    # Keep undated status only at the end (and only if nothing dated was found,
-    # we already skipped demotion above when dated_chunks is empty).
-    if not dated_chunks:
+    # Keep undated status only at the end (and only if nothing preferred was found,
+    # we already skipped demotion above when preferred_chunks is empty).
+    if not preferred_chunks:
         for chunk in undated_status:
             _add(chunk)
     elif seed_chunk and _chunk_looks_undated_status(seed_chunk):

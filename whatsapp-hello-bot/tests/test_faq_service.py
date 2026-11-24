@@ -173,6 +173,20 @@ def test_merge_timing_evidence_prefers_dated_over_undated_status(
             "status": "Active",
         }
     )
+    upsert_record(
+        {
+            "faq_id": "REF-ADVANCE",
+            "category": "Reflections",
+            "question": "What happened to the Crone entries in the Reflections program?",
+            "answer": (
+                "Entries from Crone were selected to advance to the district "
+                "level of the Reflections program."
+            ),
+            "source": "Crone PTSA Newsletter - 2026-10-28",
+            "published_date": "2026-10-28",
+            "status": "Active",
+        }
+    )
     stale = (
         "Q: What is the current status of Crone's Reflections Art Program?\n"
         "A: The screening process is underway. Results are awaited."
@@ -184,6 +198,7 @@ def test_merge_timing_evidence_prefers_dated_over_undated_status(
     assert best is not None
     assert best.get("faq_id") == "REF-DEADLINE"
     assert "October 9, 2026" in chunks[0]
+    assert any("advance to the district" in c for c in chunks)
     assert faq_service._chunk_looks_undated_status(stale)
     assert all(not faq_service._chunk_looks_undated_status(c) for c in chunks)
 
@@ -263,6 +278,7 @@ def test_timing_ask_seeds_dated_evidence_into_llm(monkeypatch, tmp_path):
     )
     assert "October 9, 2026" in seen["input"]
     assert "Prefer FAQ excerpts with concrete dates" in seen["instructions"]
+    assert "briefly cite the key phase dates" in seen["instructions"]
     # Undated status blurb must not lead the excerpts when dated evidence exists.
     first_excerpt = seen["input"].split("FAQ EXCERPTS:\n", 1)[1].split("\n\n---\n\n")[0]
     assert "October 9, 2026" in first_excerpt
