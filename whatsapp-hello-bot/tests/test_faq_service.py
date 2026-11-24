@@ -203,6 +203,17 @@ def test_merge_timing_evidence_prefers_dated_over_undated_status(
     assert all(not faq_service._chunk_looks_undated_status(c) for c in chunks)
 
 
+def test_is_timing_status_question_covers_can_still_submit():
+    assert faq_service.is_timing_status_question(
+        "is the reflections competition over?"
+    )
+    assert faq_service.is_timing_status_question(
+        "can i still submit for the reflections event"
+    )
+    assert faq_service.is_timing_status_question("am I too late to register?")
+    assert not faq_service.is_timing_status_question("what is reflections?")
+
+
 def test_timing_ask_seeds_dated_evidence_into_llm(monkeypatch, tmp_path):
     from app.faq_records import clear_faq_records_cache, upsert_record
 
@@ -286,6 +297,76 @@ def test_timing_ask_seeds_dated_evidence_into_llm(monkeypatch, tmp_path):
     assert "over" in detailed.answer.lower()
     assert detailed.faq_id == "REF-DEADLINE"
     assert detailed.source_name == "Crone PTSA Newsletter - 2026-09-16"
+
+
+def test_can_still_submit_uses_timing_path_and_polarity_rules(monkeypatch, tmp_path):
+    from app.faq_records import clear_faq_records_cache, upsert_record
+
+    monkeypatch.setattr("app.faq_records.FAQ_RECORDS_FILE", tmp_path / "faq_records.json")
+    monkeypatch.setattr("app.faq_records.FAQ_GCS_BUCKET", "")
+    clear_faq_records_cache()
+    upsert_record(
+        {
+            "faq_id": "REF-DEADLINE",
+            "category": "Reflections submission",
+            "question": "When and where must Reflections artwork be submitted?",
+            "answer": (
+                "Reflections artwork must be submitted to the Crone main office "
+                "by Friday, October 9, 2026."
+            ),
+            "source": "Crone PTSA Newsletter - 2026-09-16",
+            "event_date": "2026-10-09",
+            "status": "Active",
+        }
+    )
+
+    class FakeResponse:
+        output_text = (
+            '{"answer":"No — submissions were due October 9, 2026, so you can '
+            'no longer submit.","confidence":0.95}'
+        )
+        usage = type("U", (), {"input_tokens": 70, "output_tokens": 28})()
+
+    seen: dict = {}
+
+    class FakeResponses:
+        def create(self, **kwargs):
+            seen["input"] = kwargs["input"]
+            seen["instructions"] = kwargs["instructions"]
+            return FakeResponse()
+
+    class FakeClient:
+        def __init__(self, api_key: str):
+            self.responses = FakeResponses()
+
+    monkeypatch.setattr(faq_service, "OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(faq_service, "OPENAI_MODEL", "gpt-4o-mini")
+    monkeypatch.setattr(faq_service, "OpenAI", FakeClient)
+    monkeypatch.setattr(faq_service, "load_faq_text", lambda faq_path=None: "faq")
+    monkeypatch.setattr(
+        faq_service,
+        "retrieve_chunks",
+        lambda question, faq_text=None, faq_path=None: [
+            "Q: When and where must Reflections artwork be submitted?\n"
+            "A: Reflections artwork must be submitted by Friday, October 9, 2026."
+        ],
+    )
+    monkeypatch.setattr(
+        faq_service,
+        "chicago_today",
+        lambda: __import__("datetime").date(2026, 11, 24),
+    )
+
+    detailed = faq_service.answer_faq_detailed(
+        "can i still submit for the reflections event"
+    )
+    assert "Match Yes/No to the parent's question polarity" in seen["instructions"]
+    assert "Never open with Yes when the dates mean the parent cannot still act" in (
+        seen["instructions"]
+    )
+    assert "October 9, 2026" in seen["input"]
+    assert detailed.answer.lower().startswith("no")
+    assert detailed.faq_id == "REF-DEADLINE"
 
 
 def test_direct_qa_reshape_runs_when_gated(monkeypatch):

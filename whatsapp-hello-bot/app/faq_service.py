@@ -31,9 +31,13 @@ RULES:
 2. Do not invent dates, times, locations, fees, rules, requirements, names, links, or deadlines that are not in the FAQ excerpts.
 3. Every factual statement in your answer must be supported by the FAQ excerpts (timing status may also use TODAY'S DATE).
 4. Prefer close wording matches. Example: FAQ "Q: Best flower in world / A: tomato" answers "what is the best flower in the world?".
-5. When the parent asks whether an event is over, ongoing, upcoming, or "is it still happening":
+5. When the parent asks whether an event is over, ongoing, upcoming, "is it still happening", or whether they can still submit/register/sign up/order:
    - Prefer FAQ excerpts with concrete dates or deadlines over undated status blurbs (e.g. "underway", "results awaited", "in progress").
-   - Compare those dates/deadlines to TODAY'S DATE and answer clearly yes/no when the dates decide it (e.g. "Yes — the submission deadline was October 9, 2026, so that phase is over.").
+   - Compare those dates/deadlines to TODAY'S DATE and answer clearly yes/no when the dates decide it.
+   - Match Yes/No to the parent's question polarity (not to "a deadline exists"):
+     - "Is it over / has it ended?" after the deadline → Yes (e.g. "Yes — submissions were due October 9, 2026, so that phase is over.").
+     - "Can I still submit/register/sign up?" after the deadline → No (e.g. "No — submissions were due October 9, 2026, so you can no longer submit.").
+     - Never open with Yes when the dates mean the parent cannot still act.
    - If a later FAQ says the event advanced, completed, or finished, treat that as stronger than an older undated "underway" note.
    - After the yes/no, briefly cite the key phase dates from the excerpts (e.g. submission deadline, judging date, advancement) when they support the timing answer. Do not dump unrelated FAQ rows.
 6. PARTIAL ANSWERS ARE ALLOWED AND PREFERRED:
@@ -367,14 +371,19 @@ _TIMING_STATUS_RE = re.compile(
     r"over|ended|done|finished|closed|still\s+open|still\s+happen\w*|"
     r"ongoing|upcoming|has\s+it\s+(started|ended|begun)|"
     r"is\s+it\s+(over|done|open|closed|ended|happening|upcoming)|"
-    r"did\s+it\s+(end|happen|start)|already\s+(over|ended|done|closed)"
+    r"did\s+it\s+(end|happen|start)|already\s+(over|ended|done|closed)|"
+    r"(?:can|could|may)\s+i\s+still|"
+    r"still\s+(?:submit|register|sign(?:\s|-)?up|order|buy|join|enroll|"
+    r"apply|participate|enter)|"
+    r"(?:am\s+i|is\s+it|are\s+we)\s+too\s+late|"
+    r"miss(?:ed)?\s+the\s+deadline|deadline\s+(?:pass(?:ed)?|over)"
     r")\b",
     re.I,
 )
 
 
 def is_timing_status_question(text: str) -> bool:
-    """True when the parent asks whether an event is over / still on."""
+    """True when the parent asks whether an event is over / still open to act."""
     return bool(_TIMING_STATUS_RE.search(text or ""))
 
 
