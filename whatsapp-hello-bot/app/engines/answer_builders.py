@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import re
+from datetime import date
 
+from app.calendar_service import _parse_named_date
 from app.config import FAQ_NOT_FOUND_MESSAGE, OPENAI_MODEL, PARENT_FALLBACK_MESSAGE
 from app.engines.base import AnswerResult, ConversationContext, ModelUsage
 from app.faq_admin import HELP_TEXT, format_parent_answer, is_help_command
+from app.faq_records import chicago_today
 from app.overview_service import answer_overview, is_overview_question
 from app.privacy_filter import privacy_reply_if_needed
 
@@ -20,6 +23,19 @@ _CLUB_NAME_RE = re.compile(
 _CLUB_POINTER_RE = re.compile(
     r"(learn about|showcase|hear about).{0,80}\bclubs?\b|"
     r"\bclubs?,?\s+activities,?\s+and\s+athletics\b",
+    re.I,
+)
+# Featured / directory-style lists (Sep 11 announcements), not fee name-drops.
+_FEATURED_CLUB_HINT_RE = re.compile(
+    r"teachers of tomorrow|computer science|robotics|\bchess\b",
+    re.I,
+)
+_FEE_PRIMARY_RE = re.compile(
+    r"\b(fee|\$\s*\d+|on hold|no request to pay|participation fee)\b",
+    re.I,
+)
+_ALREADY_PASSED_RE = re.compile(
+    r"\s*That date has already passed\.?\s*",
     re.I,
 )
 
@@ -72,9 +88,17 @@ def faq_fully_answers(question: str, answer: str | None) -> bool:
         "fall fest" in a.lower() and bool(re.search(r"\bclubs?\b", a, re.I))
     )
 
-    # Broad "what/about clubs" needs a real list, not Fall Fest or a single club fee.
+    # Broad "what/about clubs" needs a directory-style list, not fee + a few names.
     if _asks_club_list(question):
-        if len(names) >= 2:
+        if pointer:
+            return False
+        fee_primary = bool(_FEE_PRIMARY_RE.search(a))
+        featured = bool(_FEATURED_CLUB_HINT_RE.search(a))
+        if fee_primary and not featured:
+            return False
+        if featured and len(names) >= 2:
+            return True
+        if len(names) >= 4:
             return True
         return False
 
@@ -85,17 +109,37 @@ def faq_fully_answers(question: str, answer: str | None) -> bool:
     return True
 
 
-def combine_opportunity_with_detail(opportunity: str, detail: str) -> str:
-    """Lead with an event opportunity, then the real answer from FAQ/sections."""
+def opportunity_lead_in(opportunity: str, *, today: date | None = None) -> str:
+    """Date-aware lead-in: past vs upcoming vs unspecified opportunity."""
+    opp = _ALREADY_PASSED_RE.sub(" ", (opportunity or "").strip()).strip()
+    if not opp:
+        return ""
+    today = today or chicago_today()
+    event_day = _parse_named_date(opp)
+    if event_day is not None and event_day < today:
+        return f"One past opportunity: {opp}"
+    if event_day is not None and event_day > today:
+        return f"One upcoming opportunity: {opp}"
+    return f"One opportunity: {opp}"
+
+
+def combine_opportunity_with_detail(
+    opportunity: str,
+    detail: str,
+    *,
+    today: date | None = None,
+) -> str:
+    """Lead with an event opportunity (past/upcoming from today's date), then detail."""
     opp = (opportunity or "").strip()
     det = (detail or "").strip()
     if not opp:
         return det
     if not det:
-        return opp
+        return opportunity_lead_in(opp, today=today) or opp
     if det.lower() in opp.lower() or opp.lower() in det.lower():
         return det
-    return f"One opportunity: {opp}\n\n{det}"
+    lead = opportunity_lead_in(opp, today=today)
+    return f"{lead}\n\n{det}"
 
 
 def help_or_privacy(ctx: ConversationContext, *, engine) -> AnswerResult | None:

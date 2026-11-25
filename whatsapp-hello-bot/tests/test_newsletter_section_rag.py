@@ -212,7 +212,13 @@ def test_answer_path_uses_sections_after_faq_miss_when_enabled(monkeypatch):
 
 
 def test_faq_fully_answers_rejects_fall_fest_club_pointer():
-    from app.engines.answer_builders import faq_fully_answers
+    from datetime import date
+
+    from app.engines.answer_builders import (
+        combine_opportunity_with_detail,
+        faq_fully_answers,
+        opportunity_lead_in,
+    )
 
     fall_fest = (
         "Fall Fest is Tuesday, September 1, 2026, from 3:10 PM to 4:00 PM at Crone. "
@@ -231,6 +237,28 @@ def test_faq_fully_answers_rejects_fall_fest_club_pointer():
     )
     assert faq_fully_answers("tell me about clubs at crone", fee_only) is False
     assert faq_fully_answers("is there a club fee?", fee_only) is True
+    fee_with_examples = (
+        "Clubs including ASL, Fishing Club and Panther Blog are starting meetings "
+        "during the week of September 21, 2026. The $10 club participation fee is "
+        "on hold."
+    )
+    assert faq_fully_answers("tell me about clubs at crone", fee_with_examples) is False
+
+    assert opportunity_lead_in(fall_fest, today=date(2026, 11, 24)).startswith(
+        "One past opportunity:"
+    )
+    upcoming = (
+        "Spring Showcase is Friday, April 10, 2027, at Crone. "
+        "Families can learn about clubs and activities."
+    )
+    assert opportunity_lead_in(upcoming, today=date(2026, 11, 24)).startswith(
+        "One upcoming opportunity:"
+    )
+    combined = combine_opportunity_with_detail(
+        fall_fest, named, today=date(2026, 11, 24)
+    )
+    assert combined.startswith("One past opportunity:")
+    assert "Teachers of Tomorrow" in combined
 
 
 def test_trim_section_excerpt_keeps_club_window():
@@ -321,7 +349,7 @@ def test_weak_faq_opportunity_then_section_rag(monkeypatch):
     )
     out = answer_path.answer(ctx, engine=Eng())
     assert calls["faq"] == 2
-    assert "One opportunity:" in out.messages[0]
+    assert "One past opportunity:" in out.messages[0] or "One opportunity:" in out.messages[0]
     assert "Fall Fest" in out.messages[0]
     assert "ASL" in out.messages[0]
     assert "Teachers of Tomorrow" in out.messages[0]
