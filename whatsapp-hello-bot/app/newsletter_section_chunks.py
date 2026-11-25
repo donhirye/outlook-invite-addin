@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 
 _HEADING_RE = re.compile(r"^##\s+(.+?)\s*$", re.M)
 _MIN_BODY_CHARS = 40
+# Long Smore dumps bury club lists / links past a short lead-in — window, don't chop.
+_MAX_CHUNK_CHARS = 1800
+_CHUNK_OVERLAP = 240
 
 
 def _issue_date_from_folder(folder: Path, metadata: dict[str, Any]) -> str:
@@ -37,6 +40,32 @@ def _source_label(folder: Path, metadata: dict[str, Any], issue_date: str) -> st
     return series
 
 
+def _window_body(body: str, *, max_chars: int = _MAX_CHUNK_CHARS) -> list[str]:
+    """Split long section bodies into overlapping windows (never drop the tail)."""
+    text = (body or "").strip()
+    if not text:
+        return []
+    if len(text) <= max_chars:
+        return [text]
+    windows: list[str] = []
+    start = 0
+    n = len(text)
+    while start < n:
+        end = min(n, start + max_chars)
+        if end < n:
+            # Prefer breaking on a newline near the window end.
+            cut = text.rfind("\n", start + max_chars // 2, end)
+            if cut > start:
+                end = cut
+        piece = text[start:end].strip()
+        if len(piece) >= _MIN_BODY_CHARS:
+            windows.append(piece)
+        if end >= n:
+            break
+        start = max(end - _CHUNK_OVERLAP, start + 1)
+    return windows or [text[:max_chars]]
+
+
 def _chunks_from_sections(
     sections: list[tuple[str, str]],
     *,
@@ -51,21 +80,20 @@ def _chunks_from_sections(
         body = (body or "").strip()
         if len(body) < _MIN_BODY_CHARS:
             continue
-        # Skip giant noisy preamble dumps labeled Newsletter when shorter
-        # titled sections exist — still keep if it's the only content.
-        text = f"Section: {heading}\nIssue: {issue_date or folder.name}\n{body}"
-        out.append(
-            {
-                "text": text,
-                "metadata": {
-                    "heading": heading,
-                    "issue_folder": folder.name,
-                    "issue_date": issue_date,
-                    "source": source,
-                    "source_url": str(metadata.get("smore_url") or ""),
-                },
-            }
-        )
+        for part in _window_body(body):
+            text = f"Section: {heading}\nIssue: {issue_date or folder.name}\n{part}"
+            out.append(
+                {
+                    "text": text,
+                    "metadata": {
+                        "heading": heading,
+                        "issue_folder": folder.name,
+                        "issue_date": issue_date,
+                        "source": source,
+                        "source_url": str(metadata.get("smore_url") or ""),
+                    },
+                }
+            )
     return out
 
 
@@ -84,16 +112,14 @@ def parse_cleaned_sections_markdown(md: str) -> list[tuple[str, str]]:
         start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(text)
         body = text[start:end].strip()
-        # Drop archive boilerplate under the first mega dump when a real
-        # titled section follows; keep all ## blocks with enough body.
-        if heading.lower() in {"newsletter"} and len(body) > 2500:
-            # Prefer later structured sections; keep a truncated lead-in only
-            # if no other sections will be emitted.
-            sections.append((heading, body[:1200]))
-            continue
+        # Keep full section bodies (including mega Newsletter dumps). Windowing
+        # happens in _chunks_from_sections so club lists / links are not chopped.
         sections.append((heading, body))
-    # If we only kept a truncated Newsletter and nothing else usable, restore.
-    usable = [(h, b) for h, b in sections if h.lower() != "newsletter" or len(b) >= _MIN_BODY_CHARS]
+    usable = [
+        (h, b)
+        for h, b in sections
+        if h.lower() != "newsletter" or len(b) >= _MIN_BODY_CHARS
+    ]
     if not usable and sections:
         return sections
     return usable

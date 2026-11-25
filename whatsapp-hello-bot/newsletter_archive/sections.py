@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from html import unescape
 from typing import Iterable
 
+from newsletter_archive.html_text import element_text_with_links, rewrite_anchor_tags
 from newsletter_archive.models import IssueMetadata
 
 try:
@@ -35,22 +35,19 @@ def _require_bs4():
         )
 
 
-def _clean_inline(text: str) -> str:
-    text = unescape(text or "")
-    text = re.sub(r"\s+", " ", text).strip()
-    return text
-
-
 def _iter_blocks(soup) -> Iterable[tuple[str, str]]:
-    """Yield (kind, text) where kind is heading|para|list|link."""
+    """Yield (kind, text) where kind is heading|para|list.
+
+    Anchors are rewritten to markdown on a per-element copy so hrefs stay
+    attached to the surrounding sentence (not detached 10k+ chars away).
+    """
     for el in soup.find_all(
-        ["h1", "h2", "h3", "h4", "h5", "p", "li", "td", "th", "a", "div", "span"]
+        ["h1", "h2", "h3", "h4", "h5", "p", "li", "td", "th", "div", "span"]
     ):
         name = el.name.lower()
         if name in {"script", "style", "noscript"}:
             continue
-        # Prefer leaf-ish text for div/span only when they look like headings
-        text = _clean_inline(el.get_text(" ", strip=True))
+        text = element_text_with_links(el)
         if not text or len(text) < 2:
             continue
         if _SKIP_TEXT.match(text):
@@ -59,10 +56,6 @@ def _iter_blocks(soup) -> Iterable[tuple[str, str]]:
             yield ("heading", text)
         elif name in {"li"}:
             yield ("list", text)
-        elif name == "a" and el.get("href"):
-            href = el.get("href") or ""
-            if href.startswith("mailto:") or href.startswith("http"):
-                yield ("link", f"[{text}]({href})")
         elif name in {"p", "td", "th"}:
             yield ("para", text)
         elif name in {"div", "span"}:
@@ -81,6 +74,8 @@ def html_to_sections(html: str) -> list[Section]:
         soup = BeautifulSoup(html or "", "html.parser")
     for tag in soup(["script", "style", "noscript"]):
         tag.decompose()
+    # Rewrite top-level so overlapping div dumps also carry markdown links.
+    rewrite_anchor_tags(soup)
 
     sections: list[Section] = []
     current = Section(heading="Newsletter", body_lines=[])
@@ -90,7 +85,6 @@ def html_to_sections(html: str) -> list[Section]:
         key = text.lower()
         if key in seen_lines:
             continue
-        # Soft dedupe only exact repeats
         if kind == "heading":
             if current.body_lines or current.heading != "Newsletter":
                 sections.append(current)

@@ -16,6 +16,7 @@ For each incoming FAQ:
 - If it asks the same parent question and adds supported details, update the existing FAQ, preserve its FAQ_ID, and add the supporting source and URL to the provenance fields.
 - If it repeats the same facts, do not add another FAQ. Add the additional source to provenance when it independently supports the retained answer.
 - Keep separate FAQs for distinct parent intents, even when they concern the same event. Do not collapse an event’s deadline, eligibility, registration and pickup into one record merely because they share an event name.
+- Clubs: keep a featured club-list / "what clubs are starting" FAQ separate from fee and registration-instructions FAQs. Do not merge a named club roster (Teachers of Tomorrow, ASL, etc.) into a fee or start-date update. Preserve announcements/learn-more URLs inside club-list Answers.
 - If sources conflict: classify as Conflict, still flag it for review, but prefer the LATEST newsletter candidate as the canonical answer text (do not keep the older contradictory answer as the live row). Preserve the existing FAQ_ID. Set status Needs_Review. In the note, report old vs new values and both sources. Never silently resolve without flagging.
 - Do not delete historical or unrelated records. Do not globally rewrite the existing dataset during an incremental update.
 

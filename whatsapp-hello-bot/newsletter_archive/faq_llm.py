@@ -86,20 +86,10 @@ def _bullets(items: list[str]) -> list[str]:
 
 
 def newsletter_plain_text(html: str) -> str:
-    from bs4 import BeautifulSoup
+    """Plain text for the extractor with actionable hrefs kept as markdown links."""
+    from newsletter_archive.html_text import html_to_text_preserve_links
 
-    try:
-        soup = BeautifulSoup(html or "", "lxml")
-    except Exception:
-        soup = BeautifulSoup(html or "", "html.parser")
-    for tag in soup(["script", "style", "noscript"]):
-        tag.decompose()
-    text = soup.get_text("\n", strip=True)
-    text = text.replace("\u200c", "").replace("\xa0", " ")
-    text = re.sub(r"[ \t]+\n", "\n", text)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    text = re.sub(r"(?:\u00ad|\u200b|\u200c|\s){8,}", " ", text)
-    return text.strip()
+    return html_to_text_preserve_links(html or "")
 
 
 def source_display_name(metadata: IssueMetadata) -> str:

@@ -15,11 +15,25 @@ Extract parent-useful information stated in this issue, including:
 - Events, dates, times, locations, eligibility, deadlines, costs and instructions
 - Registration, ordering, donation and volunteer actions
 - PTSA information, school activities and official staff contacts
+- Clubs, activities, and athletics offerings (named clubs, how to learn more, fees, registration)
 - Team-level sports results when they are reported; never include individual student names, scores or statistics
 - Useful links and the destination of links labelled "here," "flyer," "document," "this link," "click here," or similar
 - Embedded/markdown links where the URL is hidden in the anchor, e.g.
   [please use this link to order … at Boomer Tees.](https://out.smore.com/…)
   or HTML <a href="…">order and pick up your shirt…</a>
+- Newsletter text may already include markdown links like
+  [Check out today's student announcements…](https://out.smore.com/…); keep those URLs in Answers
+
+CLUBS / ACTIVITIES DIRECTORY (required when the issue names clubs)
+- When an issue lists or features specific clubs or activities (e.g. Teachers of Tomorrow,
+  Computer Science, Robotics, Chess, ASL), create a standalone FAQ such as
+  "What clubs are featured at Crone?" or "What clubs are starting soon?"
+- The Answer MUST include the named clubs AND any announcements / "hear about clubs" /
+  "check out" / student-announcements URL from the issue (plain URL inside the Answer).
+- Keep club participation fees and "how registration info comes home" as SEPARATE FAQ rows.
+  Do not bury the club list inside a fee-only question.
+- Do not merge a featured club-list FAQ away into a later fee or start-date update; those
+  are different parent retrieval needs.
 
 LINK CAPTURE (required for actionable answers)
 - Always capture BOTH the visible link text AND the destination href.
@@ -34,10 +48,14 @@ LINK CAPTURE (required for actionable answers)
   flag that limitation under missing_or_inaccessible / Needs_Review when uncertain.
 - Prefer a stable merchant/portal URL (Boomer Tees, PushCoin, yearbookordercenter, etc.)
   when the source clearly shows it; otherwise keep the exact href from the newsletter.
+- Also treat learn-more / announcements links as actionable when they are how parents
+  hear about clubs, activities, or offerings (e.g. "check out today's student
+  announcements", "hear about a few of our clubs", "this episode"). Put that href in
+  the Answer for the clubs/activities FAQ.
 
 For HTML and markdown, never drop an actionable href when writing the Answer.
 
-Create one FAQ for each distinct parent question or retrieval need. Keep separate questions for distinct actions or facts, such as eligibility, deadline, submission requirements, prize, ordering, pickup and contact details. Combine related details in one answer when they answer the same question. Do not create paraphrased duplicates.
+Create one FAQ for each distinct parent question or retrieval need. Keep separate questions for distinct actions or facts, such as eligibility, deadline, submission requirements, prize, ordering, pickup, featured club lists and contact details. Combine related details in one answer when they answer the same question. Do not create paraphrased duplicates.
 
 Make every question and answer understandable without the newsletter. Use absolute dates when supported by the issue. Distinguish the publication date from event dates. Do not turn a past event into an upcoming one. Use only source-supported facts.
 

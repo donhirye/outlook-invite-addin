@@ -37,6 +37,30 @@ A $10 fee is charged for all club participants.
     assert "Robotics" in clubs_body
 
 
+def test_parse_keeps_full_newsletter_body_with_clubs_and_link():
+    """Mega Newsletter dumps must not be truncated before club list / URL."""
+    lead = ("x" * 1500) + "\n"
+    clubs = (
+        "[Check out today's student announcements]"
+        "(https://out.smore.com/render/8035u/CQrKdW?__$u__). "
+        "The clubs features in this episode are Teachers of Tomorrow, "
+        "Computer Science, Robotics, Chess, and ASL club.\n"
+    )
+    md = f"# Title\n\n## Newsletter\n\n{lead}{clubs}\n## Other\n\nShort other section body here.\n"
+    sections = dict(chunks_mod.parse_cleaned_sections_markdown(md))
+    body = sections["Newsletter"]
+    assert "Teachers of Tomorrow" in body
+    assert "CQrKdW" in body
+    chunks = chunks_mod._chunks_from_sections(
+        list(sections.items()),
+        folder=Path("Crones_Weekly_Newsletter_2026-09-11"),
+        metadata={"issue_date": "2026-09-11"},
+    )
+    joined = "\n".join(c["text"] for c in chunks)
+    assert "Teachers of Tomorrow" in joined
+    assert "CQrKdW" in joined
+
+
 def test_chunk_issue_folder_from_cleaned_sections(tmp_path):
     folder = tmp_path / "Crones_Weekly_Newsletter_2026-09-11"
     folder.mkdir()
